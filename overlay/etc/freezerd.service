@@ -1,0 +1,7 @@
+[Unit]
+Description=SMTH background app freezer
+[Service]
+ExecStart=/usr/bin/freezerd
+Restart=always
+[Install]
+WantedBy=graphical.target
