@@ -1,0 +1,18 @@
+[Unit]
+Description=SMTH session (stand-in: Weston until smthd is ready)
+After=systemd-user-sessions.service systemd-logind.service live-config.service
+Conflicts=getty@tty1.service
+
+[Service]
+User=smth
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+UtmpIdentifier=tty1
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStartPre=/bin/mkdir -p /run/user/1000
+ExecStart=/usr/bin/weston --backend=drm --config=/etc/xdg/weston/weston.ini
+Restart=on-failure
+
+[Install]
+WantedBy=graphical.target
