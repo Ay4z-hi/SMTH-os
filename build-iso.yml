@@ -1,0 +1,20 @@
+name: Build SMTH OS ISO
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ISO
+        run: bash ./build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smth-os-iso
+          path: build/*.iso
+          retention-days: 14
