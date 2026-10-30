@@ -1,0 +1,26 @@
+#!/bin/sh
+# live-build auto/config: single code-base, two native targets (amd64 / arm64).
+set -e
+ARCH="${SMTH_ARCH:-$(dpkg --print-architecture)}"
+case "$ARCH" in
+  amd64) BL="syslinux,grub-efi"; FLAV="amd64" ;;
+  arm64) BL="grub-efi";          FLAV="arm64" ;;
+  *) echo "unsupported SMTH_ARCH=$ARCH (use amd64 or arm64)" >&2; exit 1 ;;
+esac
+# arch-specific package list (box64 on arm64, wine on amd64)
+mkdir -p config/package-lists
+rm -f config/package-lists/90-arch.list.chroot
+cp "arch/$ARCH.list" config/package-lists/90-arch.list.chroot
+
+lb config noauto \
+  --mode debian --distribution trixie --architectures "$ARCH" \
+  --archive-areas "main contrib non-free-firmware" \
+  --apt-recommends false --apt-indices false \
+  --debootstrap-options "--variant=minbase" \
+  --binary-images iso-hybrid --bootloaders "$BL" \
+  --debian-installer none --linux-flavours "$FLAV" \
+  --memtest none --win32-loader false \
+  --iso-application "SMTH OS" --iso-publisher "SMTH OS" --iso-volume "SMTH_OS_$ARCH" \
+  --chroot-squashfs-compression-type zstd \
+  --bootappend-live "boot=live components quiet username=smth hostname=smth" \
+  "${@}"
