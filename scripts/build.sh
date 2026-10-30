@@ -20,9 +20,8 @@ install -D -m755 freezerd/target/release/freezerd "$C/usr/bin/freezerd"
 chmod +x "$C"/usr/local/bin/* "$C"/usr/local/lib/smth/* 2>/dev/null || true
 
 $SUDO lb clean --purge >/dev/null 2>&1 || true
-$SUDO -E lb config
-$SUDO -E lb build
-
+$SUDO env SMTH_ARCH=$SMTH_ARCH lb config
+$SUDO env SMTH_ARCH=$SMTH_ARCH lb build
 mkdir -p out
 ISO="$(ls -1 ./*.iso | head -n1)"
 $SUDO mv "$ISO" "out/smth-os-$SMTH_ARCH.iso"
