@@ -1,0 +1,5 @@
+[org/gnome/desktop/interface]
+color-scheme='prefer-dark'
+icon-theme='SMTH'
+font-name='Inter 10'
+monospace-font-name='DejaVu Sans Mono 10'
