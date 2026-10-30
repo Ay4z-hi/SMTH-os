@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""SMTH Settings: libadwaita front-end over nmcli, bluetoothctl, wlr-randr, powerprofilesctl."""
+import os, subprocess, sys
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, Gtk
+
+CONF = os.path.expanduser("~/.config/smth/hypervisor.conf")
+
+def run(*cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=8).stdout
+    except Exception:
+        return ""
+
+def group(page, title):
+    g = Adw.PreferencesGroup(title=title); page.add(g); return g
+
+def network():
+    p = Adw.PreferencesPage()
+    g = group(p, "Wi-Fi")
+    sw = Adw.SwitchRow(title="Wi-Fi")
+    sw.set_active(run("nmcli", "radio", "wifi").strip() == "enabled")
+    sw.connect("notify::active", lambda r, _: run("nmcli", "radio", "wifi", "on" if r.get_active() else "off"))
+    g.add(sw)
+    nets = group(p, "Available networks")
+    seen = set()
+    for line in run("nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi").splitlines():
+        try:
+            ssid, sig, sec = line.rsplit(":", 2)
+        except ValueError:
+            continue
+        ssid = ssid.replace("\\:", ":")
+        if ssid and ssid not in seen:
+            seen.add(ssid)
+            nets.add(Adw.ActionRow(title=ssid, subtitle=f"{sig}% · {sec or 'open'}"))
+    return p
+
+def bluetooth():
+    p = Adw.PreferencesPage()
+    g = group(p, "Bluetooth")
+    sw = Adw.SwitchRow(title="Bluetooth")
+    sw.set_active("Powered: yes" in run("bluetoothctl", "show"))
+    sw.connect("notify::active", lambda r, _: run("bluetoothctl", "power", "on" if r.get_active() else "off"))
+    g.add(sw)
+    d = group(p, "Paired devices")
+    for line in run("bluetoothctl", "devices", "Paired").splitlines():
+        parts = line.split(" ", 2)
+        if len(parts) == 3:
+            d.add(Adw.ActionRow(title=parts[2], subtitle=parts[1]))
+    return p
+
+def display():
+    p = Adw.PreferencesPage()
+    g = group(p, "Outputs")
+    scales = ["1.0", "1.25", "1.5", "2.0"]
+    for line in run("wlr-randr").splitlines():
+        if line and not line[0].isspace():
+            name = line.split()[0]
+            row = Adw.ComboRow(title=f"{name} scale", model=Gtk.StringList.new(scales))
+            row.connect("notify::selected", lambda r, _, n=name: run("wlr-randr", "--output", n, "--scale", scales[r.get_selected()]))
+            g.add(row)
+    lay = group(p, "Layout")
+    modes = ["auto", "mobile", "desktop"]
+    row = Adw.ComboRow(title="Layout mode", model=Gtk.StringList.new(modes))
+    def set_mode(r, _):
+        m = modes[r.get_selected()]
+        d = os.path.expanduser("~/.config/smth"); os.makedirs(d, exist_ok=True)
+        open(os.path.join(d, "mode"), "w").write(m)
+        subprocess.Popen(["smth-mode", m])
+    row.connect("notify::selected", set_mode)
+    lay.add(row)
+    return p
+
+def power():
+    p = Adw.PreferencesPage()
+    g = group(p, "Power profile")
+    profiles = ["power-saver", "balanced", "performance"]
+    row = Adw.ComboRow(title="Profile", model=Gtk.StringList.new(profiles))
+    cur = run("powerprofilesctl", "get").strip()
+    if cur in profiles:
+        row.set_selected(profiles.index(cur))
+    row.connect("notify::selected", lambda r, _: run("powerprofilesctl", "set", profiles[r.get_selected()]))
+    g.add(row)
+    return p
+
+def hypervisor():
+    cfg = {"RAM": "2048", "CPUS": "2", "PREFER_KVM": "1"}
+    if os.path.exists(CONF):
+        for l in open(CONF):
+            if "=" in l:
+                k, v = l.strip().split("=", 1); cfg[k] = v
+    def save(*_):
+        os.makedirs(os.path.dirname(CONF), exist_ok=True)
+        open(CONF, "w").write("".join(f"{k}={v}\n" for k, v in cfg.items()))
+    p = Adw.PreferencesPage()
+    g = group(p, "VM defaults (SMTH Hypervisor)")
+    ram = Adw.SpinRow.new_with_range(512, 65536, 256); ram.set_title("Memory (MB)"); ram.set_value(int(cfg["RAM"]))
+    cpu = Adw.SpinRow.new_with_range(1, 32, 1); cpu.set_title("CPU cores"); cpu.set_value(int(cfg["CPUS"]))
+    kvm = Adw.SwitchRow(title="Use KVM when available"); kvm.set_active(cfg["PREFER_KVM"] == "1")
+    ram.connect("notify::value", lambda r, _: (cfg.update(RAM=str(int(r.get_value()))), save()))
+    cpu.connect("notify::value", lambda r, _: (cfg.update(CPUS=str(int(r.get_value()))), save()))
+    kvm.connect("notify::active", lambda r, _: (cfg.update(PREFER_KVM="1" if r.get_active() else "0"), save()))
+    for w in (ram, cpu, kvm):
+        g.add(w)
+    return p
+
+def updates():
+    p = Adw.PreferencesPage()
+    g = group(p, "System updates")
+    row = Adw.ActionRow(title="Check for updates", subtitle="Runs apt in a terminal. Live sessions reset on reboot.")
+    b = Gtk.Button(label="Update", valign=Gtk.Align.CENTER)
+    b.connect("clicked", lambda *_: subprocess.Popen(["alacritty", "-e", "sh", "-c", "sudo apt update && sudo apt full-upgrade; read -p done"]))
+    row.add_suffix(b); g.add(row)
+    return p
+
+PAGES = [("network", "Network", "network-wireless-symbolic", network),
+         ("bluetooth", "Bluetooth", "bluetooth-symbolic", bluetooth),
+         ("display", "Display", "video-display-symbolic", display),
+         ("power", "Power", "battery-symbolic", power),
+         ("hypervisor", "VMs", "computer-symbolic", hypervisor),
+         ("updates", "Updates", "software-update-available-symbolic", updates)]
+
+def on_activate(app):
+    stack = Adw.ViewStack()
+    for name, title, icon, build in PAGES:
+        stack.add_titled_with_icon(build(), name, title, icon)
+    bar = Adw.ViewSwitcherBar(stack=stack, reveal=True)   # bottom tabs: thumb friendly on mobile
+    tv = Adw.ToolbarView(content=stack)
+    tv.add_top_bar(Adw.HeaderBar(title_widget=Adw.WindowTitle(title="Settings", subtitle="")))
+    tv.add_bottom_bar(bar)
+    win = Adw.ApplicationWindow(application=app, content=tv, default_width=420, default_height=760)
+    win.present()
+
+app = Adw.Application(application_id="os.smth.Settings")
+app.connect("activate", on_activate)
+sys.exit(app.run(sys.argv))

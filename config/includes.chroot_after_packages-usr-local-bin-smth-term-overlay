@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Quick-toggle drop-down terminal (keyboard W-` or the dock button on mobile).
+if pgrep -f 'alacritty.*smth-overlay' >/dev/null; then pkill -f 'alacritty.*smth-overlay'; exit 0; fi
+setsid alacritty --class smth-overlay,smth-overlay \
+  -o window.dimensions.columns=110 -o window.dimensions.lines=20 -o window.opacity=0.88 >/dev/null 2>&1 &

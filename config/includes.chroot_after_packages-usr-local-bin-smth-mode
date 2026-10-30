@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# smth-mode [mobile|desktop|auto]: swap shell layout without restarting apps.
+set -uo pipefail
+D="$HOME/.config/smth"; mkdir -p "$D"
+want="${1:-auto}"
+[ "$want" = auto ] && [ -f "$D/mode" ] && want="$(cat "$D/mode")"
+if [ "$want" = auto ]; then
+  outputs="$(wlr-randr 2>/dev/null | grep -c '^[A-Za-z]')"
+  chassis="$(hostnamectl chassis 2>/dev/null || echo desktop)"
+  if [ "${outputs:-1}" -gt 1 ]; then want=desktop
+  else case "$chassis" in handset|tablet|convertible) want=mobile ;; *) want=desktop ;; esac; fi
+fi
+[ "$(cat "$D/.current" 2>/dev/null)" = "$want" ] && exit 0
+echo "$want" > "$D/.current"
+mkdir -p "$HOME/.config/labwc"
+cp "$D/rc-$want.xml" "$HOME/.config/labwc/rc.xml"
+labwc --reconfigure 2>/dev/null || true
+pkill -x waybar; setsid waybar -c "$D/waybar-$want.jsonc" -s "$D/waybar.css" >/dev/null 2>&1 &
+if [ "$want" = mobile ]; then pgrep -x wvkbd-mobintl >/dev/null || setsid wvkbd-mobintl --hidden >/dev/null 2>&1 &
+else pkill -x wvkbd-mobintl; fi
+notify-send "SMTH" "Layout: $want" 2>/dev/null || true

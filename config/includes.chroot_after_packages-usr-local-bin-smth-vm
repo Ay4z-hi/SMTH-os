@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# smth-vm run <image> [--arch x86_64|aarch64] [--ram MB] [--cpus N]
+# Headless-capable QEMU wrapper: KVM when guest arch == host arch, TCG otherwise.
+set -euo pipefail
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/smth/hypervisor.conf"
+RAM=2048; CPUS=2; PREFER_KVM=1
+[ -f "$CONF" ] && . "$CONF"
+[ "${1:-}" = run ] || { echo "usage: smth-vm run <image> [--arch A] [--ram MB] [--cpus N]"; exit 2; }
+img="$2"; shift 2
+host="$(uname -m)"; arch="$host"
+case "${img,,}" in *aarch64*|*arm64*) arch=aarch64 ;; *x86_64*|*amd64*) arch=x86_64 ;; esac
+while [ $# -gt 0 ]; do case "$1" in
+  --arch) arch="$2"; shift 2 ;; --ram) RAM="$2"; shift 2 ;; --cpus) CPUS="$2"; shift 2 ;; *) shift ;; esac; done
+
+first() { for p in "$@"; do [ -f "$p" ] && { echo "$p"; return; }; done; }
+if [ "$arch" = x86_64 ]; then
+  q=qemu-system-x86_64; machine=q35; gpu=virtio-vga-gl
+  fw="$(first /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_CODE.fd /usr/share/ovmf/OVMF.fd)"
+else
+  q=qemu-system-aarch64; machine=virt; gpu=virtio-gpu-gl-pci
+  fw="$(first /usr/share/AAVMF/AAVMF_CODE.fd /usr/share/qemu-efi-aarch64/QEMU_EFI.fd)"
+fi
+[ -n "$fw" ] || { echo "UEFI firmware not found"; exit 1; }
+
+accel=(-cpu max)
+if [ "$arch" = "$host" ] && [ -w /dev/kvm ] && [ "$PREFER_KVM" = 1 ]; then
+  accel=(-enable-kvm -cpu host)
+elif [ "$arch" != "$host" ]; then
+  notify-send "SMTH Hypervisor" "Cross-architecture ($arch on $host): software emulation, expect it to be slow." 2>/dev/null || true
+fi
+
+case "${img,,}" in
+  *.iso) drive=(-drive "file=$img,if=none,id=cd0,media=cdrom,readonly=on" -device virtio-scsi-pci -device scsi-cd,drive=cd0) ;;
+  *) fmt="$(qemu-img info "$img" 2>/dev/null | awk '/file format/{print $3}')"
+     drive=(-drive "file=$img,if=virtio,format=${fmt:-raw}") ;;
+esac
+
+exec "$q" -machine "$machine" "${accel[@]}" -m "$RAM" -smp "$CPUS" \
+  -bios "$fw" "${drive[@]}" \
+  -device "$gpu" -display gtk,gl=on \
+  -device qemu-xhci -device usb-kbd -device usb-tablet \
+  -nic user,model=virtio-net-pci -name "SMTH VM: $(basename "$img")"

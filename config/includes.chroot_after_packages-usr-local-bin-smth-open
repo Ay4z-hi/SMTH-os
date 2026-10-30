@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# smth-open <file>: launch ANY supported file. Used by the file manager and the terminal.
+set -uo pipefail
+f="${1:?usage: smth-open <file>}"
+host="$(uname -m)"
+say() { notify-send "SMTH Hypervisor" "$1" 2>/dev/null || true; echo "$1" >&2; }
+ext="${f##*.}"; ext="${ext,,}"
+
+run_elf() {
+  local info; info="$(file -b "$f")"
+  chmod u+x "$f" 2>/dev/null || true
+  case "$info" in
+    *x86-64*) [ "$host" = x86_64 ] && exec "$f"
+              command -v box64 >/dev/null && exec box64 "$f"
+              say "x86-64 binary on $host needs box64 (arm64 image only)"; exit 1 ;;
+    *aarch64*|*ARM\ aarch64*) [ "$host" = aarch64 ] && exec "$f"
+              command -v qemu-aarch64 >/dev/null && exec qemu-aarch64 "$f"
+              say "aarch64 binary needs qemu-user"; exit 1 ;;
+  esac
+  return 1
+}
+
+case "$ext" in
+  iso|img|qcow2|vdi|vmdk|raw) exec smth-vm run "$f" ;;
+  exe|msi|bat)
+    if [ "$host" = x86_64 ] && command -v wine >/dev/null; then exec wine "$f"; fi
+    w="$HOME/.local/share/smth/wine-x64/bin/wine64"
+    if [ "$host" = aarch64 ] && command -v box64 >/dev/null && [ -x "$w" ]; then exec box64 "$w" "$f"; fi
+    say "Windows apps: x86_64 uses Wine. On arm64, unpack an x86_64 Wine build into ~/.local/share/smth/wine-x64/ (runs under box64)."; exit 1 ;;
+  apk)
+    command -v waydroid >/dev/null || { say "APK support needs Waydroid. Run: sudo smth-install-waydroid"; exit 1; }
+    waydroid status 2>/dev/null | grep -q RUNNING || waydroid session start &
+    sleep 3; exec waydroid app install "$f" ;;
+  bin|elf|"")
+    run_elf || exec smth-vm run "$f" ;;
+  *)
+    run_elf || { say "Don't know how to launch .$ext"; exit 1; } ;;
+esac

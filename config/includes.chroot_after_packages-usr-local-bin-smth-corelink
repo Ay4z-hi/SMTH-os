@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# SMTH CoreLink v0: device discovery/pairing, file + clipboard sync (KDE Connect protocol), screen mirroring (wayvnc).
+set -euo pipefail
+case "${1:-status}" in
+  status) kdeconnect-cli -l ;;
+  pair)   kdeconnect-cli -d "${2:?device id}" --pair ;;
+  send)   kdeconnect-cli -d "${2:?device id}" --share "${3:?file}" ;;
+  clip)   wl-paste | kdeconnect-cli -d "${2:?device id}" --ping-msg "$(cat)" ;;
+  mirror) echo "Mirroring on $(hostname -I | awk '{print $1}'):5900 (any VNC client)"; exec wayvnc 0.0.0.0 5900 ;;
+  *) echo "usage: smth-corelink status|pair ID|send ID FILE|clip ID|mirror"; exit 2 ;;
+esac

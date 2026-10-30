@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""SMTH Clock: dot-matrix clock, world time, stopwatch, timer, alarms."""
+import datetime, subprocess, sys, time, zoneinfo
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, GLib, Gtk
+
+FONT = {
+ "0": (14,17,19,21,25,17,14), "1": (4,12,4,4,4,4,14), "2": (14,17,1,2,4,8,31),
+ "3": (30,1,1,14,1,1,30),     "4": (2,6,10,18,31,2,2), "5": (31,16,30,1,1,17,14),
+ "6": (6,8,16,30,17,17,14),   "7": (31,1,2,4,8,8,8),   "8": (14,17,17,14,17,17,14),
+ "9": (14,17,17,15,1,2,12),   ":": (0,4,4,0,4,4,0),
+}
+RED, WHITE, OFF = (1.0, 0.0, 0.2), (1, 1, 1), (0.12, 0.12, 0.12)
+ZONES = ["Europe/London", "Asia/Tokyo", "America/New_York", "Australia/Sydney"]
+
+def draw_text(cr, text, x, y, dot):
+    for ch in text:
+        for r, bits in enumerate(FONT[ch]):
+            for c in range(5):
+                lit = (bits >> (4 - c)) & 1
+                cr.set_source_rgb(*((RED if ch == ":" else WHITE) if lit else OFF))
+                cr.arc(x + c * dot + dot / 2, y + r * dot + dot / 2, dot * 0.38, 0, 6.2832)
+                cr.fill()
+        x += 6 * dot
+
+def dot_label():
+    area = Gtk.DrawingArea(hexpand=True, vexpand=True, content_height=200)
+    def draw(_a, cr, w, h):
+        text = datetime.datetime.now().strftime("%H:%M")
+        dot = min(w / (6 * len(text)), h / 9)
+        draw_text(cr, text, (w - (6 * len(text) - 1) * dot) / 2, (h - 7 * dot) / 2, dot)
+    area.set_draw_func(draw)
+    GLib.timeout_add(1000, lambda: (area.queue_draw(), True)[1])
+    return area
+
+def notify(msg):
+    subprocess.Popen(["notify-send", "SMTH Clock", msg])
+    subprocess.Popen(["pw-play", "/usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga"])
+
+def clock_page():
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=12, margin_start=12, margin_end=12)
+    box.append(dot_label())
+    g = Adw.PreferencesGroup(title="World time"); rows = []
+    for z in ZONES:
+        r = Adw.ActionRow(title=z.split("/")[-1].replace("_", " ")); l = Gtk.Label(css_classes=["dotmatrix"])
+        r.add_suffix(l); g.add(r); rows.append((z, l))
+    def tick():
+        for z, l in rows:
+            l.set_text(datetime.datetime.now(zoneinfo.ZoneInfo(z)).strftime("%H:%M"))
+        return True
+    tick(); GLib.timeout_add(1000, tick); box.append(g)
+    return box
+
+def stopwatch_page():
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16, valign=Gtk.Align.CENTER)
+    lab = Gtk.Label(label="00:00.0", css_classes=["dotmatrix", "title-1"])
+    st = {"t0": None, "acc": 0.0}
+    def tick():
+        el = st["acc"] + (time.monotonic() - st["t0"] if st["t0"] else 0)
+        lab.set_text(f"{int(el // 60):02d}:{el % 60:04.1f}"); return True
+    GLib.timeout_add(100, tick)
+    def toggle(b):
+        if st["t0"]:
+            st["acc"] += time.monotonic() - st["t0"]; st["t0"] = None; b.set_label("Start")
+        else:
+            st["t0"] = time.monotonic(); b.set_label("Stop")
+    def reset(_):
+        st["t0"] = None; st["acc"] = 0.0; tick()
+    go = Gtk.Button(label="Start", halign=Gtk.Align.CENTER, css_classes=["suggested-action", "pill"]); go.connect("clicked", toggle)
+    rs = Gtk.Button(label="Reset", halign=Gtk.Align.CENTER, css_classes=["pill"]); rs.connect("clicked", reset)
+    for w in (lab, go, rs):
+        box.append(w)
+    return box
+
+def timer_page():
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16, valign=Gtk.Align.CENTER, margin_start=12, margin_end=12)
+    lab = Gtk.Label(label="05:00", css_classes=["dotmatrix", "title-1"])
+    mins = Adw.SpinRow.new_with_range(1, 180, 1); mins.set_title("Minutes"); mins.set_value(5)
+    st = {"left": 0, "id": 0}
+    def tick():
+        st["left"] -= 1
+        lab.set_text(f"{st['left'] // 60:02d}:{st['left'] % 60:02d}")
+        if st["left"] <= 0:
+            notify("Timer finished"); st["id"] = 0; return False
+        return True
+    def start(_):
+        if st["id"]: GLib.source_remove(st["id"])
+        st["left"] = int(mins.get_value()) * 60; st["id"] = GLib.timeout_add_seconds(1, tick)
+    go = Gtk.Button(label="Start timer", halign=Gtk.Align.CENTER, css_classes=["suggested-action", "pill"]); go.connect("clicked", start)
+    for w in (lab, mins, go):
+        box.append(w)
+    return box
+
+def alarm_page():
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=12, margin_start=12, margin_end=12)
+    entry = Adw.EntryRow(title="New alarm (HH:MM)")
+    lst = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+    alarms = set(); fired = set()
+    def add(_e):
+        t = entry.get_text().strip()
+        try:
+            datetime.datetime.strptime(t, "%H:%M")
+        except ValueError:
+            return
+        if t not in alarms:
+            alarms.add(t); lst.append(Adw.ActionRow(title=t)); entry.set_text("")
+    entry.connect("apply", add); entry.set_show_apply_button(True)
+    def check():
+        now = datetime.datetime.now().strftime("%H:%M")
+        if now in alarms and now not in fired:
+            fired.add(now); notify(f"Alarm {now}")
+        elif now not in alarms:
+            fired.discard(now)
+        return True
+    GLib.timeout_add(1000, check)
+    box.append(entry); box.append(lst)
+    return box
+
+def on_activate(app):
+    stack = Adw.ViewStack()
+    for name, title, icon, fn in [("clock", "Clock", "preferences-system-time-symbolic", clock_page),
+                                  ("stopwatch", "Stopwatch", "media-playback-start-symbolic", stopwatch_page),
+                                  ("timer", "Timer", "hourglass-symbolic", timer_page),
+                                  ("alarm", "Alarm", "alarm-symbolic", alarm_page)]:
+        stack.add_titled_with_icon(fn(), name, title, icon)
+    tv = Adw.ToolbarView(content=stack)
+    tv.add_top_bar(Adw.HeaderBar(title_widget=Adw.WindowTitle(title="Clock", subtitle="")))
+    tv.add_bottom_bar(Adw.ViewSwitcherBar(stack=stack, reveal=True))
+    Adw.ApplicationWindow(application=app, content=tv, default_width=420, default_height=760).present()
+
+app = Adw.Application(application_id="os.smth.Clock")
+app.connect("activate", on_activate)
+sys.exit(app.run(sys.argv))

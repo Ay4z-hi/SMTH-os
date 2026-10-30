@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Optional: installs Waydroid (APK runtime). Needs the binder kernel module and network.
+set -e
+curl -fsSL https://repo.waydro.id | bash
+apt-get install -y waydroid
+waydroid init
+echo "Waydroid ready. Open an .apk with SMTH Hypervisor."
