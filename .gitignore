@@ -1,0 +1,9 @@
+/out/
+/chroot/
+/binary/
+/cache/
+/.build/
+/build.log
+/freezerd/target/
+/config/package-lists/90-arch.list.chroot
+/config/binary /config/bootstrap /config/chroot /config/common /config/source
