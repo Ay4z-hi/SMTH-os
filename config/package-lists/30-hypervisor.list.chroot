@@ -1,0 +1,9 @@
+qemu-system-x86
+qemu-system-arm
+qemu-system-gui
+qemu-utils
+qemu-user
+ovmf
+qemu-efi-aarch64
+wayvnc
+kdeconnect
