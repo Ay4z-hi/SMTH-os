@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SMTH Paint
+Exec=drawing
+Icon=smth-paint
+Comment=Draw and edit
+Terminal=false
+Categories=Utility;

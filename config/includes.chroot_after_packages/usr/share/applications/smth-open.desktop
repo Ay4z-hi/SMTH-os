@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SMTH Hypervisor
+Comment=Run ISO, IMG, EXE, APK and binaries
+Exec=smth-open %f
+Icon=smth-vm
+Terminal=false
+NoDisplay=true
+MimeType=application/x-cd-image;application/x-iso9660-image;application/x-smth-image;application/vnd.android.package-archive;application/x-msdownload;application/x-dosexec;application/x-ms-dos-executable;application/x-msi;application/x-executable;

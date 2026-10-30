@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SMTH Core CLI
+Exec=alacritty
+Icon=smth-terminal
+Comment=Terminal
+Terminal=false
+Categories=Utility;

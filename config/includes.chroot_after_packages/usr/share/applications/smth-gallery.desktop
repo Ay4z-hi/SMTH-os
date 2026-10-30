@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SMTH Gallery
+Exec=loupe %U
+Icon=smth-gallery
+Comment=View photos
+Terminal=false
+Categories=Utility;
+MimeType=image/jpeg;image/png;image/webp;image/gif;
