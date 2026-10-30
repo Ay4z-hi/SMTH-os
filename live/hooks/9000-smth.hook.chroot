@@ -1,5 +1,0 @@
-#!/bin/sh
-set -e
-systemctl enable smth-session.service freezerd.service zramswap.service NetworkManager.service
-systemctl set-default graphical.target
-systemctl disable getty@tty1.service || true
