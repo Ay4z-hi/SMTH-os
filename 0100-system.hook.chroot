@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+chmod +x /usr/local/bin/* /usr/local/lib/smth/* /etc/skel/.local/share/nautilus/scripts/* 2>/dev/null || true
+sed -i 's/^PRETTY_NAME=.*/PRETTY_NAME="SMTH OS"/' /etc/os-release
+echo 'vm.swappiness=150' > /etc/sysctl.d/99-smth.conf
+
+# services
+systemctl enable freezerd.service zramswap.service NetworkManager.service bluetooth.service 2>/dev/null || true
+systemctl set-default multi-user.target   # labwc is started from the autologin shell, not a display manager
+
+# desktop defaults (dark, SMTH icons, Inter)
+dconf update
+
+# MIME + desktop DB so images/.exe/.apk open in the SMTH Hypervisor
+update-mime-database /usr/share/mime
+update-desktop-database /usr/share/applications
+
+# generate the SMTH icon theme
+python3 /usr/local/share/smth/icons/gen_icons.py /usr/share/icons/SMTH
+gtk-update-icon-cache -f /usr/share/icons/SMTH 2>/dev/null || true
+
+# hide upstream launchers; SMTH-branded entries replace them
+for f in org.gnome.Nautilus org.gnome.Snapshot org.gnome.Loupe com.github.maoschanz.drawing Alacritty org.gnome.FileRoller; do
+  d=/usr/share/applications/$f.desktop
+  [ -f "$d" ] && sed -i '0,/^\[Desktop Entry\]/s//[Desktop Entry]\nNoDisplay=true/' "$d"
+done
