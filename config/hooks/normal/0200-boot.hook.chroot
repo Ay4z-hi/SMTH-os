@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+plymouth-set-default-theme smth || true
+update-initramfs -u || true

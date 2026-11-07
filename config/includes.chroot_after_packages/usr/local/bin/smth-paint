@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""SMTH Paint: layered canvas, vector-style stroke/shape history (undo/redo), brush engine, stylus pressure."""
+import math, random, sys
+sys.path.insert(0, "/usr/local/lib/smth")
+import cairo
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
+import smthdot as D
+
+CW, CH = 1600, 1000
+BRUSHES = ["round", "pencil", "marker", "spray", "eraser"]
+SHAPES = ["line", "rect", "ellipse"]
+
+class Layer:
+    def __init__(self, name):
+        self.name, self.visible, self.opacity, self.ops = name, True, 1.0, []
+        self.surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, CW, CH)
+
+def stamp(cr, op, p0, p1, rng):
+    size = op["size"]; pr = p1[2]
+    cr.set_line_cap(cairo.LINE_CAP_ROUND); cr.set_line_join(cairo.LINE_JOIN_ROUND)
+    b = op["brush"]
+    if b == "spray":
+        for _ in range(int(size * 1.6) + 4):
+            a, r = rng.random() * D.TAU, size * 1.8 * math.sqrt(rng.random())
+            cr.rectangle(p1[0] + r * math.cos(a), p1[1] + r * math.sin(a), 1.6, 1.6)
+        cr.fill(); return
+    if b == "marker": cr.set_source_rgba(*op["color"], 0.45)
+    elif b == "pencil": cr.set_source_rgba(*op["color"], 0.85)
+    cr.set_line_width(max(1.0, (size * 0.35 if b == "pencil" else size) * (0.35 + 0.65 * pr)))
+    j = (rng.random() - 0.5) * 1.2 if b == "pencil" else 0
+    cr.move_to(p0[0] + j, p0[1] + j); cr.line_to(p1[0] + j, p1[1] + j); cr.stroke()
+
+def paint_op(cr, op, rng=None):
+    cr.save()
+    if op["t"] == "image":
+        cr.set_source_surface(op["surf"], 0, 0); cr.paint(); cr.restore(); return
+    if op["brush"] == "eraser": cr.set_operator(cairo.OPERATOR_CLEAR)
+    else: cr.set_source_rgba(*op["color"], 1)
+    if op["t"] == "stroke":
+        rng = rng or random.Random(op["seed"]); pts = op["pts"]
+        for i, p in enumerate(pts): stamp(cr, op, pts[i - 1] if i else p, p, rng)
+    else:
+        (x0, y0), (x1, y1) = op["a"], op["b"]; cr.set_line_width(op["size"]); cr.set_line_join(cairo.LINE_JOIN_ROUND)
+        if op["kind"] == "line": cr.move_to(x0, y0); cr.line_to(x1, y1)
+        elif op["kind"] == "rect": cr.rectangle(min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0))
+        else:
+            cr.save(); cr.translate((x0 + x1) / 2, (y0 + y1) / 2); cr.scale(max(1, abs(x1 - x0) / 2), max(1, abs(y1 - y0) / 2))
+            cr.arc(0, 0, 1, 0, D.TAU); cr.restore()
+        cr.stroke()
+    cr.restore()
+
+class Paint(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, default_width=980, default_height=720)
+        self.layers = [Layer("Layer 1")]; self.cur = 0; self.undo, self.redo = [], []
+        self.tool, self.size, self.color, self.pressure, self.live = "round", 8.0, (1, 1, 1), 1.0, None
+        self.area = Gtk.DrawingArea(hexpand=True, vexpand=True); self.area.set_draw_func(self.draw)
+        d = Gtk.GestureDrag(button=0); d.connect("drag-begin", self.begin); d.connect("drag-update", self.update); d.connect("drag-end", self.end)
+        self.area.add_controller(d)
+        st = Gtk.GestureStylus(); st.connect("motion", self.on_stylus); st.connect("down", self.on_stylus); self.area.add_controller(st)
+
+        tv = Adw.ToolbarView(content=self.area)
+        hb = Adw.HeaderBar(title_widget=D.dot_label("PAINT", 3)); hb.add_css_class("flat")
+        for icon, fn in (("edit-undo-symbolic", self.do_undo), ("edit-redo-symbolic", self.do_redo)):
+            b = Gtk.Button(icon_name=icon); b.connect("clicked", lambda _b, f=fn: f()); hb.pack_start(b)
+        op_ = Gtk.Button(icon_name="document-open-symbolic"); op_.connect("clicked", self.open_png)
+        sv = Gtk.Button(icon_name="document-save-symbolic"); sv.connect("clicked", self.save_png)
+        hb.pack_end(sv); hb.pack_end(op_); tv.add_top_bar(hb)
+
+        bar = Gtk.Box(spacing=6, margin_top=6, margin_bottom=8, margin_start=8, margin_end=8, halign=Gtk.Align.CENTER)
+        first = None
+        for t in BRUSHES + SHAPES:
+            b = Gtk.ToggleButton(label=t.upper(), css_classes=["pill"], active=(t == self.tool))
+            if first is None: first = b
+            else: b.set_group(first)
+            b.connect("toggled", lambda b, t=t: b.get_active() and setattr(self, "tool", t)); bar.append(b)
+        self.scale = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 60, 1); self.scale.set_value(self.size); self.scale.set_size_request(120, -1)
+        self.scale.connect("value-changed", lambda s: setattr(self, "size", s.get_value())); bar.append(self.scale)
+        self.cbtn = Gtk.ColorDialogButton(dialog=Gtk.ColorDialog()); self.cbtn.set_rgba(Gdk.RGBA(1, 1, 1, 1))
+        self.cbtn.connect("notify::rgba", lambda b, _: self.set_color(b.get_rgba())); bar.append(self.cbtn)
+        self.lay_btn = Gtk.MenuButton(label="LAYERS", css_classes=["pill"]); self.pop = Gtk.Popover(); self.lay_btn.set_popover(self.pop); bar.append(self.lay_btn)
+        tv.add_bottom_bar(Gtk.ScrolledWindow(child=bar, vscrollbar_policy=Gtk.PolicyType.NEVER, hscrollbar_policy=Gtk.PolicyType.AUTOMATIC))
+        self.set_content(tv); self.build_layers()
+
+    # ---- view transform ----
+    def xf(self):
+        w, h = self.area.get_width(), self.area.get_height(); s = min(w / CW, h / CH) * 0.96
+        return s, (w - CW * s) / 2, (h - CH * s) / 2
+    def to_canvas(self, x, y):
+        s, ox, oy = self.xf(); return (x - ox) / s, (y - oy) / s
+
+    def draw(self, _a, cr, w, h):
+        cr.set_source_rgb(0.06, 0.06, 0.06); cr.paint()
+        s, ox, oy = self.xf(); cr.translate(ox, oy); cr.scale(s, s)
+        cr.set_source_rgb(0, 0, 0); cr.rectangle(0, 0, CW, CH); cr.fill_preserve(); cr.set_source_rgb(0.25, 0.25, 0.25); cr.set_line_width(2 / s); cr.stroke()
+        for L in self.layers:
+            if L.visible: cr.set_source_surface(L.surf, 0, 0); cr.paint_with_alpha(L.opacity)
+        if self.live and self.live["t"] == "shape": paint_op(cr, self.live)
+
+    # ---- input ----
+    def on_stylus(self, g, x, y):
+        ok, v = g.get_axis(Gdk.AxisUse.PRESSURE)
+        self.pressure = v if ok and v > 0 else 1.0
+    def begin(self, g, x, y):
+        sx, sy = g.get_start_point()[1:]; px, py = self.to_canvas(sx, sy); self.start = (px, py)
+        L = self.layers[self.cur]
+        col = self.color
+        if self.tool in BRUSHES:
+            self.live = {"t": "stroke", "brush": self.tool, "color": col, "size": self.size, "pts": [(px, py, self.pressure)], "seed": random.randrange(1 << 30)}
+            self.rng = random.Random(self.live["seed"]); cr = cairo.Context(L.surf)
+            stamp_cr = cr; paint_first = self.live; self.live_cr = cr
+            cr.save()
+            if self.tool == "eraser": cr.set_operator(cairo.OPERATOR_CLEAR)
+            else: cr.set_source_rgba(*col, 1)
+            stamp(cr, self.live, (px, py, self.pressure), (px, py, self.pressure), self.rng); cr.restore()
+        else:
+            self.live = {"t": "shape", "kind": self.tool, "brush": "round", "color": col, "size": self.size, "a": self.start, "b": self.start}
+        self.area.queue_draw()
+    def update(self, g, dx, dy):
+        if not self.live: return
+        sx, sy = g.get_start_point()[1:]; px, py = self.to_canvas(sx + dx, sy + dy)
+        if self.live["t"] == "stroke":
+            prev = self.live["pts"][-1]; p = (px, py, self.pressure); self.live["pts"].append(p)
+            cr = self.live_cr; cr.save()
+            if self.tool == "eraser": cr.set_operator(cairo.OPERATOR_CLEAR)
+            else: cr.set_source_rgba(*self.live["color"], 1)
+            stamp(cr, self.live, prev, p, self.rng); cr.restore()
+        else: self.live["b"] = (px, py)
+        self.area.queue_draw()
+    def end(self, g, dx, dy):
+        if not self.live: return
+        op, L = self.live, self.layers[self.cur]; self.live = None
+        if op["t"] == "shape": cr = cairo.Context(L.surf); paint_op(cr, op)
+        L.ops.append(op); self.undo.append((L, op)); self.redo.clear(); self.area.queue_draw()
+
+    # ---- history ----
+    def rebuild(self, L):
+        L.surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, CW, CH); cr = cairo.Context(L.surf)
+        for op in L.ops: paint_op(cr, op)
+    def do_undo(self):
+        if not self.undo: return
+        L, op = self.undo.pop(); L.ops.remove(op); self.redo.append((L, op)); self.rebuild(L); self.area.queue_draw()
+    def do_redo(self):
+        if not self.redo: return
+        L, op = self.redo.pop(); L.ops.append(op); self.undo.append((L, op)); self.rebuild(L); self.area.queue_draw()
+    def set_color(self, rgba): self.color = (rgba.red, rgba.green, rgba.blue)
+
+    # ---- layers ----
+    def build_layers(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, margin_top=8, margin_bottom=8, margin_start=8, margin_end=8)
+        for i, L in enumerate(self.layers):
+            row = Gtk.Box(spacing=6)
+            vis = Gtk.CheckButton(active=L.visible); vis.connect("toggled", lambda b, L=L: (setattr(L, "visible", b.get_active()), self.area.queue_draw()))
+            sel = Gtk.ToggleButton(label=L.name, active=(i == self.cur), hexpand=True); sel.connect("clicked", lambda b, i=i: self.select(i))
+            op = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 1, 0.05); op.set_value(L.opacity); op.set_size_request(80, -1)
+            op.connect("value-changed", lambda s, L=L: (setattr(L, "opacity", s.get_value()), self.area.queue_draw()))
+            dele = Gtk.Button(icon_name="user-trash-symbolic", css_classes=["flat"]); dele.connect("clicked", lambda b, i=i: self.remove(i))
+            for w in (vis, sel, op, dele): row.append(w)
+            box.append(row)
+        add = Gtk.Button(label="+ ADD LAYER", css_classes=["pill"]); add.connect("clicked", self.add_layer); box.append(add)
+        self.pop.set_child(box)
+    def select(self, i): self.cur = i; self.build_layers()
+    def add_layer(self, *_): self.layers.append(Layer("Layer %d" % (len(self.layers) + 1))); self.cur = len(self.layers) - 1; self.build_layers()
+    def remove(self, i):
+        if len(self.layers) == 1: return
+        gone = self.layers.pop(i); self.undo = [u for u in self.undo if u[0] is not gone]; self.cur = min(self.cur, len(self.layers) - 1)
+        self.build_layers(); self.area.queue_draw()
+
+    # ---- files ----
+    def save_png(self, *_):
+        d = Gtk.FileDialog(initial_name="drawing.png")
+        def done(dlg, res):
+            try: f = dlg.save_finish(res)
+            except GLib.Error: return
+            out = cairo.ImageSurface(cairo.FORMAT_ARGB32, CW, CH); cr = cairo.Context(out)
+            for L in self.layers:
+                if L.visible: cr.set_source_surface(L.surf, 0, 0); cr.paint_with_alpha(L.opacity)
+            out.write_to_png(f.get_path())
+        d.save(self, None, done)
+    def open_png(self, *_):
+        d = Gtk.FileDialog()
+        def done(dlg, res):
+            try: f = dlg.open_finish(res)
+            except GLib.Error: return
+            try: surf = cairo.ImageSurface.create_from_png(f.get_path())
+            except Exception: return
+            L = Layer("Image"); op = {"t": "image", "surf": surf, "brush": "round"}; paint_op(cairo.Context(L.surf), op)
+            L.ops.append(op); self.layers.append(L); self.cur = len(self.layers) - 1; self.build_layers(); self.area.queue_draw()
+        d.open(self, None, done)
+
+app = Adw.Application(application_id="os.smth.Paint")
+app.connect("activate", lambda a: Paint(a).present())
+sys.exit(app.run(sys.argv))

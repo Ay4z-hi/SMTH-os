@@ -1,0 +1,72 @@
+#!/usr/bin/env python3
+"""SMTH Store: install and remove apps (SMTH repository + Flathub)."""
+import sys, threading
+sys.path.insert(0, "/usr/local/lib/smth")
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, Gio, GLib, Gtk
+import pkgcore as P, smthdot as D
+
+def bg(fn, done):
+    def run():
+        try: r, e = fn(), None
+        except Exception as ex: r, e = None, ex
+        GLib.idle_add(lambda: (done(r, e), False)[1])
+    threading.Thread(target=run, daemon=True).start()
+
+class Store(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, default_width=520, default_height=760)
+        self.overlay = Adw.ToastOverlay(); self.stack = Adw.ViewStack(); self.groups = {}
+        for name, title, icon in (("repo", "SMTH", "system-software-install-symbolic"), ("flat", "Flathub", "emblem-shared-symbolic"), ("inst", "Installed", "emblem-ok-symbolic")):
+            page = Adw.PreferencesPage(); g = Adw.PreferencesGroup(); page.add(g); self.groups[name] = (g, []); self.stack.add_titled_with_icon(page, name, title, icon)
+        fg = self.groups["flat"][0]; self.search = Gtk.SearchEntry(placeholder_text="Search Flathub (Enter)", hexpand=True)
+        self.search.connect("activate", self.flat_search); fg.set_header_suffix(self.search)
+        tv = Adw.ToolbarView(content=self.stack); hb = Adw.HeaderBar(title_widget=D.dot_label("STORE", 3)); hb.add_css_class("flat")
+        rf = Gtk.Button(icon_name="view-refresh-symbolic"); rf.connect("clicked", lambda *_: self.refresh()); hb.pack_end(rf)
+        tv.add_top_bar(hb); tv.add_bottom_bar(Adw.ViewSwitcherBar(stack=self.stack, reveal=True)); self.overlay.set_child(tv); self.set_content(self.overlay); self.refresh()
+
+    def toast(self, m): self.overlay.add_toast(Adw.Toast.new(m))
+    def fill(self, key, rows):
+        g, old = self.groups[key]
+        for r in old: g.remove(r)
+        old.clear()
+        for r in rows: g.add(r); old.append(r)
+    def row(self, title, sub, label, cb):
+        r = Adw.ActionRow(title=GLib.markup_escape_text(title), subtitle=GLib.markup_escape_text(sub or "")); b = Gtk.Button(label=label, valign=Gtk.Align.CENTER, css_classes=["pill"])
+        def click(*_): b.set_sensitive(False); b.set_label("…"); cb(b)
+        b.connect("clicked", click); r.add_suffix(b); return r
+
+    def refresh(self):
+        def load(): return P.load_index()
+        def done(res, err):
+            if err: self.fill("repo", [Adw.ActionRow(title="Repository unavailable", subtitle=str(err))]); return
+            idx, signed, url = res; inst = P.installed(); rows = []
+            if not signed: rows.append(Adw.ActionRow(title="Unsigned repository", subtitle="Developer mode: no signing key installed"))
+            for p in idx.get("packages", []):
+                have = p["id"] in inst
+                rows.append(self.row(f"{p['name']}  {p['version']}", p.get("desc"), "Remove" if have else "Install", lambda b, p=p, have=have, url=url: self.act(p, url, have)))
+            self.fill("repo", rows)
+        bg(load, done); self.show_installed()
+
+    def act(self, p, url, have):
+        def job(): P.remove(p["id"]) if have else P.install(p, url)
+        bg(job, lambda r, e: (self.toast(("Failed: %s" % e) if e else ("Removed" if have else "Installed") + " " + p["name"]), self.refresh()))
+
+    def flat_search(self, *_):
+        q = self.search.get_text().strip()
+        if not q: return
+        def done(rows, err):
+            if err or not rows: self.fill("flat", [Adw.ActionRow(title="No results" if not err else "Search failed", subtitle=str(err or ""))]); return
+            self.fill("flat", [self.row(n, d, "Install", lambda b, a=a, n=n: bg(lambda: P.fp_install(a), lambda r, e: (self.toast(("Failed: %s" % e) if e else "Installed " + n), self.show_installed()))) for a, n, d in rows[:30]])
+        bg(lambda: P.fp_search(q), done)
+
+    def show_installed(self):
+        def done(fl, err):
+            rows = []
+            for pid, v in P.installed().items(): rows.append(self.row(v["name"], "SMTH package " + v["version"], "Remove", lambda b, pid=pid: bg(lambda: P.remove(pid), lambda r, e: (self.toast("Removed"), self.refresh()))))
+            for a, n in (fl or []): rows.append(self.row(n, a, "Remove", lambda b, a=a: bg(lambda: P.fp_remove(a), lambda r, e: (self.toast("Removed"), self.show_installed()))))
+            self.fill("inst", rows or [Adw.ActionRow(title="Nothing installed yet")])
+        bg(P.fp_list, done)
+
+app = Adw.Application(application_id="os.smth.Store"); app.connect("activate", lambda a: Store(a).present()); sys.exit(app.run(sys.argv))

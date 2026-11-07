@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=SMTH
+Description=Dot matrix boot animation
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/smth
+ScriptFile=/usr/share/plymouth/themes/smth/smth.script

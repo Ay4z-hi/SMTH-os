@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=SMTH Files
-Exec=nautilus %U
+Exec=smth-files %U
 Icon=smth-files
-Comment=Browse files, mount ISOs
+Comment=Files, ISO mounter, VMs
 Terminal=false
-Categories=Utility;
+Categories=System;FileManager;
 MimeType=inode/directory;

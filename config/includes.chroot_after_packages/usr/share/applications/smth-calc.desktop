@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SMTH Calc
+Exec=smth-calc
+Icon=smth-calc
+Comment=Calculator
+Terminal=false
+Categories=Utility;Calculator;
+

@@ -1,0 +1,14 @@
+{
+ "name": "SMTH Sample Repo",
+ "packages": [
+  {
+   "id": "hello",
+   "name": "Hello SMTH",
+   "version": "1.0",
+   "desc": "Sample app (shows a notification)",
+   "url": "hello-1.0.smthpkg",
+   "sha256": "63488eb01f84aaece0d33ea1409e06aec33fa3bf7709c1b57ed1fc09bdaa9e8b",
+   "size": 424
+  }
+ ]
+}

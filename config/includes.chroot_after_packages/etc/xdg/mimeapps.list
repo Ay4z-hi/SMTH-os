@@ -1,0 +1,21 @@
+[Default Applications]
+application/x-cd-image=smth-open.desktop
+application/x-iso9660-image=smth-open.desktop
+application/x-smth-image=smth-open.desktop
+application/vnd.android.package-archive=smth-open.desktop
+application/x-msdownload=smth-open.desktop
+application/x-dosexec=smth-open.desktop
+application/x-ms-dos-executable=smth-open.desktop
+application/x-msi=smth-open.desktop
+inode/directory=smth-files.desktop
+image/jpeg=smth-gallery.desktop
+image/png=smth-gallery.desktop
+image/webp=smth-gallery.desktop
+text/html=smth-browser.desktop
+x-scheme-handler/http=smth-browser.desktop
+x-scheme-handler/https=smth-browser.desktop
+video/mp4=smth-player.desktop
+video/x-matroska=smth-player.desktop
+video/webm=smth-player.desktop
+audio/mpeg=smth-player.desktop
+audio/flac=smth-player.desktop

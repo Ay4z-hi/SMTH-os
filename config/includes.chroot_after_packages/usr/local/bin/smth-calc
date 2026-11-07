@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""SMTH Calculator (safe expression evaluator, dot display)."""
+import ast, operator as op, sys
+sys.path.insert(0, "/usr/local/lib/smth")
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, Gtk
+import smthdot as D
+OPS = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul, ast.Div: op.truediv, ast.Mod: op.mod, ast.Pow: op.pow}
+def ev(n):
+    if isinstance(n, ast.Expression): return ev(n.body)
+    if isinstance(n, ast.Constant) and isinstance(n.value, (int, float)): return n.value
+    if isinstance(n, ast.BinOp) and type(n.op) in OPS:
+        a, b = ev(n.left), ev(n.right)
+        if isinstance(n.op, ast.Pow) and abs(b) > 100: raise ValueError
+        return OPS[type(n.op)](a, b)
+    if isinstance(n, ast.UnaryOp) and isinstance(n.op, (ast.USub, ast.UAdd)): v = ev(n.operand); return -v if isinstance(n.op, ast.USub) else v
+    raise ValueError
+def fmt(v): return str(int(v)) if float(v).is_integer() and abs(v) < 1e15 else ("%.10g" % v)
+
+class Calc(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, default_width=340, default_height=560); self.expr = ""; self.res = "0"
+        self.disp = Gtk.DrawingArea(hexpand=True, content_height=96); self.disp.set_draw_func(self.draw)
+        grid = Gtk.Grid(row_spacing=8, column_spacing=8, margin_start=14, margin_end=14, margin_bottom=14, row_homogeneous=True, column_homogeneous=True, vexpand=True)
+        keys = ["C", "(", ")", "÷", "7", "8", "9", "×", "4", "5", "6", "-", "1", "2", "3", "+", "0", ".", "⌫", "="]
+        for i, k in enumerate(keys):
+            b = Gtk.Button(label=k, css_classes=["pill", "suggested-action"] if k in "=" else ["pill"]); b.connect("clicked", lambda _b, k=k: self.press(k)); grid.attach(b, i % 4, i // 4, 1, 1)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); box.append(self.disp); box.append(grid)
+        tv = Adw.ToolbarView(content=box); hb = Adw.HeaderBar(title_widget=D.dot_label("CALC", 3)); hb.add_css_class("flat"); tv.add_top_bar(hb); self.set_content(tv)
+    def draw(self, _a, cr, w, h):
+        D.draw_text(cr, self.expr[-18:] or " ", w - 14 - D.text_width(self.expr[-18:] or " ", 2.2), 6, 2.2, on=(0.6, 0.65, 0.8), off=None)
+        r = self.res[-9:]; dot = min(6.0, (w - 24) / (len(r) * 6)); D.draw_text(cr, r, w - 14 - D.text_width(r, dot), 34, dot, off=None)
+    def press(self, k):
+        if k == "C": self.expr, self.res = "", "0"
+        elif k == "⌫": self.expr = self.expr[:-1]
+        elif k == "=":
+            try: self.res = fmt(ev(ast.parse(self.expr.replace("×", "*").replace("÷", "/"), mode="eval"))); self.expr = self.res
+            except Exception: self.res = "ERROR"
+        else: self.expr += k
+        if k not in "=" and self.expr:
+            try: self.res = fmt(ev(ast.parse(self.expr.replace("×", "*").replace("÷", "/"), mode="eval")))
+            except Exception: pass
+        self.disp.queue_draw()
+app = Adw.Application(application_id="os.smth.Calc"); app.connect("activate", lambda a: Calc(a).present()); sys.exit(app.run(sys.argv))

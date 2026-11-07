@@ -5,4 +5,5 @@ Exec=alacritty
 Icon=smth-terminal
 Comment=Terminal
 Terminal=false
-Categories=Utility;
+Categories=System;TerminalEmulator;
+

@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+"""SMTH Player: audio and video."""
+import os, sys
+sys.path.insert(0, "/usr/local/lib/smth")
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, Gio, GLib, Gtk
+import smthdot as D
+class Player(Adw.ApplicationWindow):
+    def __init__(self, app, path):
+        super().__init__(application=app, default_width=900, default_height=560)
+        self.video = Gtk.Video(autoplay=True, hexpand=True, vexpand=True)
+        tv = Adw.ToolbarView(content=self.video); hb = Adw.HeaderBar(title_widget=D.dot_label("PLAYER", 3)); hb.add_css_class("flat")
+        op = Gtk.Button(icon_name="document-open-symbolic"); op.connect("clicked", self.choose); hb.pack_start(op); tv.add_top_bar(hb); self.set_content(tv)
+        if path: self.video.set_file(Gio.File.new_for_path(path))
+    def choose(self, *_):
+        d = Gtk.FileDialog()
+        def done(dlg, res):
+            try: self.video.set_file(dlg.open_finish(res))
+            except GLib.Error: pass
+        d.open(self, None, done)
+first = sys.argv[1] if len(sys.argv) > 1 and os.path.exists(sys.argv[1]) else None
+app = Adw.Application(application_id="os.smth.Player"); app.connect("activate", lambda a: Player(a, first).present()); sys.exit(app.run(sys.argv[:1]))

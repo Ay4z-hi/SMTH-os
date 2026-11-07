@@ -1,0 +1,7 @@
+flatpak
+gir1.2-gtk4layershell-1.0
+libgtk4-layer-shell0
+openssl
+plymouth
+swayidle
+swaylock

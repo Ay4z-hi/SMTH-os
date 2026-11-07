@@ -1,0 +1,5 @@
+smth-notifd >/dev/null 2>&1 &
+smth-welcome >/dev/null 2>&1 &
+( smth-home || swaybg -m fill -i /usr/share/backgrounds/smth/wallpaper.png ) >/dev/null 2>&1 &
+smth-moded >/dev/null 2>&1 &
+swayidle -w timeout 300 'smth-lock' before-sleep 'smth-lock' >/dev/null 2>&1 &

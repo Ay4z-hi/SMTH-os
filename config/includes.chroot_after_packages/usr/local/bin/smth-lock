@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+pgrep -x swaylock >/dev/null || exec swaylock -f

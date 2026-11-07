@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=SMTH Notes
+Exec=smth-notes
+Icon=smth-notes
+Comment=Plain-text notes
+Terminal=false
+Categories=Utility;TextEditor;
+

@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""SMTH Settings: Display & Appearance, Network (Wi-Fi/Ethernet), Bluetooth, Sound, Power, VMs.  smth-settings [page]"""
+import glob, os, re, subprocess, sys, threading
+sys.path.insert(0, "/usr/local/lib/smth")
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, Gio, GLib, Gtk
+import smthdot as D
+
+CFG = os.path.expanduser("~/.config/smth"); os.makedirs(CFG, exist_ok=True)
+def run(*cmd, t=15, inp=None):
+    try: return subprocess.run(cmd, capture_output=True, text=True, timeout=t, input=inp).stdout
+    except Exception: return ""
+def note(msg): subprocess.Popen(["notify-send", "-a", "Settings", "SMTH Settings", msg])
+def bg(fn, done=None):
+    def w():
+        r = fn()
+        if done: GLib.idle_add(lambda: (done(r), False)[1])
+    threading.Thread(target=w, daemon=True).start()
+class Group:                                         # preferences group whose rows can be replaced
+    def __init__(self, page, title=None): self.g = Adw.PreferencesGroup(title=title or ""); page.add(self.g); self.rows = []
+    def set(self, rows):
+        for r in self.rows: self.g.remove(r)
+        self.rows = list(rows)
+        for r in self.rows: self.g.add(r)
+    def add(self, r): self.g.add(r); self.rows.append(r)
+def btn(label, fn, style="pill"):
+    b = Gtk.Button(label=label, valign=Gtk.Align.CENTER, css_classes=[style]); b.connect("clicked", lambda *_: fn()); return b
+def ask_password(win, ssid, cb):
+    e = Gtk.PasswordEntry(show_peek_icon=True, activates_default=True); d = Adw.AlertDialog(heading=f"Password for {ssid}"); d.set_extra_child(e)
+    d.add_response("no", "Cancel"); d.add_response("ok", "Connect"); d.set_default_response("ok"); d.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+    d.choose(win, None, lambda dl, res: cb(e.get_text()) if dl.choose_finish(res) == "ok" and e.get_text() else None)
+
+# ---------------- Display & Appearance ----------------
+def display(win):
+    p = Adw.PreferencesPage(); out = Group(p, "Screens"); scales = ["1.0", "1.25", "1.5", "2.0"]; cur = None; modes = {}
+    for l in run("wlr-randr").splitlines():
+        if l and not l[0].isspace(): cur = l.split()[0]; modes[cur] = []
+        elif cur and (m := re.match(r"\s+(\d+x\d+) px, ([\d.]+) Hz(.*)", l)): modes[cur].append((f"{m.group(1)}@{float(m.group(2)):.0f}Hz", f"{m.group(1)}@{m.group(2)}", "current" in m.group(3)))
+    for name, ms in modes.items():
+        labels = [m[0] for m in ms]; r = Adw.ComboRow(title=f"{name} resolution", model=Gtk.StringList.new(labels))
+        for i, m in enumerate(ms):
+            if m[2]: r.set_selected(i)
+        r.connect("notify::selected", lambda c, _, n=name, ms=ms: run("wlr-randr", "--output", n, "--mode", ms[c.get_selected()][1])); out.add(r)
+        s = Adw.ComboRow(title=f"{name} scale", model=Gtk.StringList.new(scales)); s.connect("notify::selected", lambda c, _, n=name: run("wlr-randr", "--output", n, "--scale", scales[c.get_selected()])); out.add(s)
+    if not modes: out.add(Adw.ActionRow(title="No screens reported", subtitle="wlr-randr needs a running Wayland session"))
+    lay = Group(p, "Layout"); modes_l = ["auto", "mobile", "desktop"]; r = Adw.ComboRow(title="Layout mode", model=Gtk.StringList.new(modes_l))
+    def setm(c, _):
+        m = modes_l[c.get_selected()]; open(f"{CFG}/mode", "w").write(m); subprocess.Popen(["smth-mode", m])
+    r.connect("notify::selected", setm); lay.add(r)
+    wp = Group(p, "Wallpaper"); files = sorted(glob.glob("/usr/share/backgrounds/smth/wallpaper.png") + glob.glob(os.path.expanduser("~/Pictures/*.[pj][np]g")))[:40]
+    def setwall(f): open(f"{CFG}/wallpaper", "w").write(f); subprocess.run(["pkill", "-USR1", "-f", "lib/smth/home.py"]); note("Wallpaper changed")
+    for f in files:
+        row = Adw.ActionRow(title=os.path.basename(f)); row.add_suffix(btn("Set", lambda f=f: setwall(f))); wp.add(row)
+    pick = Adw.ActionRow(title="Choose another image…"); 
+    def choose():
+        d = Gtk.FileDialog()
+        def done(dl, res):
+            try: setwall(dl.open_finish(res).get_path())
+            except GLib.Error: pass
+        d.open(win, None, done)
+    pick.add_suffix(btn("Browse", choose)); wp.add(pick)
+    return p
+
+# ---------------- Network ----------------
+def network(win):
+    p = Adw.PreferencesPage(); g = Group(p, "Wi-Fi"); sw = Adw.SwitchRow(title="Wi-Fi"); sw.set_active(run("nmcli", "radio", "wifi").strip() == "enabled")
+    sw.connect("notify::active", lambda r, _: run("nmcli", "radio", "wifi", "on" if r.get_active() else "off")); g.add(sw)
+    nets = Group(p, "Networks"); eth = Group(p, "Devices")
+    def scan():
+        def job(): run("nmcli", "dev", "wifi", "rescan"); return run("nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list"), run("nmcli", "-t", "-f", "NAME", "con", "show")
+        def done(res):
+            out, saved = res; saved = set(saved.splitlines()); rows, seen = [], set()
+            for l in out.splitlines():
+                try: use, ssid, sig, sec = re.match(r"(.?):(.*):(\d+):(.*)", l.replace("\\:", "\x00")).groups()
+                except AttributeError: continue
+                ssid = ssid.replace("\x00", ":")
+                if not ssid or ssid in seen: continue
+                seen.add(ssid); r = Adw.ActionRow(title=GLib.markup_escape_text(ssid), subtitle=f"{sig}% · {sec or 'open'}" + (" · saved" if ssid in saved else "")); inuse = use == "*"
+                if inuse: r.add_suffix(Gtk.Label(label="CONNECTED", css_classes=["dim-label"])); r.add_suffix(btn("Disconnect", lambda: bg(lambda: run("nmcli", "con", "down", "id", ssid), lambda _: scan())))
+                else: r.add_suffix(btn("Connect", lambda s=ssid, sc=sec, sv=ssid in saved: connect(s, sc, sv)))
+                if ssid in saved: r.add_suffix(btn("Forget", lambda s=ssid: bg(lambda: run("nmcli", "con", "delete", "id", s), lambda _: scan()), "flat"))
+                rows.append(r)
+            nets.set(rows or [Adw.ActionRow(title="No networks found")])
+        bg(job, done)
+    def connect(ssid, sec, saved):
+        def finish(out): note("Connected to " + ssid if "successfully" in out else "Could not connect to " + ssid); scan()
+        if saved: bg(lambda: run("nmcli", "con", "up", "id", ssid, t=40), finish)
+        elif sec: ask_password(win, ssid, lambda pw: bg(lambda: run("nmcli", "dev", "wifi", "connect", ssid, "password", pw, t=45), finish))
+        else: bg(lambda: run("nmcli", "dev", "wifi", "connect", ssid, t=45), finish)
+    hdr = btn("Scan", scan); nets.g.set_header_suffix(hdr)
+    def devs():
+        rows = []
+        for l in run("nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "dev").splitlines():
+            d, t, st, con = (l.split(":") + ["", "", "", ""])[:4]
+            if t in ("loopback", "wifi-p2p", "bridge"): continue
+            r = Adw.ActionRow(title=f"{d}  ({t})", subtitle=f"{st}" + (f" · {con}" if con else ""))
+            if t == "ethernet": r.add_suffix(btn("Disconnect" if st == "connected" else "Connect", lambda d=d, st=st: bg(lambda: run("nmcli", "dev", "disconnect" if st == "connected" else "connect", d), lambda _: devs())))
+            rows.append(r)
+        eth.set(rows)
+    devs(); scan(); return p
+
+# ---------------- Bluetooth ----------------
+def bluetooth(win):
+    p = Adw.PreferencesPage(); g = Group(p, "Bluetooth"); sw = Adw.SwitchRow(title="Bluetooth"); sw.set_active("Powered: yes" in run("bluetoothctl", "show"))
+    sw.connect("notify::active", lambda r, _: run("bluetoothctl", "power", "on" if r.get_active() else "off")); g.add(sw); dev = Group(p, "Devices")
+    def refresh():
+        def job():
+            out = []
+            for l in run("bluetoothctl", "devices").splitlines():
+                m = re.match(r"Device ([0-9A-F:]{17}) (.*)", l)
+                if m: info = run("bluetoothctl", "info", m.group(1)); out.append((m.group(1), m.group(2), "Connected: yes" in info, "Paired: yes" in info))
+            return out
+        def done(items):
+            rows = []
+            for mac, name, conn, paired in items:
+                r = Adw.ActionRow(title=GLib.markup_escape_text(name), subtitle=mac + (" · connected" if conn else " · paired" if paired else ""))
+                if conn: r.add_suffix(btn("Disconnect", lambda m=mac: act(["disconnect", m])))
+                else: r.add_suffix(btn("Connect" if paired else "Pair", lambda m=mac, pr=paired: pair(m, pr)))
+                if paired: r.add_suffix(btn("Remove", lambda m=mac: act(["remove", m]), "flat"))
+                rows.append(r)
+            dev.set(rows or [Adw.ActionRow(title="No devices yet", subtitle="Press Scan and put your device in pairing mode")])
+        bg(job, done)
+    def act(args): bg(lambda: run("bluetoothctl", *args, t=30), lambda _: refresh())
+    def pair(mac, paired):
+        def job():
+            if not paired: run("bluetoothctl", "pairable", "on"); run("bluetoothctl", "--agent", "NoInputNoOutput", "pair", mac, t=40); run("bluetoothctl", "trust", mac)
+            return run("bluetoothctl", "connect", mac, t=30)
+        bg(job, lambda o: (note("Connected" if "successful" in o else "Could not connect"), refresh()))
+    def scan(): bg(lambda: run("bluetoothctl", "--timeout", "8", "scan", "on", t=15), lambda _: refresh())
+    dev.g.set_header_suffix(btn("Scan", scan)); refresh(); return p
+
+# ---------------- Sound ----------------
+def wp(*a): return run("wpctl", *a)
+def vol(target):
+    m = re.search(r"Volume: ([\d.]+)( \[MUTED\])?", wp("get-volume", target)); return (float(m.group(1)), bool(m.group(2))) if m else (0.0, False)
+def devices(section):
+    out, cur, ids = [], None, []
+    for l in wp("status").splitlines():
+        s = re.sub(r"[│├└─]", " ", l).strip()
+        if s.endswith(":") and not s.startswith(("*", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")): cur = s[:-1]; continue
+        m = re.match(r"(\*)?\s*(\d+)\.\s+(.*?)(\s+\[vol:.*)?$", s)
+        if cur == section and m: out.append((int(m.group(2)), m.group(3), bool(m.group(1))))
+    return out
+def sound(win):
+    p = Adw.PreferencesPage()
+    for title, target, section in (("Output", "@DEFAULT_AUDIO_SINK@", "Sinks"), ("Input", "@DEFAULT_AUDIO_SOURCE@", "Sources")):
+        g = Group(p, title); v, muted = vol(target); sc = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1); sc.set_value(v * 100); sc.set_size_request(200, -1)
+        sc.connect("value-changed", lambda s, t=target: wp("set-volume", t, "%.2f" % (s.get_value() / 100)))
+        r = Adw.ActionRow(title=f"{title} volume"); r.add_suffix(sc); g.add(r)
+        m = Adw.SwitchRow(title="Muted", active=muted); m.connect("notify::active", lambda r, _, t=target: wp("set-mute", t, "1" if r.get_active() else "0")); g.add(m)
+        ds = devices(section)
+        if ds:
+            cb = Adw.ComboRow(title=f"{title} device", model=Gtk.StringList.new([d[1] for d in ds]))
+            for i, d in enumerate(ds):
+                if d[2]: cb.set_selected(i)
+            cb.connect("notify::selected", lambda c, _, ds=ds: wp("set-default", str(ds[c.get_selected()][0]))); g.add(cb)
+    return p
+
+# ---------------- Power + VMs ----------------
+def power(win):
+    p = Adw.PreferencesPage(); g = Group(p, "Power profile"); pr = ["power-saver", "balanced", "performance"]; r = Adw.ComboRow(title="Profile", model=Gtk.StringList.new(pr))
+    cur = run("powerprofilesctl", "get").strip()
+    if cur in pr: r.set_selected(pr.index(cur))
+    r.connect("notify::selected", lambda c, _: run("powerprofilesctl", "set", pr[c.get_selected()])); g.add(r); return p
+def vms(win):
+    conf = f"{CFG}/hypervisor.conf"; cfg = {"RAM": "2048", "CPUS": "2", "PREFER_KVM": "1"}
+    if os.path.exists(conf):
+        for l in open(conf):
+            if "=" in l: k, v = l.strip().split("=", 1); cfg[k] = v
+    def save(*_): open(conf, "w").write("".join(f"{k}={v}\n" for k, v in cfg.items()))
+    p = Adw.PreferencesPage(); g = Group(p, "VM defaults"); ram = Adw.SpinRow.new_with_range(512, 65536, 256); ram.set_title("Memory (MB)"); ram.set_value(int(cfg["RAM"]))
+    cpu = Adw.SpinRow.new_with_range(1, 32, 1); cpu.set_title("CPU cores"); cpu.set_value(int(cfg["CPUS"])); kvm = Adw.SwitchRow(title="Use KVM when available", active=cfg["PREFER_KVM"] == "1")
+    ram.connect("notify::value", lambda r, _: (cfg.update(RAM=str(int(r.get_value()))), save())); cpu.connect("notify::value", lambda r, _: (cfg.update(CPUS=str(int(r.get_value()))), save()))
+    kvm.connect("notify::active", lambda r, _: (cfg.update(PREFER_KVM="1" if r.get_active() else "0"), save()))
+    for w in (ram, cpu, kvm): g.add(w)
+    return p
+
+PAGES = [("display", "Display", "video-display-symbolic", display), ("network", "Network", "network-wireless-symbolic", network), ("bluetooth", "Bluetooth", "bluetooth-symbolic", bluetooth),
+         ("sound", "Sound", "audio-volume-high-symbolic", sound), ("power", "Power", "battery-symbolic", power), ("vms", "VMs", "computer-symbolic", vms)]
+def on_activate(app, start):
+    win = Adw.ApplicationWindow(application=app, default_width=460, default_height=780); stack = Adw.ViewStack()
+    for n, t, i, f in PAGES: stack.add_titled_with_icon(f(win), n, t, i)
+    if start in [x[0] for x in PAGES]: stack.set_visible_child_name(start)
+    tv = Adw.ToolbarView(content=stack); hb = Adw.HeaderBar(title_widget=D.dot_label("SETTINGS", 3)); hb.add_css_class("flat"); tv.add_top_bar(hb)
+    tv.add_bottom_bar(Adw.ViewSwitcherBar(stack=stack, reveal=True)); win.set_content(tv); win.present()
+start = sys.argv[1] if len(sys.argv) > 1 else ""
+app = Adw.Application(application_id="os.smth.Settings"); app.connect("activate", lambda a: on_activate(a, start)); sys.exit(app.run(sys.argv[:1]))

@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""SMTH Files: tabbed, dual-pane explorer with ISO mounter, archive viewer and one-click VM launch."""
+import os, shutil, subprocess, sys, tarfile, threading, zipfile
+sys.path.insert(0, "/usr/local/lib/smth")
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
+import smthdot as D
+
+CLIP = {"paths": [], "cut": False}
+VM_EXT = {".iso", ".img", ".bin", ".apk", ".exe", ".msi", ".qcow2", ".vdi", ".vmdk"}
+ARCH_EXT = (".zip", ".tar", ".tar.gz", ".tgz", ".tar.xz", ".tar.bz2")
+
+def human(n):
+    for u in ("B", "KB", "MB", "GB"):
+        if n < 1024: return f"{n:.0f} {u}" if u == "B" else f"{n:.1f} {u}"
+        n /= 1024
+    return f"{n:.1f} TB"
+
+def icon_for(p):
+    if os.path.isdir(p): return "folder-symbolic"
+    e = os.path.splitext(p)[1].lower()
+    if e in (".iso", ".img", ".bin"): return "media-optical-symbolic"
+    if p.lower().endswith(ARCH_EXT) or e == ".apk": return "package-x-generic-symbolic"
+    if e in (".png", ".jpg", ".jpeg", ".webp", ".gif"): return "image-x-generic-symbolic"
+    if e in (".mp3", ".wav", ".flac", ".ogg"): return "audio-x-generic-symbolic"
+    return "text-x-generic-symbolic"
+
+def ask(win, heading, initial, cb):
+    e = Gtk.Entry(text=initial, activates_default=True)
+    d = Adw.AlertDialog(heading=heading); d.set_extra_child(e)
+    d.add_response("cancel", "Cancel"); d.add_response("ok", "OK"); d.set_default_response("ok")
+    d.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+    def done(dlg, res):
+        if dlg.choose_finish(res) == "ok" and e.get_text().strip(): cb(e.get_text().strip())
+    d.choose(win, None, done)
+
+def unique(dest):
+    if not os.path.exists(dest): return dest
+    b, e = os.path.splitext(dest); n = 2
+    while os.path.exists(f"{b} ({n}){e}"): n += 1
+    return f"{b} ({n}){e}"
+
+class Pane(Gtk.Box):
+    def __init__(self, win, path):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
+        self.win, self.path, self.hidden, self.page = win, path, False, None
+        bar = Gtk.Box(spacing=6, margin_top=6, margin_start=6, margin_end=6, margin_bottom=4)
+        up = Gtk.Button(icon_name="go-up-symbolic"); up.connect("clicked", lambda *_: self.go(os.path.dirname(self.path)))
+        self.entry = Gtk.Entry(hexpand=True); self.entry.connect("activate", lambda e: self.go(e.get_text()))
+        hid = Gtk.ToggleButton(icon_name="view-reveal-symbolic"); hid.connect("toggled", self.toggle_hidden)
+        for w in (up, self.entry, hid): bar.append(w)
+        self.append(bar)
+        self.list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.MULTIPLE, activate_on_single_click=False, css_classes=["navigation-sidebar"])
+        self.list.connect("row-activated", lambda l, r: self.open_path(r.path))
+        rc = Gtk.GestureClick(button=3); rc.connect("pressed", self.on_right); self.list.add_controller(rc)
+        self.append(Gtk.ScrolledWindow(child=self.list, vexpand=True))
+        self.refresh()
+
+    def go(self, p):
+        p = os.path.abspath(os.path.expanduser(p))
+        if os.path.isdir(p): self.path = p; self.refresh()
+        return False
+
+    def toggle_hidden(self, b): self.hidden = b.get_active(); self.refresh()
+
+    def refresh(self):
+        while (r := self.list.get_first_child()): self.list.remove(r)
+        try: names = os.listdir(self.path)
+        except OSError: names = []
+        if not self.hidden: names = [n for n in names if not n.startswith(".")]
+        names.sort(key=lambda n: (not os.path.isdir(os.path.join(self.path, n)), n.lower()))
+        for n in names[:3000]:
+            p = os.path.join(self.path, n); row = Gtk.ListBoxRow(); row.path = p
+            box = Gtk.Box(spacing=10, margin_top=6, margin_bottom=6, margin_start=8, margin_end=8)
+            box.append(Gtk.Image(icon_name=icon_for(p))); box.append(Gtk.Label(label=n, xalign=0, hexpand=True, ellipsize=3))
+            try: sz = "" if os.path.isdir(p) else human(os.path.getsize(p))
+            except OSError: sz = ""
+            box.append(Gtk.Label(label=sz, css_classes=["dim-label"])); row.set_child(box); self.list.append(row)
+        self.entry.set_text(self.path)
+        if self.page: self.page.set_title(os.path.basename(self.path) or "/")
+
+    def selected(self): return [r.path for r in self.list.get_selected_rows()]
+
+    # ---- opening ----
+    def open_path(self, p):
+        e = os.path.splitext(p)[1].lower()
+        if os.path.isdir(p): self.go(p)
+        elif e in VM_EXT: subprocess.Popen(["smth-open", p])
+        elif p.lower().endswith(ARCH_EXT): self.view_archive(p)
+        elif e in (".png", ".jpg", ".jpeg", ".webp", ".gif"): subprocess.Popen(["smth-gallery", os.path.dirname(p)])
+        else: Gio.AppInfo.launch_default_for_uri("file://" + GLib.uri_escape_string(p, "/", True), None)
+
+    def mount_iso(self, p):
+        def job():
+            o = subprocess.run(["udisksctl", "loop-setup", "-r", "-f", p], capture_output=True, text=True).stdout
+            dev = o.split(" as ")[-1].strip().rstrip(".")
+            m = subprocess.run(["udisksctl", "mount", "-b", dev], capture_output=True, text=True).stdout
+            mp = m.split(" at ")[-1].strip().rstrip(".")
+            if os.path.isdir(mp): GLib.idle_add(self.go, mp)
+        threading.Thread(target=job, daemon=True).start()
+
+    def view_archive(self, p):
+        try:
+            names = zipfile.ZipFile(p).namelist() if p.lower().endswith(".zip") else tarfile.open(p).getnames()
+        except Exception as e:
+            names = [f"Cannot read archive: {e}"]
+        w = Adw.Window(modal=True, transient_for=self.win, default_width=420, default_height=560)
+        tv = Adw.ToolbarView(); hb = Adw.HeaderBar(title_widget=Gtk.Label(label=os.path.basename(p))); tv.add_top_bar(hb)
+        tv.set_content(Gtk.ScrolledWindow(child=Gtk.Label(label="\n".join(names[:2000]), xalign=0, selectable=True, margin_start=12, margin_top=8)))
+        ex = Gtk.Button(label="EXTRACT HERE", css_classes=["suggested-action", "pill"], margin_top=8, margin_bottom=10, halign=Gtk.Align.CENTER)
+        def extract(*_):
+            dest = unique(os.path.splitext(p)[0].replace(".tar", ""))
+            os.makedirs(dest, exist_ok=True)
+            try:
+                if p.lower().endswith(".zip"): zipfile.ZipFile(p).extractall(dest)
+                else: tarfile.open(p).extractall(dest, filter="data")
+            except Exception: pass
+            w.close(); self.refresh()
+        ex.connect("clicked", extract); tv.add_bottom_bar(ex); w.set_content(tv); w.present()
+
+    # ---- context menu ----
+    def on_right(self, g, n, x, y):
+        row = self.list.get_row_at_y(int(y))
+        if row and not row.is_selected(): self.list.unselect_all(); self.list.select_row(row)
+        sel = self.selected(); items = []
+        if len(sel) == 1:
+            p = sel[0]; e = os.path.splitext(p)[1].lower()
+            items.append(("Open", lambda: self.open_path(p)))
+            if e in VM_EXT: items.append(("Run in SMTH Hypervisor", lambda: subprocess.Popen(["smth-open", p])))
+            if e in (".iso", ".img"): items.append(("Mount image", lambda: self.mount_iso(p)))
+            if p.lower().endswith(ARCH_EXT): items.append(("View archive", lambda: self.view_archive(p)))
+            items.append(("Rename", lambda: ask(self.win, "Rename", os.path.basename(p), lambda n: self.rename(p, n))))
+        if sel:
+            items += [("Copy", lambda: CLIP.update(paths=sel, cut=False)), ("Cut", lambda: CLIP.update(paths=sel, cut=True)),
+                      ("Move to Trash", lambda: self.trash(sel))]
+        if CLIP["paths"]: items.append(("Paste here", self.paste))
+        items.append(("New folder", lambda: ask(self.win, "New folder", "Folder", self.mkdir)))
+        pop = Gtk.Popover(); pop.set_parent(self.list); pop.set_pointing_to(Gdk.Rectangle(int(x), int(y), 1, 1))
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        for label, fn in items:
+            b = Gtk.Button(label=label, css_classes=["flat"], halign=Gtk.Align.FILL); b.get_child().set_halign(Gtk.Align.START)
+            b.connect("clicked", lambda _b, fn=fn: (pop.popdown(), fn())); box.append(b)
+        pop.set_child(box); pop.connect("closed", lambda p: GLib.idle_add(p.unparent)); pop.popup()
+
+    def rename(self, p, new):
+        try: os.rename(p, os.path.join(os.path.dirname(p), new))
+        except OSError: pass
+        self.refresh()
+    def mkdir(self, name):
+        try: os.makedirs(unique(os.path.join(self.path, name)))
+        except OSError: pass
+        self.refresh()
+    def trash(self, paths):
+        for p in paths:
+            try: Gio.File.new_for_path(p).trash(None)
+            except GLib.Error: pass
+        self.refresh()
+    def paste(self):
+        for p in CLIP["paths"]:
+            dest = unique(os.path.join(self.path, os.path.basename(p)))
+            try:
+                if CLIP["cut"]: shutil.move(p, dest)
+                elif os.path.isdir(p): shutil.copytree(p, dest)
+                else: shutil.copy2(p, dest)
+            except OSError: pass
+        if CLIP["cut"]: CLIP["paths"] = []
+        self.refresh()
+
+class Files(Adw.ApplicationWindow):
+    def __init__(self, app, start):
+        super().__init__(application=app, default_width=1000, default_height=680)
+        self.views, self.active = [], None
+        self.paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL, wide_handle=True)
+        self.left = self.make_side(); self.right = self.make_side()
+        self.paned.set_start_child(self.left[0]); self.paned.set_end_child(self.right[0]); self.right[0].set_visible(False)
+        self.active = self.left[1]; self.new_tab(start)
+        tv = Adw.ToolbarView(content=self.paned)
+        hb = Adw.HeaderBar(title_widget=D.dot_label("FILES", 3)); hb.add_css_class("flat")
+        add = Gtk.Button(icon_name="tab-new-symbolic"); add.connect("clicked", lambda *_: self.new_tab(os.path.expanduser("~")))
+        split = Gtk.ToggleButton(icon_name="view-dual-symbolic"); split.connect("toggled", self.toggle_split)
+        hb.pack_start(add); hb.pack_end(split); tv.add_top_bar(hb); self.set_content(tv)
+
+    def make_side(self):
+        view = Adw.TabView(vexpand=True); bar = Adw.TabBar(view=view, autohide=False)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); box.append(bar); box.append(view)
+        click = Gtk.GestureClick(); click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        click.connect("pressed", lambda *_: setattr(self, "active", view)); box.add_controller(click)
+        return box, view
+
+    def new_tab(self, path):
+        pane = Pane(self, path); pane.page = self.active.append(pane); pane.page.set_title(os.path.basename(path) or "/")
+        self.active.set_selected_page(pane.page)
+
+    def toggle_split(self, b):
+        self.right[0].set_visible(b.get_active())
+        if b.get_active() and self.right[1].get_n_pages() == 0:
+            prev = self.active; self.active = self.right[1]; self.new_tab(os.path.expanduser("~")); self.active = prev
+        self.paned.set_position(self.get_width() // 2)
+
+    def retitle(self, pane): pass
+
+app = Adw.Application(application_id="os.smth.Files", flags=Gio.ApplicationFlags.HANDLES_OPEN)
+def activate(a):
+    Files(a, os.path.expanduser("~")).present()
+def opened(a, files, n, hint):
+    for f in files:
+        p = f.get_path()
+        Files(a, p if p and os.path.isdir(p) else os.path.expanduser("~")).present()
+app.connect("activate", activate); app.connect("open", opened)
+sys.exit(app.run(sys.argv))

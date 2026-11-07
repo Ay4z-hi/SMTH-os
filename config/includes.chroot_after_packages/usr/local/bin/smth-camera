@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""SMTH Camera: live viewfinder (PipeWire / V4L2), photo and video."""
+import datetime, os, subprocess, sys
+sys.path.insert(0, "/usr/local/lib/smth")
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+gi.require_version("Gst", "1.0"); gi.require_version("GstApp", "1.0")
+from gi.repository import Adw, Gdk, GLib, Gst, GstApp, Gtk
+import smthdot as D
+
+Gst.init(None)
+OUT = os.path.expanduser("~/Pictures/SMTH"); os.makedirs(OUT, exist_ok=True)
+W, H = 1280, 720   # fixed size keeps RGB rows 4-byte aligned (no stride padding)
+
+def source():
+    for n in ("pipewiresrc", "v4l2src"):
+        if Gst.ElementFactory.find(n):
+            return n
+    return None
+
+class Camera(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, default_width=420, default_height=780)
+        self.mode, self.frame, self.rec_pipe, self.rec_src, self.pipe = "PHOTO", None, None, None, None
+        self.pic = Gtk.Picture(content_fit=Gtk.ContentFit.COVER, hexpand=True, vexpand=True)
+        self.status = Gtk.Label(label="", css_classes=["dim-label"])
+        overlay = Gtk.Overlay(child=self.pic)
+        self.status.set_halign(Gtk.Align.CENTER); self.status.set_valign(Gtk.Align.CENTER)
+        overlay.add_overlay(self.status)
+
+        self.shutter = Gtk.DrawingArea(); self.shutter.set_content_width(84); self.shutter.set_content_height(84)
+        self.shutter.set_draw_func(self.draw_shutter)
+        sb = Gtk.Button(child=self.shutter, css_classes=["flat", "circular"]); sb.connect("clicked", self.on_shutter)
+        self.mode_btn = Gtk.Button(label="PHOTO", css_classes=["pill"]); self.mode_btn.connect("clicked", self.toggle_mode)
+        gal = Gtk.Button(label="GALLERY", css_classes=["pill"])
+        gal.connect("clicked", lambda *_: subprocess.Popen(["smth-gallery", OUT]))
+        row = Gtk.CenterBox(margin_top=12, margin_bottom=22, margin_start=18, margin_end=18)
+        row.set_start_widget(gal); row.set_center_widget(sb); row.set_end_widget(self.mode_btn)
+
+        tv = Adw.ToolbarView(content=overlay)
+        hb = Adw.HeaderBar(title_widget=D.dot_label("CAMERA", 3)); hb.add_css_class("flat")
+        tv.add_top_bar(hb); tv.add_bottom_bar(row)
+        self.set_content(tv)
+        self.connect("close-request", self.on_close)
+        self.start()
+
+    def draw_shutter(self, _a, cr, w, h):
+        recording = self.rec_pipe is not None
+        cr.set_source_rgb(1, 1, 1); cr.set_line_width(3); cr.arc(w / 2, h / 2, 34, 0, D.TAU); cr.stroke()
+        if self.mode == "VIDEO":
+            cr.set_source_rgb(1.0, 0.2, 0.25)
+            if recording: cr.rectangle(w / 2 - 14, h / 2 - 14, 28, 28)
+            else: cr.arc(w / 2, h / 2, 25, 0, D.TAU)
+        else:
+            cr.set_source_rgb(1, 1, 1); cr.arc(w / 2, h / 2, 25, 0, D.TAU)
+        cr.fill()
+
+    def start(self):
+        src = source()
+        if not src:
+            self.status.set_label("NO CAMERA SOURCE"); return
+        desc = (f"{src} ! videoconvert ! videoscale add-borders=true ! "
+                f"video/x-raw,format=RGB,width={W},height={H} ! "
+                "appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false")
+        try:
+            self.pipe = Gst.parse_launch(desc)
+        except GLib.Error as e:
+            self.status.set_label("CAMERA ERROR"); print(e); return
+        self.pipe.get_by_name("sink").connect("new-sample", self.on_sample)
+        self.pipe.get_bus().add_signal_watch()
+        self.pipe.get_bus().connect("message::error", lambda b, m: self.status.set_label("NO CAMERA FOUND"))
+        self.pipe.set_state(Gst.State.PLAYING)
+        self.status.set_label("")
+
+    def on_sample(self, sink):
+        s = sink.emit("pull-sample")
+        if s is None:
+            return Gst.FlowReturn.OK
+        buf = s.get_buffer(); ok, mi = buf.map(Gst.MapFlags.READ)
+        if ok:
+            data = bytes(mi.data); buf.unmap(mi)
+            if self.rec_src is not None:
+                self.rec_src.emit("push-buffer", Gst.Buffer.new_wrapped(data))
+            GLib.idle_add(self.show, data)
+        return Gst.FlowReturn.OK
+
+    def show(self, data):
+        self.frame = data
+        self.pic.set_paintable(Gdk.MemoryTexture.new(W, H, Gdk.MemoryFormat.R8G8B8, GLib.Bytes.new(data), W * 3))
+        return False
+
+    def stamp(self, ext):
+        return os.path.join(OUT, datetime.datetime.now().strftime("SMTH_%Y%m%d_%H%M%S") + ext)
+
+    def toggle_mode(self, *_):
+        if self.rec_pipe: return
+        self.mode = "VIDEO" if self.mode == "PHOTO" else "PHOTO"
+        self.mode_btn.set_label(self.mode); self.shutter.queue_draw()
+
+    def on_shutter(self, *_):
+        if self.mode == "PHOTO":
+            if not self.frame:
+                return
+            from PIL import Image
+            path = self.stamp(".jpg")
+            Image.frombytes("RGB", (W, H), self.frame).save(path, quality=92)
+            self.status.set_label("SAVED"); GLib.timeout_add(1200, lambda: (self.status.set_label(""), False)[1])
+        elif self.rec_pipe is None:
+            self.rec_pipe = Gst.parse_launch(
+                f"appsrc name=src is-live=true format=time do-timestamp=true caps=video/x-raw,format=RGB,width={W},height={H},framerate=30/1 "
+                f"! videoconvert ! vp8enc deadline=1 cpu-used=8 ! webmmux ! filesink location={self.stamp('.webm')}")
+            self.rec_src = self.rec_pipe.get_by_name("src"); self.rec_pipe.set_state(Gst.State.PLAYING)
+            self.status.set_label("REC")
+        else:
+            self.stop_rec()
+        self.shutter.queue_draw()
+
+    def stop_rec(self):
+        src, pipe = self.rec_src, self.rec_pipe
+        self.rec_src = self.rec_pipe = None
+        if src is not None:
+            src.emit("end-of-stream")
+            GLib.timeout_add(1500, lambda: (pipe.set_state(Gst.State.NULL), False)[1])
+        self.status.set_label("SAVED"); GLib.timeout_add(1200, lambda: (self.status.set_label(""), False)[1])
+
+    def on_close(self, *_):
+        if self.rec_pipe: self.stop_rec()
+        if self.pipe: self.pipe.set_state(Gst.State.NULL)
+        return False
+
+app = Adw.Application(application_id="os.smth.Camera")
+app.connect("activate", lambda a: Camera(a).present())
+sys.exit(app.run(sys.argv))

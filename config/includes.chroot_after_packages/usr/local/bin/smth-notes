@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""SMTH Notes: plain-text notes, autosaved to ~/Documents/SMTH Notes."""
+import datetime, glob, os, sys
+sys.path.insert(0, "/usr/local/lib/smth")
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, GLib, Gtk
+import smthdot as D
+DIR = os.path.expanduser("~/Documents/SMTH Notes"); os.makedirs(DIR, exist_ok=True)
+
+class Notes(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, default_width=860, default_height=600)
+        self.cur, self.pending, self.loading = None, 0, False
+        self.list = Gtk.ListBox(css_classes=["navigation-sidebar"]); self.list.connect("row-selected", self.pick)
+        self.text = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD, left_margin=18, right_margin=18, top_margin=14, bottom_margin=14)
+        self.text.get_buffer().connect("changed", self.changed)
+        paned = Gtk.Paned(start_child=Gtk.ScrolledWindow(child=self.list, width_request=220), end_child=Gtk.ScrolledWindow(child=self.text), position=230)
+        tv = Adw.ToolbarView(content=paned); hb = Adw.HeaderBar(title_widget=D.dot_label("NOTES", 3)); hb.add_css_class("flat")
+        new = Gtk.Button(icon_name="list-add-symbolic"); new.connect("clicked", lambda *_: self.new_note())
+        dele = Gtk.Button(icon_name="user-trash-symbolic"); dele.connect("clicked", lambda *_: self.delete())
+        hb.pack_start(new); hb.pack_end(dele); tv.add_top_bar(hb); self.set_content(tv); self.reload()
+        if not self.list.get_first_child(): self.new_note()
+
+    def reload(self, select=None):
+        while (r := self.list.get_first_child()): self.list.remove(r)
+        for p in sorted(glob.glob(os.path.join(DIR, "*.txt")), reverse=True):
+            try: first = open(p).readline().strip() or "Untitled"
+            except OSError: continue
+            row = Gtk.ListBoxRow(child=Gtk.Label(label=first, xalign=0, ellipsize=3, margin_top=8, margin_bottom=8, margin_start=10)); row.path = p; self.list.append(row)
+            if p == select: self.list.select_row(row)
+        if select is None and (r := self.list.get_first_child()): self.list.select_row(r)
+
+    def pick(self, lst, row):
+        if not row: return
+        self.cur = row.path; self.loading = True
+        try: self.text.get_buffer().set_text(open(row.path).read())
+        except OSError: pass
+        self.loading = False
+
+    def changed(self, buf):
+        if self.loading or not self.cur: return
+        if self.pending: GLib.source_remove(self.pending)
+        self.pending = GLib.timeout_add(600, self.save)
+
+    def save(self):
+        self.pending = 0; b = self.text.get_buffer()
+        open(self.cur, "w").write(b.get_text(b.get_start_iter(), b.get_end_iter(), False))
+        row = self.list.get_selected_row()
+        if row: row.get_child().set_label(b.get_text(b.get_start_iter(), b.get_end_iter(), False).split("\n")[0].strip() or "Untitled")
+        return False
+
+    def new_note(self):
+        p = os.path.join(DIR, datetime.datetime.now().strftime("note-%Y%m%d-%H%M%S.txt")); open(p, "w").close(); self.reload(p)
+
+    def delete(self):
+        if self.cur and os.path.exists(self.cur): os.remove(self.cur)
+        self.cur = None; self.reload()
+        if not self.list.get_first_child(): self.new_note()
+
+app = Adw.Application(application_id="os.smth.Notes"); app.connect("activate", lambda a: Notes(a).present()); sys.exit(app.run(sys.argv))

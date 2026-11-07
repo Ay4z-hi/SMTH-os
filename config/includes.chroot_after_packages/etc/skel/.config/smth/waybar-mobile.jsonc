@@ -1,0 +1,23 @@
+[
+  {
+    "name": "status", "layer": "top", "position": "top", "height": 34,
+    "modules-left": ["clock"], "modules-center": [],
+    "modules-right": ["tray", "pulseaudio", "network", "bluetooth", "battery", "custom/notify"],
+    "tray": { "icon-size": 16, "spacing": 6 },
+    "pulseaudio": { "format": "{volume}%", "format-muted": "MUTE", "on-click": "smth-settings sound" },
+    "network": { "format-wifi": "{signalStrength}%", "format-disconnected": "OFF", "on-click": "smth-settings network" },
+    "bluetooth": { "format": "BT", "format-off": "", "on-click": "smth-settings bluetooth" },
+    "battery": { "format": "{capacity}%", "states": { "critical": 12 } },
+    "custom/notify": { "format": "◔", "tooltip": false, "on-click": "pkill -USR1 -f lib/smth/notifd.py" },
+    "clock": { "format": "{:%H:%M}" }
+  },
+  {
+    "name": "dock", "margin": "0 40 14 40", "layer": "top", "position": "bottom", "height": 64,
+    "modules-center": ["custom/apps", "custom/term", "custom/kbd", "custom/files", "custom/settings"],
+    "custom/apps":     { "format": "◉", "tooltip": false, "on-click": "smth-launcher" },
+    "custom/term":     { "format": ">_", "tooltip": false, "on-click": "smth-term-overlay" },
+    "custom/kbd":      { "format": "⌨", "tooltip": false, "on-click": "smth-kbd" },
+    "custom/files":    { "format": "▤", "tooltip": false, "on-click": "smth-files" },
+    "custom/settings": { "format": "⚙", "tooltip": false, "on-click": "smth-settings" }
+  }
+]

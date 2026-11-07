@@ -1,0 +1,35 @@
+Window.SetBackgroundTopColor(0.0, 0.0, 0.0);
+Window.SetBackgroundBottomColor(0.02, 0.02, 0.06);
+cx = Window.GetWidth() / 2;
+cy = Window.GetHeight() / 2;
+
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetX(cx - logo.image.GetWidth() / 2);
+logo.sprite.SetY(cy - logo.image.GetHeight() / 2 - 80);
+
+for (l = 0; l < 5; l++) {
+  lvc[l] = Image("dot-c" + l + ".png");
+  lvv[l] = Image("dot-v" + l + ".png");
+}
+N = 12;
+R = 34;
+for (i = 0; i < N; i++) {
+  a = 2 * Math.Pi * i / N;
+  spin[i] = Sprite(lvc[4]);
+  spin[i].SetX(cx + R * Math.Sin(a) - 8);
+  spin[i].SetY(cy + 150 - R * Math.Cos(a) - 8);
+}
+frame = 0;
+
+fun refresh_callback () {
+  head = Math.Int(global.frame / 2) % global.N;
+  for (i = 0; i < global.N; i++) {
+    d = (head - i + global.N) % global.N;
+    if (d > 4) d = 4;
+    if (i % 2 == 0) global.spin[i].SetImage(global.lvc[d]);
+    else global.spin[i].SetImage(global.lvv[d]);
+  }
+  global.frame = global.frame + 1;
+}
+Plymouth.SetRefreshFunction(refresh_callback);

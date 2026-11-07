@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+lib="$(ldconfig -p 2>/dev/null | awk '/libgtk4-layer-shell\.so /{print $NF; exit}')"
+[ -n "$lib" ] && export LD_PRELOAD="$lib"
+exec python3 /usr/local/lib/smth/notifd.py "$@"

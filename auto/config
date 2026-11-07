@@ -22,5 +22,5 @@ lb config noauto \
   --memtest none --win32-loader false \
   --iso-application "SMTH OS" --iso-publisher "SMTH OS" --iso-volume "SMTH_OS_$ARCH" \
   --chroot-squashfs-compression-type zstd \
-  --bootappend-live "boot=live components quiet username=smth hostname=smth" \
+  --bootappend-live "boot=live components quiet splash username=smth hostname=smth" \
   "${@}"

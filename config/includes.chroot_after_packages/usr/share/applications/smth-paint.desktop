@@ -1,8 +1,9 @@
 [Desktop Entry]
 Type=Application
 Name=SMTH Paint
-Exec=drawing
+Exec=smth-paint
 Icon=smth-paint
-Comment=Draw and edit
+Comment=Layered drawing
 Terminal=false
-Categories=Utility;
+Categories=Graphics;
+

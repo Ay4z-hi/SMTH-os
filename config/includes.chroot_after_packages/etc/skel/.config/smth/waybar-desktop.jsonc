@@ -1,0 +1,18 @@
+{
+  "name": "taskbar", "margin": "0 16 12 16", "layer": "top", "position": "bottom", "height": 48, "spacing": 8,
+  "modules-left": ["custom/glance-cpu", "custom/glance-mem", "custom/glance-disk"],
+  "modules-center": ["custom/start", "wlr/taskbar"],
+  "modules-right": ["tray", "pulseaudio", "network", "bluetooth", "battery", "custom/notify", "clock"],
+  "custom/start": { "format": "◉", "tooltip": false, "on-click": "smth-launcher" },
+  "custom/glance-cpu":  { "exec": "smth-glance cpu",  "return-type": "json", "interval": 3 },
+  "custom/glance-mem":  { "exec": "smth-glance mem",  "return-type": "json", "interval": 5 },
+  "custom/glance-disk": { "exec": "smth-glance disk", "return-type": "json", "interval": 60 },
+  "wlr/taskbar": { "format": "{icon}", "icon-size": 22, "on-click": "activate", "on-click-middle": "close" },
+  "tray": { "icon-size": 18, "spacing": 8 },
+  "pulseaudio": { "format": "VOL {volume}%", "format-muted": "MUTE", "on-click": "smth-settings sound", "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle", "scroll-step": 4 },
+  "network": { "format-wifi": "WIFI {signalStrength}%", "format-ethernet": "ETH", "format-disconnected": "NO NET", "tooltip-format": "{essid} {ipaddr}", "on-click": "smth-settings network" },
+  "bluetooth": { "format": "BT", "format-off": "BT OFF", "format-connected": "BT ●", "on-click": "smth-settings bluetooth" },
+  "battery": { "format": "{capacity}%", "states": { "warning": 25, "critical": 12 } },
+  "custom/notify": { "format": "◔", "tooltip": false, "on-click": "pkill -USR1 -f lib/smth/notifd.py", "on-click-right": "pkill -USR2 -f lib/smth/notifd.py" },
+  "clock": { "format": "{:%H:%M}", "format-alt": "{:%a %d %b}", "timezones": ["Europe/London", "Asia/Tokyo", "America/New_York"], "tooltip-format": "{tz_list}" }
+}

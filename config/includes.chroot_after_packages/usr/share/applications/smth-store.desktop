@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SMTH Store
+Exec=smth-store
+Icon=smth-store
+Comment=Install and remove apps
+Terminal=false
+Categories=System;PackageManager;

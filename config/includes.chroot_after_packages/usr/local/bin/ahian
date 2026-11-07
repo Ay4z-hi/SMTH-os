@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""ahian: toggles AHIAN MODE (live black hole, neon clock, floating icons, neon bar)."""
+import os, shutil, subprocess, sys, time
+CFG = os.path.expanduser("~/.config/smth"); FLAG = os.path.join(CFG, "ahian"); os.makedirs(CFG, exist_ok=True)
+arg = sys.argv[1] if len(sys.argv) > 1 else ""
+on = (arg not in ("off", "0", "stop")) if arg else (not os.path.exists(FLAG))
+LET = {"A": [" ███ ", "█   █", "█████", "█   █", "█   █"], "H": ["█   █", "█   █", "█████", "█   █", "█   █"],
+       "I": ["█████", "  █  ", "  █  ", "  █  ", "█████"], "N": ["█   █", "██  █", "█ █ █", "█  ██", "█   █"]}
+def rgb(t):  # violet -> cyan
+    return (int(124 + (25 - 124) * t), int(92 + (230 - 92) * t), int(255 + (208 - 255) * t))
+def banner(word, frames=26):
+    rows = ["  ".join(LET[c][r] for c in word) for r in range(5)]; w = len(rows[0])
+    sys.stdout.write("\x1b[?25l\n")
+    for f in range(frames):
+        sys.stdout.write(f"\x1b[{len(rows)}A" if f else "")
+        for row in rows:
+            line = ""
+            for i, ch in enumerate(row):
+                if ch == " ": line += " "; continue
+                glow = max(0.0, 1 - abs(i - f * w / frames * 1.6) / 9)
+                r, g, b = rgb(i / w); r, g, b = (min(255, int(c + (255 - c) * glow)) for c in (r, g, b))
+                line += f"\x1b[38;2;{r};{g};{b}m{ch}"
+            sys.stdout.write(line + "\x1b[0m\n")
+        sys.stdout.flush(); time.sleep(0.045)
+    sys.stdout.write("\x1b[?25h")
+if on:
+    banner("AHIAN"); open(FLAG, "w").close()
+    print("\n  \x1b[38;2;25;230;208mAHIAN MODE ONLINE\x1b[0m  live black hole · neon clock · floating icons\n  type \x1b[1mahian off\x1b[0m to return\n")
+    src = os.path.join(CFG, "waybar-ahian.css")
+else:
+    if os.path.exists(FLAG): os.remove(FLAG)
+    print("\n  ahian mode off\n"); src = os.path.join(CFG, "waybar-normal.css")
+if os.path.exists(src): shutil.copy(src, os.path.join(CFG, "waybar.css"))
+subprocess.run(["pkill", "-USR1", "-f", "lib/smth/home.py"]); subprocess.run(["pkill", "-USR2", "waybar"])

@@ -5,4 +5,5 @@ Exec=smth-settings
 Icon=smth-settings
 Comment=System settings
 Terminal=false
-Categories=Utility;
+Categories=Settings;
+

@@ -1,0 +1,28 @@
+desktop-image: "background.png"
+title-text: ""
+terminal-font: "Unifont Regular 16"
+
++ boot_menu {
+  left = 50%-210
+  top = 56%
+  width = 420
+  height = 190
+  item_font = "Unifont Regular 16"
+  selected_item_font = "Unifont Regular 16"
+  item_color = "#9aa0c8"
+  selected_item_color = "#19E6D0"
+  item_height = 34
+  item_padding = 10
+  item_spacing = 8
+}
++ progress_bar {
+  id = "__timeout__"
+  left = 50%-210
+  top = 88%
+  width = 420
+  height = 6
+  fg_color = "#7C5CFF"
+  bg_color = "#14142a"
+  border_color = "#14142a"
+  text = ""
+}

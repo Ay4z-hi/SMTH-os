@@ -1,0 +1,19 @@
+[terminal.shell]
+program = "/usr/bin/zsh"
+
+[window]
+opacity = 0.92
+padding = { x = 14, y = 12 }
+decorations = "None"
+
+[font]
+normal = { family = "DejaVu Sans Mono", style = "Regular" }
+size = 11.0
+
+[colors.primary]
+background = "#000000"
+foreground = "#FFFFFF"
+
+[colors.cursor]
+cursor = "#19E6D0"
+text = "#000000"

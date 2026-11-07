@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""smth-pkg list | search TEXT | install ID | remove ID | installed"""
+import sys
+sys.path.insert(0, "/usr/local/lib/smth")
+import pkgcore as P
+a = sys.argv[1:] or ["list"]
+try:
+    if a[0] in ("list", "search", "install"):
+        idx, signed, url = P.load_index(); pk = idx.get("packages", [])
+        if not signed: print("warning: repository is UNSIGNED (no /etc/smth/repo-pub.pem)", file=sys.stderr)
+    if a[0] == "list":
+        for p in pk: print(f"{p['id']:16} {p['version']:8} {p['name']} - {p.get('desc', '')}")
+    elif a[0] == "search": [print(f"{p['id']:16} {p['name']} - {p.get('desc', '')}") for p in pk if a[1].lower() in (p["id"] + p["name"] + p.get("desc", "")).lower()]
+    elif a[0] == "install": P.install(next(p for p in pk if p["id"] == a[1]), url); print("installed", a[1])
+    elif a[0] == "remove": P.remove(a[1]); print("removed", a[1])
+    elif a[0] == "installed": [print(k, v["version"]) for k, v in P.installed().items()]
+    else: print(__doc__)
+except StopIteration: print("no such package"); sys.exit(1)
+except Exception as e: print("error:", e); sys.exit(1)
