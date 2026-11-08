@@ -29,7 +29,7 @@ class Calc(Adw.ApplicationWindow):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL); box.append(self.disp); box.append(grid)
         tv = Adw.ToolbarView(content=box); hb = Adw.HeaderBar(title_widget=D.dot_label("CALC", 3)); hb.add_css_class("flat"); tv.add_top_bar(hb); self.set_content(tv)
     def draw(self, _a, cr, w, h):
-        D.draw_text(cr, self.expr[-18:] or " ", w - 14 - D.text_width(self.expr[-18:] or " ", 2.2), 6, 2.2, on=(1, 1, 1), off=None)
+        D.draw_text(cr, self.expr[-18:] or " ", w - 14 - D.text_width(self.expr[-18:] or " ", 2.2), 6, 2.2, on=(0.6, 0.65, 0.8), off=None)
         r = self.res[-9:]; dot = min(6.0, (w - 24) / (len(r) * 6)); D.draw_text(cr, r, w - 14 - D.text_width(r, dot), 34, dot, off=None)
     def press(self, k):
         if k == "C": self.expr, self.res = "", "0"

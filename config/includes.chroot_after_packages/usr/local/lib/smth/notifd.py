@@ -17,10 +17,10 @@ XML = """<node><interface name="org.freedesktop.Notifications">
 <method name="GetServerInformation"><arg type="s" direction="out"/><arg type="s" direction="out"/><arg type="s" direction="out"/><arg type="s" direction="out"/></method>
 <signal name="NotificationClosed"><arg type="u"/><arg type="u"/></signal></interface></node>"""
 CSS = b"""
-.toast { background: #000000; border: 1px solid #2f6bff; border-radius: 18px; padding: 12px 14px; }
-.toast.crit { border-color: #ff7a00; }
-.toast .t { font-weight: 700; } .toast .b { color: #ffffff; font-size: 12px; } .toast .a { color: #ffffff; font-size: 10px; }
-window.center { background: #000000; border: 1px solid #2f6bff; border-radius: 22px; }
+.toast { background: rgba(8,8,18,0.95); border: 1px solid rgba(124,92,255,0.5); border-radius: 18px; padding: 12px 14px; }
+.toast.crit { border-color: #19E6D0; }
+.toast .t { font-weight: 700; } .toast .b { color: #cfd8ea; font-size: 12px; } .toast .a { color: #8a93b8; font-size: 10px; }
+window.center { background: rgba(8,8,18,0.97); border: 1px solid rgba(124,92,255,0.4); border-radius: 22px; }
 """
 
 class Server(Gtk.Application):

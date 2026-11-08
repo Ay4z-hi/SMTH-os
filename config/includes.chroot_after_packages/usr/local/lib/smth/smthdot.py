@@ -1,5 +1,5 @@
 """SMTH dot drawing helpers (cairo). Ion palette: violet -> cyan."""
-import json, math, os
+import math
 GLYPHS = {
  " ": (0,0,0,0,0,0,0), "0": (14,17,19,21,25,17,14), "1": (4,12,4,4,4,4,14), "2": (14,17,1,2,4,8,31),
  "3": (30,1,1,14,1,1,30), "4": (2,6,10,18,31,2,2), "5": (31,16,30,1,1,17,14), "6": (6,8,16,30,17,17,14),
@@ -14,19 +14,15 @@ GLYPHS = {
  "U": (17,17,17,17,17,17,14), "V": (17,17,17,17,17,10,4), "W": (17,17,17,21,21,27,17), "X": (17,17,10,4,10,17,17),
  "Y": (17,17,10,4,4,4,4), "Z": (31,1,2,4,8,16,31),
 }
-def _rgb(h):
-    h = h.lstrip("#"); return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
-try:
-    _P = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "palette.json"))); ACCENT, VIOLET = _rgb(_P["A"]), _rgb(_P["B"])
-except Exception:
-    ACCENT, VIOLET = (1.0, 0.478, 0.0), (0.184, 0.42, 1.0)
+ACCENT = (0.098, 0.902, 0.816)   # cyan   #19E6D0
+VIOLET = (0.486, 0.361, 1.0)     # violet #7C5CFF
 RED = ACCENT                     # old name kept so older apps still work
 TAU = math.tau
 
 def lerp(a, b, t): return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
 def text_width(text, dot): return (len(text) * 6 - 1) * dot
 
-def draw_text(cr, text, x, y, dot, on=None, off=None):
+def draw_text(cr, text, x, y, dot, on=None, off=(0.11, 0.12, 0.16)):
     for i, ch in enumerate(text.upper()):
         rows = GLYPHS.get(ch, GLYPHS[" "])
         for r in range(7):
@@ -40,9 +36,12 @@ def dot_ring(cr, cx, cy, radius, frac, n=30, dot=3.4, phase=0.0, neon=False):
     lit = round(max(0.0, min(1.0, frac)) * n)
     for k in range(n):
         a = -math.pi / 2 + TAU * k / n + phase; x, y = cx + radius * math.cos(a), cy + radius * math.sin(a)
-        if k < lit: cr.set_source_rgb(*(ACCENT if k % 2 == 0 else VIOLET)); r = dot
-        else: cr.set_source_rgb(*VIOLET); r = dot * 0.35          # unlit = tiny dot, still only two colours
-        cr.arc(x, y, r, 0, TAU); cr.fill()
+        if k < lit:
+            col = ACCENT if k % 2 == 0 else VIOLET
+            if neon: cr.set_source_rgba(*col, 0.2); cr.arc(x, y, dot * 2.0, 0, TAU); cr.fill()
+        else:
+            col = (0.16, 0.17, 0.23)
+        cr.set_source_rgb(*col); cr.arc(x, y, dot, 0, TAU); cr.fill()
 
 def dot_label(text, dot=3.0, on=None, off=None):
     import gi

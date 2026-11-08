@@ -25,7 +25,7 @@ def on_activate(app):
         head = (time.time() - t0) * 9 % 12
         for i in range(12):
             d = (head - i) % 12; a = max(0.12, 1 - d / 5.0); ang = i / 12 * D.TAU
-            cr.set_source_rgb(*(D.ACCENT if i % 2 == 0 else D.VIOLET)); cr.arc(w / 2 + 26 * math.sin(ang), h / 2 - 26 * math.cos(ang), 3.8 * a, 0, D.TAU); cr.fill()
+            cr.set_source_rgba(*(D.ACCENT if i % 2 == 0 else D.VIOLET), a); cr.arc(w / 2 + 26 * math.sin(ang), h / 2 - 26 * math.cos(ang), 3.6, 0, D.TAU); cr.fill()
     spin.set_draw_func(draw)
     def tick(*_):
         t = time.time() - t0; spin.queue_draw()
@@ -33,7 +33,7 @@ def on_activate(app):
         if t > SHOW + FADE: win.close(); app.quit(); return False
         return True
     win.set_child(box); win.add_tick_callback(lambda w, c: tick() and GLib.SOURCE_CONTINUE)
-    p = Gtk.CssProvider(); p.load_from_string("window.welcome { background: #000; } label.wl { color: #ffffff; font-size: 26px; font-weight: 300; letter-spacing: 3px; }")
+    p = Gtk.CssProvider(); p.load_from_string("window.welcome { background: #000; } label.wl { color: #d8fffb; font-size: 26px; font-weight: 300; letter-spacing: 3px; }")
     Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), p, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
     win.present()
 app = Gtk.Application(application_id="os.smth.Welcome"); app.connect("activate", on_activate); sys.exit(app.run(sys.argv))

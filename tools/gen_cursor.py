@@ -4,14 +4,16 @@ import os, struct, sys
 import numpy as np
 from PIL import Image, ImageDraw
 OUT = sys.argv[1]
-HERE = os.path.dirname(os.path.abspath(__file__)); import json
-P = json.load(open(os.path.join(HERE, "palette.json"))); hx = lambda h: tuple(int(h.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)); A, B = hx(P["A"]), hx(P["B"])
+VI, CY = np.array((124, 92, 255)), np.array((25, 230, 208))
 def render(size):
     S = 8; N = size * S; s = size / 32.0
     pts = [(5 * s * S, 3 * s * S), (5 * s * S, 28 * s * S), (22 * s * S, 21 * s * S)]; loop = pts + [pts[0], pts[1]]
     def mask(w):
         m = Image.new("L", (N, N), 0); ImageDraw.Draw(m).line(loop, fill=255, width=int(w * s * S), joint="curve"); return m
-    img = Image.new("RGBA", (N, N), (0, 0, 0, 0)); img.paste(B + (255,), (0, 0), mask(7.0)); img.paste(A + (255,), (0, 0), mask(3.0))   # flat B edge, flat A line, hollow inside
+    outer, inner = mask(7.5), mask(3.6)
+    t = np.linspace(0, 1, N)[:, None, None].repeat(N, 1)
+    grad = Image.fromarray((VI * (1 - t) + CY * t).astype("uint8"), "RGB")
+    img = Image.new("RGBA", (N, N), (0, 0, 0, 0)); img.paste((6, 6, 16, 235), (0, 0), outer); img.paste(grad, (0, 0), inner)
     return img.resize((size, size), Image.LANCZOS), (round(5 * s), round(3 * s))
 def xcursor(images):
     hdr = struct.pack("<4sIII", b"Xcur", 16, 0x10000, len(images)); off = 16 + 12 * len(images); toc = chunks = b""
