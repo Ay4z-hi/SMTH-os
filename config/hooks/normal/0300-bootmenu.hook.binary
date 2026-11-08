@@ -49,13 +49,13 @@ MENU TITLE
 MENU BACKGROUND splash.png
 MENU COLOR screen 0 #ffffff #00000000 none
 MENU COLOR border 0 #00000000 #00000000 none
-MENU COLOR title 0 #19e6d0 #00000000 none
-MENU COLOR unsel 0 #9aa0c8 #00000000 none
-MENU COLOR sel 0 #000000 #19e6d0 none
-MENU COLOR hotsel 0 #000000 #19e6d0 none
-MENU COLOR tabmsg 0 #7c5cff #00000000 none
-MENU COLOR timeout 0 #7c5cff #00000000 none
-MENU COLOR timeout_msg 0 #7c5cff #00000000 none
+MENU COLOR title 0 #ff7a00 #00000000 none
+MENU COLOR unsel 0 #ffffff #00000000 none
+MENU COLOR sel 0 #000000 #ff7a00 none
+MENU COLOR hotsel 0 #000000 #ff7a00 none
+MENU COLOR tabmsg 0 #2f6bff #00000000 none
+MENU COLOR timeout 0 #2f6bff #00000000 none
+MENU COLOR timeout_msg 0 #2f6bff #00000000 none
 MENU COLOR cmdline 0 #ffffff #00000000 none
 MENU WIDTH 40
 MENU MARGIN 0
