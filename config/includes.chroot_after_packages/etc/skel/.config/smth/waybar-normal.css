@@ -1,12 +1,12 @@
 * { font-family: "Inter", "DejaVu Sans", sans-serif; font-size: 13px; border: none; min-height: 0; }
 window#waybar { background: transparent; color: #ffffff; }
-.modules-left, .modules-center, .modules-right { background: rgba(8,8,18,0.90); border: 1px solid rgba(124,92,255,0.28); border-radius: 999px; padding: 0 10px; margin: 0 4px; }
+.modules-left, .modules-center, .modules-right { background: #000000; border: 1px solid #2f6bff; border-radius: 999px; padding: 0 10px; margin: 0 4px; }
 #custom-start, #custom-apps, #custom-term, #custom-kbd, #custom-files, #custom-settings { font-size: 20px; padding: 0 16px; margin: 4px 2px; border-radius: 999px; }
-#custom-start:hover, #custom-apps:hover, #custom-term:hover, #custom-kbd:hover, #custom-files:hover, #custom-settings:hover { background: #19E6D0; color: #000000; }
+#custom-start:hover, #custom-apps:hover, #custom-term:hover, #custom-kbd:hover, #custom-files:hover, #custom-settings:hover { background: #ff7a00; color: #000000; }
 #taskbar button { padding: 0 10px; margin: 4px 2px; border-radius: 12px; background: transparent; }
-#taskbar button.active { border-bottom: 2px solid #19E6D0; background: rgba(124,92,255,0.14); }
+#taskbar button.active { border-bottom: 2px solid #ff7a00; background: #2f6bff; }
 #custom-glance-cpu, #custom-glance-mem, #custom-glance-disk { font-family: "DejaVu Sans Mono", monospace; padding: 0 10px; letter-spacing: 1px; }
-#custom-glance-cpu.hot, #custom-glance-mem.hot, #battery.critical { color: #FF4D6D; }
+#custom-glance-cpu.hot, #custom-glance-mem.hot, #battery.critical { color: #2f6bff; }
 #clock, #network, #battery, #pulseaudio, #bluetooth, #mpris { padding: 0 10px; }
 #tray, #custom-notify { padding: 0 10px; }
-#custom-notify:hover { background: #19E6D0; color: #000; border-radius: 999px; }
+#custom-notify:hover { background: #ff7a00; color: #000; border-radius: 999px; }

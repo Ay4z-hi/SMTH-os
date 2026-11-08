@@ -30,16 +30,16 @@ def T(): return time.time() - S.t0
 CSS = b"""
 window.home { background: #000; }
 .home button.app { border-radius: 20px; padding: 8px 10px; background: transparent; border: 1px solid transparent; }
-.home button.app:hover { background: rgba(12,12,26,0.85); border-color: rgba(25,230,208,0.45); }
-.home button.app:active { border-color: #7C5CFF; }
-.home label.cap { color: #d7e3ef; font-size: 11px; }
-.home .glance { background: rgba(8,8,18,0.55); border-radius: 26px; border: 1px solid rgba(124,92,255,0.25); padding: 10px 14px; }
+.home button.app:hover { background: #000000; border-color: #ff7a00; }
+.home button.app:active { border-color: #2f6bff; }
+.home label.cap { color: #ffffff; font-size: 11px; }
+.home .glance { background: #000000; border-radius: 26px; border: 1px solid #2f6bff; padding: 10px 14px; }
 @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-9px); } 100% { transform: translateY(0px); } }
-window.home.ahian button.app { animation: float 3.2s ease-in-out infinite; border: 1px solid rgba(25,230,208,0.35); background: rgba(8,8,24,0.55); box-shadow: 0 0 20px rgba(124,92,255,0.4); }
+window.home.ahian button.app { animation: float 3.2s ease-in-out infinite; border: 1px solid #ff7a00; background: #000000; }
 window.home.ahian flowboxchild:nth-child(2n) button.app { animation-delay: 0.8s; }
 window.home.ahian flowboxchild:nth-child(3n) button.app { animation-delay: 1.6s; }
-window.home.ahian button.app image { -gtk-icon-shadow: 0 0 14px rgba(25,230,208,0.85); }
-window.home.ahian .glance { border-color: rgba(25,230,208,0.55); box-shadow: 0 0 24px rgba(25,230,208,0.25); }
+window.home.ahian button.app image { }
+window.home.ahian .glance { border-color: #ff7a00; }
 """
 
 class Stats:
@@ -79,11 +79,10 @@ class BlackHole:
             x = (sx * w + (mx - 0.5) * 46 * sd) % w; y = (sy * h + (my - 0.5) * 26 * sd) % h
             buckets[int((math.sin(t * 1.7 + sx * 40) * 0.5 + 0.5) * 3.99)].append((x, y, 0.7 + 1.4 * sd))
         for k, lst in enumerate(buckets):
-            cr.set_source_rgba(0.85, 0.93, 1.0, 0.22 + 0.2 * k)
+            if k == 0: continue
+            cr.set_source_rgb(*(CY if k % 2 else VI))
             for x, y, r in lst: cr.new_sub_path(); cr.arc(x, y, r * sc, 0, TAU)
             cr.fill()
-        g = cairo.RadialGradient(cx, cy, R, cx, cy, R * 5.5); g.add_color_stop_rgba(0, 0.3, 0.15, 0.9, 0.38); g.add_color_stop_rgba(1, 0, 0, 0, 0)
-        cr.set_source(g); cr.paint()
         cs, sn, tilt = math.cos(-0.22), math.sin(-0.22), 0.27
         bk = [[], []]
         for i, (rr, a0) in enumerate(self.disk):
@@ -94,18 +93,17 @@ class BlackHole:
             bk[(i + int(math.floor(tr * 9 - t * 1.4))) % 2].append((cx + x * cs - y * sn, cy + x * sn + y * cs, (1.0 + 3.4 * b * (1 - 0.55 * tr)) * sc * 0.9))
         for i, lst in enumerate(bk):
             if not lst: continue
-            cr.set_source_rgba(*(CY, VI)[i], 0.95)
+            cr.set_source_rgb(*(CY, VI)[i])
             for X, Y, r in lst: cr.new_sub_path(); cr.arc(X, Y, r, 0, TAU)
             cr.fill()
         cr.set_source_rgb(0, 0, 0); cr.arc(cx, cy, R, 0, TAU); cr.fill()
         pulse = 0.65 + 0.35 * math.sin(t * 2.2)
-        cr.set_source_rgba(0.1, 0.9, 0.8, 0.16 * pulse); cr.set_line_width(9 * sc); cr.arc(cx, cy, R * 1.08, 0, TAU); cr.stroke()
-        cr.set_source_rgba(0.85, 1, 0.98, 0.5 + 0.5 * pulse); cr.set_line_width(2 * sc); cr.arc(cx, cy, R * 1.08, 0, TAU); cr.stroke()
+        cr.set_source_rgb(*CY); cr.set_line_width((1.5 + 2.5 * pulse) * sc); cr.arc(cx, cy, R * 1.08, 0, TAU); cr.stroke()
         ph = t % 8.0                                                  # shooting star
         if ph < 0.9:
             u = ph / 0.9
             for k in range(16):
-                p = max(0, u - k * 0.014); cr.set_source_rgba(0.8, 1, 1, (1 - k / 16) * (1 - u * 0.6))
+                p = max(0, u - k * 0.014); cr.set_source_rgb(*(CY if k % 2 else VI))
                 cr.arc(w * 0.08 + p * w * 0.55, h * 0.1 + p * h * 0.22, (2.6 - k * 0.12) * sc, 0, TAU); cr.fill()
 
 def neon_text(cr, text, x, y, dot, t):
@@ -116,10 +114,9 @@ def neon_text(cr, text, x, y, dot, t):
                 px, py = x + (i * 6 + c) * dot + dot / 2, y + r * dot + dot / 2
                 if (rows[r] >> (4 - c)) & 1:
                     col = CY if (i * 6 + c + int(t * 3)) % 2 == 0 else VI
-                    cr.set_source_rgba(*col, 0.2); cr.arc(px, py, dot * 0.78, 0, TAU); cr.fill()
                     cr.set_source_rgb(*col); cr.arc(px, py, dot * 0.4, 0, TAU); cr.fill()
                 else:
-                    cr.set_source_rgb(0.09, 0.09, 0.14); cr.arc(px, py, dot * 0.3, 0, TAU); cr.fill()
+                    pass
 
 def clock_widget():
     a = Gtk.DrawingArea(); dot = 11; a.set_content_width(int(D.text_width("00:00", dot)) + 4); a.set_content_height(dot * 7 + 4)
@@ -130,7 +127,7 @@ def clock_widget():
 
 def date_widget():
     a = Gtk.DrawingArea(); dot = 3.6; a.set_content_width(int(D.text_width("WED 28 OCT", dot)) + 4); a.set_content_height(int(dot * 7) + 2)
-    a.set_draw_func(lambda _a, cr, w, h: D.draw_text(cr, datetime.datetime.now().strftime("%a %d %b"), 0, 0, dot, on=(0.8, 0.86, 0.95), off=None)); return a
+    a.set_draw_func(lambda _a, cr, w, h: D.draw_text(cr, datetime.datetime.now().strftime("%a %d %b"), 0, 0, dot, on=(1, 1, 1), off=None)); return a
 
 def ring(label, getter):
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4); a = Gtk.DrawingArea(); a.set_content_width(110); a.set_content_height(110); st = {"v": 0.0}

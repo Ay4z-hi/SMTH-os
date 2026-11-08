@@ -6,8 +6,10 @@ arg = sys.argv[1] if len(sys.argv) > 1 else ""
 on = (arg not in ("off", "0", "stop")) if arg else (not os.path.exists(FLAG))
 LET = {"A": [" ███ ", "█   █", "█████", "█   █", "█   █"], "H": ["█   █", "█   █", "█████", "█   █", "█   █"],
        "I": ["█████", "  █  ", "  █  ", "  █  ", "█████"], "N": ["█   █", "██  █", "█ █ █", "█  ██", "█   █"]}
-def rgb(t):  # violet -> cyan
-    return (int(124 + (25 - 124) * t), int(92 + (230 - 92) * t), int(255 + (208 - 255) * t))
+import json
+_P = json.load(open('/usr/local/lib/smth/palette.json'))
+A, B = (tuple(int(_P[k][i:i + 2], 16) for i in (1, 3, 5)) for k in ('A', 'B'))
+def rgb(t): return A if int(t * 5) % 2 == 0 else B
 def banner(word, frames=26):
     rows = ["  ".join(LET[c][r] for c in word) for r in range(5)]; w = len(rows[0])
     sys.stdout.write("\x1b[?25l\n")
@@ -18,14 +20,14 @@ def banner(word, frames=26):
             for i, ch in enumerate(row):
                 if ch == " ": line += " "; continue
                 glow = max(0.0, 1 - abs(i - f * w / frames * 1.6) / 9)
-                r, g, b = rgb(i / w); r, g, b = (min(255, int(c + (255 - c) * glow)) for c in (r, g, b))
+                r, g, b = (255, 255, 255) if glow > 0.35 else rgb(i / w)
                 line += f"\x1b[38;2;{r};{g};{b}m{ch}"
             sys.stdout.write(line + "\x1b[0m\n")
         sys.stdout.flush(); time.sleep(0.045)
     sys.stdout.write("\x1b[?25h")
 if on:
     banner("AHIAN"); open(FLAG, "w").close()
-    print("\n  \x1b[38;2;25;230;208mAHIAN MODE ONLINE\x1b[0m  live black hole · neon clock · floating icons\n  type \x1b[1mahian off\x1b[0m to return\n")
+    print("\n  \x1b[1mAHIAN MODE ONLINE\x1b[0m  live black hole · neon clock · floating icons\n  type \x1b[1mahian off\x1b[0m to return\n")
     src = os.path.join(CFG, "waybar-ahian.css")
 else:
     if os.path.exists(FLAG): os.remove(FLAG)
