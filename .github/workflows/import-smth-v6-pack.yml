@@ -3,8 +3,7 @@ name: Import SMTH v6 pack
 on:
   push:
     branches: [main]
-    paths:
-      - "smth-v6-pack.zip"
+  workflow_dispatch:
 
 permissions:
   contents: write
