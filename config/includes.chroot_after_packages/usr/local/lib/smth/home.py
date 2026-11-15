@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""SMTH Home: wallpaper, desktop icons, clock, glance rings. `ahian` switches on the live black-hole scene."""
-import colorsys, datetime, glob, math, os, random, signal, sys, time
+"""SMTH Home: black surfaces, A/B dot art, desktop icons and glance rings. ahian enables the live black-hole scene."""
+import datetime, glob, math, os, random, signal, sys, time
 sys.path.insert(0, "/usr/local/lib/smth")
 import cairo
 import gi
@@ -14,7 +14,7 @@ WALL = "/usr/share/backgrounds/smth/wallpaper.png"
 APPS = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint", "smth-notes",
         "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings"]
 GOLD = math.pi * (3 - math.sqrt(5)); TAU = math.tau
-HOT, CY, VI = (0.92, 1.0, 1.0), D.ACCENT, D.VIOLET
+CY, VI = D.ACCENT, D.VIOLET
 
 def wall_path():
     try:
@@ -28,13 +28,13 @@ class S:
 def T(): return time.time() - S.t0
 
 CSS = b"""
-window.home { background: #000; }
+window.home { background: #000000; color: #ffffff; }
 .home button.app { border-radius: 20px; padding: 8px 10px; background: transparent; border: 1px solid transparent; }
 .home button.app:hover { background: #000000; border-color: #ff7a00; }
 .home button.app:active { border-color: #2f6bff; }
 .home label.cap { color: #ffffff; font-size: 11px; }
 .home .glance { background: #000000; border-radius: 26px; border: 1px solid #2f6bff; padding: 10px 14px; }
-@keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-9px); } 100% { transform: translateY(0px); } }
+@keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0px); } }
 window.home.ahian button.app { animation: float 3.2s ease-in-out infinite; border: 1px solid #ff7a00; background: #000000; }
 window.home.ahian flowboxchild:nth-child(2n) button.app { animation-delay: 0.8s; }
 window.home.ahian flowboxchild:nth-child(3n) button.app { animation-delay: 1.6s; }
@@ -56,15 +56,6 @@ class Stats:
     def bat(self):
         for p in glob.glob("/sys/class/power_supply/BAT*/capacity"): return int(open(p).read()) / 100
         return None
-
-def palette(shift):
-    out = []
-    for i in range(64):
-        t = i / 63; c = D.lerp(HOT, CY, t / 0.22) if t < 0.22 else D.lerp(CY, VI, (t - 0.22) / 0.78)
-        if shift:
-            h, s, v = colorsys.rgb_to_hsv(*c); c = colorsys.hsv_to_rgb((h + shift) % 1, max(s, 0.55), v)
-        out.append(c)
-    return out
 
 class BlackHole:
     def __init__(self):
@@ -177,7 +168,7 @@ def on_activate(app):
     def apply():
         S.ahian = os.path.exists(FLAG); pic.set_filename(wall_path()); pic.set_visible(not S.ahian); live.set_visible(S.ahian)
         (win.add_css_class if S.ahian else win.remove_css_class)("ahian")
-        if S.ahian and not S.timer: S.timer = GLib.timeout_add(40, lambda: (frame() or setattr(S, "timer", 0)) or S.ahian)
+        if S.ahian and not S.timer: S.timer = GLib.timeout_add(33, lambda: (frame() or setattr(S, "timer", 0)) or S.ahian)
         return True
     GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, apply); apply(); win.present()
 
