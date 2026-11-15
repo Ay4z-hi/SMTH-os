@@ -1,0 +1,12 @@
+[Unit]
+Description=Mount installed SMTH OS extensions
+After=local-fs.target
+ConditionPathIsDirectory=/var/lib/smth/extensions
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/smthctl extension activate-all
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
