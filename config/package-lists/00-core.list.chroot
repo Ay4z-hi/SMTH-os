@@ -29,3 +29,6 @@ pipewire-pulse
 pipewire-alsa
 wireplumber
 rtkit
+openssl
+nftables
+bubblewrap
