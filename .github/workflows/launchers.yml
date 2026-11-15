@@ -1,0 +1,60 @@
+name: Build SMTH launchers
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'launchers/**'
+      - '.github/workflows/launchers.yml'
+    tags: ['launcher-v*']
+permissions:
+  contents: write
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - name: Build Android launcher
+        working-directory: launchers/android
+        run: gradle --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SMTH-Android-Launcher
+          path: launchers/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Build portable Windows launcher
+        working-directory: launchers/windows
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pyinstaller --noconfirm --clean --onefile --windowed --name SMTH-Launcher smth_launcher.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SMTH-Windows-Launcher
+          path: launchers/windows/dist/SMTH-Launcher.exe
+          if-no-files-found: error
+          retention-days: 30
+  release:
+    if: startsWith(github.ref, 'refs/tags/launcher-v')
+    needs: [android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          name: SMTH Launchers ${{ github.ref_name }}
+          generate_release_notes: true
