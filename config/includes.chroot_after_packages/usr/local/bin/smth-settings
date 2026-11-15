@@ -48,7 +48,7 @@ def display(win):
     def setm(c, _):
         m = modes_l[c.get_selected()]; open(f"{CFG}/mode", "w").write(m); subprocess.Popen(["smth-mode", m])
     r.connect("notify::selected", setm); lay.add(r)
-    wp = Group(p, "Wallpaper"); files = sorted(glob.glob("/usr/share/backgrounds/smth/*.png") + glob.glob(os.path.expanduser("~/Pictures/*.[pj][np]g")))[:40]
+    wp = Group(p, "Wallpaper"); files = sorted([f for f in glob.glob("/usr/share/backgrounds/smth/*.png") if os.path.basename(f) not in ("lock.png", "wallpaper.png")] + glob.glob(os.path.expanduser("~/Pictures/*.[pj][np]g")))[:40]
     def setwall(f): open(f"{CFG}/wallpaper", "w").write(f); subprocess.run(["pkill", "-USR1", "-f", "lib/smth/home.py"]); note("Wallpaper changed")
     for f in files:
         row = Adw.ActionRow(title=os.path.basename(f)); row.add_suffix(btn("Set", lambda f=f: setwall(f))); wp.add(row)
