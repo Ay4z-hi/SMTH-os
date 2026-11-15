@@ -30,7 +30,7 @@ def T(): return time.time() - S.t0
 
 CSS = b"""
 window.home { background: #000000; color: #ffffff; }
-.home button.app { border-radius: 4px; padding: 8px 10px; background: transparent; border: 1px solid transparent; }
+.home button.app { border-radius: 4px; padding: 8px 10px; background: #000000; border: 1px solid #000000; }
 .home button.app:hover { background: #000000; border-color: #ff7a00; }
 .home button.app:active { border-color: #2f6bff; }
 .home label.cap { color: #ffffff; font-size: 11px; }
