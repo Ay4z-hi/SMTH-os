@@ -13,7 +13,7 @@ $SUDO apt-get install -y live-build debootstrap xorriso squashfs-tools mtools do
 
 bash scripts/check-packages.sh
 bash -n scripts/build.sh
-python3 -m py_compile tools/*.py config/includes.chroot_after_packages/usr/local/bin/ahian config/includes.chroot_after_packages/usr/local/lib/smth/*.py
+python3 -m py_compile tools/*.py config/includes.chroot_after_packages/usr/local/bin/ahian config/includes.chroot_after_packages/usr/local/bin/smthctl config/includes.chroot_after_packages/usr/local/lib/smth/*.py
 python3 tools/gen_tokens.py
 python3 tools/gen_assets.py config/includes.chroot_after_packages
 python3 tools/gen_cursor.py config/includes.chroot_after_packages
