@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """SMTH art with exactly two flat colours (tools/palette.json) on black. No gradients, glows or shaded edges."""
-import json, math, os, random, sys
+import json, math, os, random, shutil, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__)); OUT = sys.argv[1] if len(sys.argv) > 1 else "."
@@ -60,10 +60,65 @@ def sprite(color, diam):                              # spinner trail = dot SIZE
 def boot_bg(W, H):
     im = scene(W, H, W * 0.5, H * 0.27, H * 0.055); wm = wordmark(max(18, H // 16)); im.paste(wm, ((W - wm.width) // 2, int(H * 0.45)), wm); return im
 
+
+def wallpaper(kind, W, H):
+    """Flat black/A/B wallpaper family. No gradients, alpha, or off-palette pixels."""
+    im = Image.new("RGB", (W, H), (0, 0, 0)); d = ImageDraw.Draw(im)
+    rng = random.Random(71)
+    def dot(x, y, r, c):
+        r = max(1, int(r)); x, y = int(x), int(y)
+        d.ellipse((x-r, y-r, x+r, y+r), fill=c)
+    def ring(cx, cy, rx, ry, step=2, phase=0):
+        for n in range(0, 360, step):
+            q = math.radians(n); dot(cx + rx*math.cos(q), cy + ry*math.sin(q), 2, A if ((n//step)+phase)%2 else B)
+    if kind == "black-hole":
+        im = scene(W, H, W*.66, H*.50, H*.105)
+    elif kind == "spiral-galaxy":
+        for _ in range(700): dot(rng.randrange(W), rng.randrange(H), 1, A if rng.random()<.5 else B)
+        cx, cy = W*.5, H*.5
+        for i in range(3200):
+            arm = i % 4; r = 8 + (i/3200)**.78 * H*.43
+            q = r*.018 + arm*math.tau/4 + rng.uniform(-.10,.10)
+            dot(cx+r*math.cos(q), cy+r*.55*math.sin(q), 1+(i%5==0), A if i%2 else B)
+        d.ellipse((cx-H*.055,cy-H*.055,cx+H*.055,cy+H*.055), fill=(0,0,0))
+    elif kind == "orbit-rings":
+        for i in range(12): ring(W*.5,H*.5,H*(.10+i*.055),H*(.035+i*.020),2,i)
+        for i in range(260): dot(rng.randrange(W),rng.randrange(H),1,A if i%2 else B)
+    elif kind == "dot-topography":
+        for y in range(30,H,18):
+            for x in range(30,W,18):
+                v=math.sin(x*.006)+math.cos(y*.009)+math.sin((x+y)*.003)
+                if v > .25: dot(x,y,1+(int(abs(v)*3)), A if (x//18+y//18)%2 else B)
+    elif kind == "horizon-grid":
+        cy=H*.62
+        for y in range(int(cy),H,3):
+            d.line((0,y,W,y), fill=A if (y//3)%2 else B, width=1)
+        for x in range(-W,W*2,70):
+            d.line((W*.5,cy,x,H), fill=A if (x//70)%2 else B, width=1)
+        ring(W*.5,cy,H*.11,H*.11,2)
+    elif kind == "eclipse":
+        cx,cy=W*.5,H*.44; rr=H*.20
+        ring(cx,cy,rr*1.25,rr*1.25,1)
+        d.ellipse((cx-rr,cy-rr,cx+rr,cy+rr),fill=(0,0,0))
+        for i in range(220): dot(rng.randrange(W),rng.randrange(H),1,A if i%2 else B)
+    elif kind == "double-helix":
+        for y in range(0,H,3):
+            q=y/H*math.tau*3
+            x1=W*.5+W*.20*math.sin(q); x2=W*.5-W*.20*math.sin(q)
+            dot(x1,y,3,A); dot(x2,y,3,B)
+            if y%18==0: d.line((int(x1),y,int(x2),y),fill=A if (y//18)%2 else B,width=1)
+    else:
+        pass
+    wm=wordmark(46)
+    im.paste(wm,(110,H-170),wm)
+    return flat(im,[(0,0,0),A,B])
+
 bg = os.path.join(OUT, "usr/share/backgrounds/smth"); pl = os.path.join(OUT, "usr/share/plymouth/themes/smth"); sh = os.path.join(OUT, "usr/share/smth"); bt = os.path.join(sh, "boot")
 for p in (bg, pl, sh, bt): os.makedirs(p, exist_ok=True)
 W, H = 2560, 1440; wm = wordmark(46)
-w = scene(W, H, W * 0.66, H * 0.50, H * 0.105); w.paste(wm, (110, H - 170), wm); w.save(os.path.join(bg, "wallpaper.png"), optimize=True)
+for name in ("black-hole", "spiral-galaxy", "orbit-rings", "dot-topography", "horizon-grid", "eclipse", "double-helix", "plain-black"):
+    wallpaper(name, W, H).save(os.path.join(bg, name + ".png"), optimize=True)
+shutil.copyfile(os.path.join(bg, "black-hole.png"), os.path.join(bg, "wallpaper.png"))
 l = scene(W, H, W * 0.5, H * 0.36, H * 0.07); l.paste(wm, ((W - wm.width) // 2, H - 190), wm); l.save(os.path.join(bg, "lock.png"), optimize=True)
 mark(256).save(os.path.join(sh, "mark.png")); logo_full().save(os.path.join(sh, "logo.png")); logo_full().save(os.path.join(pl, "logo.png"))
 for i, dm in enumerate((14, 11, 8, 6, 4)): sprite(A, dm).save(os.path.join(pl, f"dot-c{i}.png")); sprite(B, dm).save(os.path.join(pl, f"dot-v{i}.png"))
