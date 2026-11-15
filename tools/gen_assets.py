@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """SMTH art with exactly two flat colours (tools/palette.json) on black. No gradients, glows or shaded edges."""
-import json, math, os, random, shutil, sys
+import glob, json, math, os, random, shutil, sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__)); OUT = sys.argv[1] if len(sys.argv) > 1 else "."
 P = json.load(open(os.path.join(HERE, "palette.json"))); hx = lambda h: tuple(int(h.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
 A, B = hx(P["A"]), hx(P["B"])
-FONT = next(f for f in ("/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf") if os.path.exists(f))
+FONT = next(iter(glob.glob("/usr/share/fonts/truetype/inter/*Bold*") + glob.glob("/usr/share/fonts/truetype/inter/*Variable*") + ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]))
 GOLD = math.pi * (3 - math.sqrt(5))
 
 def flat(img, pal):                                  # snap every pixel to the nearest palette colour (no in-between shades)
