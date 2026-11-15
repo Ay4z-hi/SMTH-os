@@ -15,7 +15,7 @@ WALL = "/usr/share/backgrounds/smth/wallpaper.png"
 APPS = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint", "smth-notes",
         "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings"]
 GOLD = math.pi * (3 - math.sqrt(5)); TAU = math.tau
-CY, VI = D.ACCENT, D.BLUE
+CY, VI = D.ACCENT, D.VIOLET
 
 def wall_path():
     try:
