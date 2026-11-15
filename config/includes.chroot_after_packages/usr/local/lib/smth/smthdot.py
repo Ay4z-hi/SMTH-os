@@ -1,4 +1,4 @@
-"""SMTH dot drawing helpers (cairo). Ion palette: violet -> cyan."""
+"""SMTH dot drawing helpers. Every lit dot uses palette A or B; unlit dots use B."""
 import json, math, os
 GLYPHS = {
  " ": (0,0,0,0,0,0,0), "0": (14,17,19,21,25,17,14), "1": (4,12,4,4,4,4,14), "2": (14,17,1,2,4,8,31),
