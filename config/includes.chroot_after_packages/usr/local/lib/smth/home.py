@@ -10,6 +10,7 @@ from gi.repository import Gtk4LayerShell as LS
 import smthdot as D
 
 FLAG = os.path.expanduser("~/.config/smth/ahian")
+REDUCE_MOTION = os.path.expanduser("~/.config/smth/reduce-motion")
 WALL = "/usr/share/backgrounds/smth/wallpaper.png"
 APPS = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint", "smth-notes",
         "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings"]
@@ -38,6 +39,7 @@ window.home { background: #000000; color: #ffffff; }
 window.home.ahian button.app { animation: float 3.2s ease-in-out infinite; border: 1px solid #ff7a00; background: #000000; }
 window.home.ahian flowboxchild:nth-child(2n) button.app { animation-delay: 0.8s; }
 window.home.ahian flowboxchild:nth-child(3n) button.app { animation-delay: 1.6s; }
+window.home.reduce-motion button.app { animation: none; }
 window.home.ahian button.app image { }
 window.home.ahian .glance { border-color: #ff7a00; }
 """
@@ -161,14 +163,31 @@ def on_activate(app):
     mc = Gtk.EventControllerMotion(); mc.connect("motion", lambda c, x, y: (setattr(S, "mx", x / max(1, win.get_width())), setattr(S, "my", y / max(1, win.get_height())))); overlay.add_controller(mc)
     prov = Gtk.CssProvider(); prov.load_from_data(CSS); Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
+    def motion_reduced():
+        try: return open(REDUCE_MOTION, encoding="utf-8").read().strip().lower() in ("1", "true", "yes", "on")
+        except OSError: return False
     def frame():
         live.queue_draw()
         for a in S.animated: a.queue_draw()
-        return S.ahian
+        if S.ahian and not motion_reduced():
+            load = os.getloadavg()[0] / max(1, os.cpu_count() or 1)
+            S.timer = GLib.timeout_add(66 if load >= 0.75 else 33, frame)
+        else:
+            S.timer = 0
+        return False
     def apply():
-        S.ahian = os.path.exists(FLAG); pic.set_filename(wall_path()); pic.set_visible(not S.ahian); live.set_visible(S.ahian)
+        S.ahian = os.path.exists(FLAG)
+        reduced = motion_reduced()
+        pic.set_filename(wall_path()); pic.set_visible(not S.ahian); live.set_visible(S.ahian)
         (win.add_css_class if S.ahian else win.remove_css_class)("ahian")
-        if S.ahian and not S.timer: S.timer = GLib.timeout_add(33, lambda: (frame() or setattr(S, "timer", 0)) or S.ahian)
+        (win.add_css_class if reduced else win.remove_css_class)("reduce-motion")
+        if S.ahian and not reduced and not S.timer:
+            S.timer = GLib.timeout_add(33, frame)
+        elif (not S.ahian or reduced) and S.timer:
+            GLib.source_remove(S.timer); S.timer = 0
+        if S.ahian:
+            live.queue_draw()
+            for a in S.animated: a.queue_draw()
         return True
     GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, apply); apply(); win.present()
 
