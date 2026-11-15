@@ -5,7 +5,7 @@ sed -i 's/^PRETTY_NAME=.*/PRETTY_NAME="SMTH OS"/' /etc/os-release
 echo 'vm.swappiness=150' > /etc/sysctl.d/99-smth.conf
 
 # services
-systemctl enable freezerd.service zramswap.service NetworkManager.service bluetooth.service 2>/dev/null || true
+systemctl enable freezerd.service zramswap.service NetworkManager.service bluetooth.service nftables.service smth-extensions.service 2>/dev/null || true
 systemctl set-default multi-user.target   # labwc is started from the autologin shell, not a display manager
 
 # desktop defaults (dark, SMTH icons, Inter)
