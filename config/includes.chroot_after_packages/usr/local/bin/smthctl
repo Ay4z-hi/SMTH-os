@@ -120,6 +120,7 @@ def install(path):
         if backup.exists():
             shutil.rmtree(backup)
         if state.exists():
+            unmount_extension(ext_id)
             state.rename(backup)
         stage.rename(state)
         try:
