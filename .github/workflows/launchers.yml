@@ -9,6 +9,9 @@ on:
     tags: ['launcher-v*']
 permissions:
   contents: write
+concurrency:
+  group: smth-launchers-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   android:
     runs-on: ubuntu-latest
