@@ -15,7 +15,7 @@ WALL = "/usr/share/backgrounds/smth/wallpaper.png"
 APPS = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint", "smth-notes",
         "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings"]
 GOLD = math.pi * (3 - math.sqrt(5)); TAU = math.tau
-CY, VI = D.ACCENT, D.VIOLET
+CY, VI = D.ACCENT, D.BLUE
 
 def wall_path():
     try:
@@ -30,11 +30,11 @@ def T(): return time.time() - S.t0
 
 CSS = b"""
 window.home { background: #000000; color: #ffffff; }
-.home button.app { border-radius: 20px; padding: 8px 10px; background: transparent; border: 1px solid transparent; }
+.home button.app { border-radius: 4px; padding: 8px 10px; background: transparent; border: 1px solid transparent; }
 .home button.app:hover { background: #000000; border-color: #ff7a00; }
 .home button.app:active { border-color: #2f6bff; }
 .home label.cap { color: #ffffff; font-size: 11px; }
-.home .glance { background: #000000; border-radius: 26px; border: 1px solid #2f6bff; padding: 10px 14px; }
+.home .glance { background: #000000; border-radius: 8px; border: 1px solid #2f6bff; padding: 10px 14px; }
 @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0px); } }
 window.home.ahian button.app { animation: float 3.2s ease-in-out infinite; border: 1px solid #ff7a00; background: #000000; }
 window.home.ahian flowboxchild:nth-child(2n) button.app { animation-delay: 0.8s; }
