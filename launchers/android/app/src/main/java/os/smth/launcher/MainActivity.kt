@@ -19,10 +19,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private const val BLACK = 0xFF000000.toInt()
-private const val ORANGE = 0xFFFF7A00.toInt()
-private const val BLUE = 0xFF2F6BFF.toInt()
-private const val WHITE = 0xFFFFFFFF.toInt()
+private val BLACK = 0xFF000000.toInt()
+private val ORANGE = 0xFFFF7A00.toInt()
+private val BLUE = 0xFF2F6BFF.toInt()
+private val WHITE = 0xFFFFFFFF.toInt()
 
 class MainActivity : Activity() {
     private val apps = listOf(
