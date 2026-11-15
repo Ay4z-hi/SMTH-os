@@ -9,9 +9,11 @@ SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
 $SUDO apt-get update
 GRUB="grub-efi-$SMTH_ARCH-bin"; [ "$SMTH_ARCH" = amd64 ] && GRUB="grub-efi-amd64-bin grub-pc-bin syslinux syslinux-common isolinux"
 $SUDO apt-get install -y live-build debootstrap xorriso squashfs-tools mtools dosfstools \
-  cargo rustc ca-certificates debian-archive-keyring python3-numpy python3-pil $GRUB
+  cargo rustc ca-certificates debian-archive-keyring python3-numpy python3-pil fonts-dejavu-core $GRUB
 
 bash scripts/check-packages.sh
+bash -n scripts/build.sh
+python3 -m py_compile tools/*.py config/includes.chroot_after_packages/usr/local/bin/ahian config/includes.chroot_after_packages/usr/local/lib/smth/*.py
 python3 tools/gen_tokens.py
 python3 tools/gen_assets.py config/includes.chroot_after_packages
 python3 tools/gen_cursor.py config/includes.chroot_after_packages
