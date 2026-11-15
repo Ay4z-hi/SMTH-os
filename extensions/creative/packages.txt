@@ -1,0 +1,3 @@
+loupe
+gnome-snapshot
+drawing
