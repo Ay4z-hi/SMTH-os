@@ -122,7 +122,7 @@ class MainActivity : Activity() {
             while (y < height) {
                 var x = dp(12).toFloat(); var col = 0
                 while (x < width) {
-                    p.color = if ((row + col) % 2 == 0) 0x22FF7A00 else 0x222F6BFF
+                    p.color = if ((row + col) % 2 == 0) 0x22FF7A00.toInt() else 0x222F6BFF.toInt()
                     c.drawCircle(x, y, dp(1).toFloat(), p); x += step; col++
                 }
                 y += step; row++
