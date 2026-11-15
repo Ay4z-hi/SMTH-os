@@ -6,6 +6,8 @@ echo 'vm.swappiness=150' > /etc/sysctl.d/99-smth.conf
 
 # services
 systemctl enable freezerd.service zramswap.service NetworkManager.service bluetooth.service nftables.service smth-extensions.service 2>/dev/null || true
+mkdir -p /etc/systemd/system/multi-user.target.wants
+ln -sf /etc/systemd/system/smth-extensions.service /etc/systemd/system/multi-user.target.wants/smth-extensions.service
 systemctl set-default multi-user.target   # labwc is started from the autologin shell, not a display manager
 
 # desktop defaults (dark, SMTH icons, Inter)
