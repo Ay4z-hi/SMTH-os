@@ -10,9 +10,9 @@ import smthdot as D
 
 PINNED = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint", "smth-notes", "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings"]
 CSS = b"""
-window.launcher { background: #000000; border: 1px solid #2f6bff; border-radius: 26px; }
-.launcher searchentry { border-radius: 999px; padding: 8px 14px; }
-.launcher button.pin { border-radius: 18px; padding: 8px; background: transparent; }
+window.launcher { background: #000000; border: 1px solid #2f6bff; border-radius: 8px; }
+.launcher searchentry { border-radius: 4px; padding: 8px 14px; }
+.launcher button.pin { border-radius: 4px; padding: 8px; background: transparent; }
 .launcher button.pin:hover { background: #2f6bff; }
 .launcher list { background: transparent; }
 .launcher row { border-radius: 14px; padding: 4px 8px; }
