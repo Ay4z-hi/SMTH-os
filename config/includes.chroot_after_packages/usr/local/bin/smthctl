@@ -129,6 +129,10 @@ def install(path):
             shutil.rmtree(state, ignore_errors=True)
             if backup.exists():
                 backup.rename(state)
+                try:
+                    mount_extension(ext_id)
+                except Exception:
+                    pass
             raise
         shutil.rmtree(backup, ignore_errors=True)
     finally:
