@@ -48,7 +48,7 @@ def display(win):
     def setm(c, _):
         m = modes_l[c.get_selected()]; open(f"{CFG}/mode", "w").write(m); subprocess.Popen(["smth-mode", m])
     r.connect("notify::selected", setm); lay.add(r)
-    wp = Group(p, "Wallpaper"); files = sorted(glob.glob("/usr/share/backgrounds/smth/wallpaper.png") + glob.glob(os.path.expanduser("~/Pictures/*.[pj][np]g")))[:40]
+    wp = Group(p, "Wallpaper"); files = sorted(glob.glob("/usr/share/backgrounds/smth/*.png") + glob.glob(os.path.expanduser("~/Pictures/*.[pj][np]g")))[:40]
     def setwall(f): open(f"{CFG}/wallpaper", "w").write(f); subprocess.run(["pkill", "-USR1", "-f", "lib/smth/home.py"]); note("Wallpaper changed")
     for f in files:
         row = Adw.ActionRow(title=os.path.basename(f)); row.add_suffix(btn("Set", lambda f=f: setwall(f))); wp.add(row)
@@ -176,7 +176,37 @@ def vms(win):
     for w in (ram, cpu, kvm): g.add(w)
     return p
 
-PAGES = [("display", "Display", "video-display-symbolic", display), ("network", "Network", "network-wireless-symbolic", network), ("bluetooth", "Bluetooth", "bluetooth-symbolic", bluetooth),
+
+# ---------------- Accessibility and Security ----------------
+def accessibility(win):
+    p = Adw.PreferencesPage(); g = Group(p, "Motion")
+    path = os.path.expanduser("~/.config/smth/reduce-motion")
+    try: active = open(path).read().strip().lower() in ("1", "true", "yes", "on")
+    except OSError: active = False
+    sw = Adw.SwitchRow(title="Reduce motion", subtitle="Disable decorative AHIAN motion and floating effects", active=active)
+    def change(row, _):
+        os.makedirs(CFG, exist_ok=True)
+        if row.get_active(): open(path, "w").write("1\n")
+        else:
+            try: os.remove(path)
+            except OSError: pass
+        run("pkill", "-USR1", "-f", "lib/smth/home.py")
+    sw.connect("notify::active", change); g.add(sw)
+    c = Group(p, "Display")
+    c.add(Adw.ActionRow(title="High contrast", subtitle="SMTH uses black surfaces and white text with orange/blue accents"))
+    return p
+
+def security(win):
+    p = Adw.PreferencesPage(); g = Group(p, "Firewall")
+    active = run("systemctl", "is-active", "nftables").strip() == "active"
+    sw = Adw.SwitchRow(title="Network firewall", subtitle="Default-deny incoming and forwarded traffic", active=active)
+    sw.connect("notify::active", lambda r, _: run("pkexec", "systemctl", "enable" if r.get_active() else "disable", "--now", "nftables"))
+    g.add(sw)
+    key = Group(p, "Extension trust")
+    key.add(Adw.ActionRow(title="Trusted signing key", subtitle="Installed" if os.path.exists("/etc/smth/extensions.pub") else "Not configured — signed extensions are rejected"))
+    return p
+
+PAGES = [("accessibility", "Accessibility", "preferences-desktop-accessibility-symbolic", accessibility), ("security", "Security", "security-high-symbolic", security), ("display", "Display", "video-display-symbolic", display), ("network", "Network", "network-wireless-symbolic", network), ("bluetooth", "Bluetooth", "bluetooth-symbolic", bluetooth),
          ("sound", "Sound", "audio-volume-high-symbolic", sound), ("power", "Power", "battery-symbolic", power), ("vms", "VMs", "computer-symbolic", vms)]
 def on_activate(app, start):
     win = Adw.ApplicationWindow(application=app, default_width=460, default_height=780); stack = Adw.ViewStack()
