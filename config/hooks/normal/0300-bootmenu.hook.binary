@@ -26,12 +26,20 @@ menuentry "Start SMTH OS" {
   linux $K $OPTS
   initrd $I
 }
+menuentry "SMTH OS (persistence)" {
+  linux $K $OPTS persistence persistence-label=SMTH-PERSISTENCE
+  initrd $I
+}
+menuentry "SMTH OS (copy to RAM)" {
+  linux $K $OPTS toram
+  initrd $I
+}
 menuentry "SMTH OS (safe graphics)" {
   linux $K $OPTS nomodeset
   initrd $I
 }
-menuentry "SMTH OS (verbose)" {
-  linux $K boot=live components username=smth hostname=smth
+menuentry "SMTH OS (recovery shell)" {
+  linux $K $OPTS break=mount
   initrd $I
 }
 EOT
@@ -43,7 +51,7 @@ if [ -d binary/isolinux ]; then
   cat > binary/isolinux/isolinux.cfg <<EOT
 UI vesamenu.c32
 DEFAULT smth
-TIMEOUT 40
+TIMEOUT 80
 PROMPT 0
 MENU TITLE
 MENU BACKGROUND splash.png
@@ -69,13 +77,21 @@ LABEL smth
   MENU LABEL Start SMTH OS
   KERNEL $K
   APPEND initrd=$I $OPTS
+LABEL persist
+  MENU LABEL SMTH OS (persistence)
+  KERNEL $K
+  APPEND initrd=$I $OPTS persistence persistence-label=SMTH-PERSISTENCE
+LABEL toram
+  MENU LABEL SMTH OS (copy to RAM)
+  KERNEL $K
+  APPEND initrd=$I $OPTS toram
 LABEL safe
   MENU LABEL SMTH OS (safe graphics)
   KERNEL $K
   APPEND initrd=$I $OPTS nomodeset
-LABEL verbose
-  MENU LABEL SMTH OS (verbose)
+LABEL recovery
+  MENU LABEL SMTH OS (recovery shell)
   KERNEL $K
-  APPEND initrd=$I boot=live components username=smth hostname=smth
+  APPEND initrd=$I $OPTS break=mount
 EOT
 fi

@@ -22,6 +22,10 @@ python3 tools/test_palette.py
 ( cd freezerd && cargo build --release )
 chmod +x auto/* config/hooks/normal/* scripts/*.sh
 C=config/includes.chroot_after_packages
+if [ -n "${SMTH_SIGNING_PUBKEY:-}" ]; then
+  test -f "$SMTH_SIGNING_PUBKEY" || { echo "SMTH_SIGNING_PUBKEY does not exist" >&2; exit 1; }
+  install -D -m644 "$SMTH_SIGNING_PUBKEY" "$C/etc/smth/extensions.pub"
+fi
 install -D -m755 freezerd/target/release/freezerd "$C/usr/bin/freezerd"
 chmod +x "$C"/usr/local/bin/* "$C"/usr/local/lib/smth/* 2>/dev/null || true
 
@@ -31,7 +35,16 @@ $SUDO env SMTH_ARCH=$SMTH_ARCH lb build
 mkdir -p out
 ISO="$(find . -maxdepth 1 -type f -name '*.iso' -print -quit)"
 test -n "$ISO"
+python3 tools/check_budgets.py "$ISO"
 $SUDO mv "$ISO" "out/smth-os-$SMTH_ARCH.iso"
 $SUDO chown "$(id -u):$(id -g)" "out/smth-os-$SMTH_ARCH.iso"
 ( cd out && sha256sum "smth-os-$SMTH_ARCH.iso" > "smth-os-$SMTH_ARCH.iso.sha256" )
+if [ -n "${SMTH_SIGNING_KEY:-}" ]; then
+  test -n "${SMTH_SIGNING_PUBKEY:-}" || { echo "Set SMTH_SIGNING_PUBKEY with SMTH_SIGNING_KEY" >&2; exit 1; }
+  for ext in browser hypervisor creative office-lite developer; do
+    $SUDO python3 tools/build_extension.py "$ext" --arch "$SMTH_ARCH" --private-key "$SMTH_SIGNING_KEY" --out out/extensions
+  done
+else
+  echo "SMTH_SIGNING_KEY not set; signed extension artifacts skipped (fail-closed install remains active)."
+fi
 ls -lh out/
