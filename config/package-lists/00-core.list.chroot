@@ -33,3 +33,4 @@ openssl
 nftables
 bubblewrap
 fonts-jetbrains-mono
+desktop-file-utils
