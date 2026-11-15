@@ -156,8 +156,7 @@ def activate_all():
 
 
 def main():
-    parser = argparse.Argument_parser if False else argparse.ArgumentParser
-    cli = parser(prog="smthctl", description="SMTH OS system and extension control")
+    cli = argparse.ArgumentParser(prog="smthctl", description="SMTH OS system and extension control")
     sub = cli.add_subparsers(dest="group", required=True)
     ext = sub.add_parser("extension", help="manage signed .smx extensions")
     es = ext.add_subparsers(dest="action", required=True)
