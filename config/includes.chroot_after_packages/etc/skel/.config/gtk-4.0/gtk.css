@@ -13,7 +13,7 @@
 @define-color sidebar_bg_color #000000;
 window, .background { font-family: "Inter", sans-serif; }
 headerbar { border-bottom: 1px solid #2f6bff; }
-button { border-radius: 999px; }
+button { border-radius: 4px; }
 button:active { transform: scale(0.96); transition: transform 90ms ease-out; }
-.card, list.boxed-list { background: #000000; border: 1px solid #2f6bff; border-radius: 20px; }
+.card, list.boxed-list { background: #000000; border: 1px solid #2f6bff; border-radius: 8px; }
 switch:checked { background: #ff7a00; }
