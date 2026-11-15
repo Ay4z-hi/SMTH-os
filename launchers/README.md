@@ -9,3 +9,6 @@ Release builds are produced by GitHub Actions:
 - Windows: portable PyInstaller EXE.
 
 These are companion launchers, not the full Linux SMTH OS ISO.
+
+
+**APK validation:** CI applies the Kotlin Android plugin, verifies the APK ZIP structure, checks that compiled DEX bytecode exists, checks the package ID, and rejects unexpectedly tiny APKs before publishing.

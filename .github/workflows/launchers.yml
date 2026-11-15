@@ -27,6 +27,14 @@ jobs:
       - name: Build Android launcher
         working-directory: launchers/android
         run: gradle --no-daemon assembleDebug
+      - name: Verify Android APK contents
+        run: |
+          APK=launchers/android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          test "$(stat -c%s "$APK")" -gt 100000
+          unzip -t "$APK"
+          unzip -l "$APK" | grep -E 'classes(2)?\.dex' 
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep "package: name='os.smth.launcher'"
       - name: Name Android package
         run: cp launchers/android/app/build/outputs/apk/debug/app-debug.apk launchers/android/SMTH-Android-Launcher.apk
       - uses: actions/upload-artifact@v4
