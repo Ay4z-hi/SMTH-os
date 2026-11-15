@@ -7,6 +7,7 @@ python3-gi
 python3-gi-cairo
 python3-cairo
 python3-pil
+python3-numpy
 gstreamer1.0-tools
 gstreamer1.0-plugins-base
 gstreamer1.0-plugins-good
