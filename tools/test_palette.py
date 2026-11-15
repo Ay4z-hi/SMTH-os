@@ -7,12 +7,11 @@ p = json.loads((ROOT / "tools/palette.json").read_text())
 assert set(p) == {"A", "B"}, "palette.json must be the only two accent colours"
 def rgb(h): return tuple(int(h[i:i+2], 16) for i in (1, 3, 5))
 allowed = {(0, 0, 0), rgb(p["A"]), rgb(p["B"])}
-targets = [
- ROOT / "config/includes.chroot_after_packages/usr/share/backgrounds/smth/wallpaper.png",
- ROOT / "config/includes.chroot_after_packages/usr/share/backgrounds/smth/lock.png",
- ROOT / "config/includes.chroot_after_packages/usr/share/smth/mark.png",
- ROOT / "config/includes.chroot_after_packages/usr/share/smth/logo.png",
-]
+base = ROOT / "config/includes.chroot_after_packages"
+targets = sorted((base / "usr/share/backgrounds/smth").glob("*.png"))
+targets += [base / "usr/share/smth/mark.png", base / "usr/share/smth/logo.png"]
+targets += sorted((base / "usr/share/smth/boot").glob("*.png"))
+targets += sorted((base / "usr/share/plymouth/themes/smth").glob("*.png"))
 missing = [str(x.relative_to(ROOT)) for x in targets if not x.exists()]
 if missing: raise SystemExit("missing generated artwork: " + ", ".join(missing))
 for path in targets:
