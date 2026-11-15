@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ahian: toggles AHIAN MODE (live black hole, neon clock, floating icons, neon bar)."""
+"""ahian: toggle SMTH live black-hole mode; use `ahian off` to return."""
 import os, shutil, subprocess, sys, time
 CFG = os.path.expanduser("~/.config/smth"); FLAG = os.path.join(CFG, "ahian"); os.makedirs(CFG, exist_ok=True)
 arg = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -27,7 +27,7 @@ def banner(word, frames=26):
     sys.stdout.write("\x1b[?25h")
 if on:
     banner("AHIAN"); open(FLAG, "w").close()
-    print("\n  \x1b[1mAHIAN MODE ONLINE\x1b[0m  live black hole · neon clock · floating icons\n  type \x1b[1mahian off\x1b[0m to return\n")
+    print("\n  \x1b[1mAHIAN MODE ON\x1b[0m  live black-hole · A/B dot clock · orbiting dot field\n  type \x1b[1mahian off\x1b[0m to return\n")
     src = os.path.join(CFG, "waybar-ahian.css")
 else:
     if os.path.exists(FLAG): os.remove(FLAG)
