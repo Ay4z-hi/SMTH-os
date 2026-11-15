@@ -113,7 +113,7 @@ class MainActivity : Activity() {
     }
     private fun rounded(fill: Int, stroke: Int) = GradientDrawable().apply { setColor(fill); setStroke(dp(1), stroke); cornerRadius = dp(4).toFloat() }
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-    private inner class DotBackground : View(this) {
+    private inner class DotBackground : View(this@MainActivity) {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         override fun onDraw(c: Canvas) {
             super.onDraw(c); c.drawColor(BLACK)
