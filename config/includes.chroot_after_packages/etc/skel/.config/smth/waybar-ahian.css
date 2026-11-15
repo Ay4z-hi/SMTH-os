@@ -1,10 +1,10 @@
 * { font-family: "Inter", "DejaVu Sans", sans-serif; font-size: 13px; border: none; min-height: 0; }
-window#waybar { background: transparent; color: #ffffff; }
+window#waybar { background: #000000; color: #ffffff; }
 .modules-left, .modules-center, .modules-right { background: #000000; border: 1px solid #ff7a00; border-radius: 999px; padding: 0 10px; margin: 0 4px; }
 #custom-start, #custom-apps, #custom-term, #custom-kbd, #custom-files, #custom-settings { font-size: 20px; padding: 0 16px; margin: 4px 2px; border-radius: 999px; }
 #custom-start:hover, #custom-apps:hover, #custom-term:hover, #custom-kbd:hover, #custom-files:hover, #custom-settings:hover { background: #ff7a00; color: #000000; }
 #taskbar button { padding: 0 10px; margin: 4px 2px; border-radius: 12px; background: transparent; }
-#taskbar button.active { border-bottom: 2px solid #ffffff; background: #2f6bff; }
+#taskbar button.active { border-bottom: 2px solid #ff7a00; background: #000000; }
 #custom-glance-cpu, #custom-glance-mem, #custom-glance-disk { font-family: "DejaVu Sans Mono", monospace; padding: 0 10px; letter-spacing: 1px; }
 #custom-glance-cpu.hot, #custom-glance-mem.hot, #battery.critical { color: #2f6bff; }
 #clock, #network, #battery, #pulseaudio, #bluetooth, #mpris { padding: 0 10px; }
