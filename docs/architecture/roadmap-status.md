@@ -8,9 +8,9 @@ This file distinguishes implemented source from tested behaviour. Source code is
 | P1 | Desktop shell: labwc, Waybar layouts, launcher, keyboard shortcuts, adaptive layout | Existing implementation present; end-to-end UX untested |
 | P2 | Core apps: Settings, Files, Calculator, Store, Terminal, media tools | Existing apps present; app-level tests incomplete |
 | P3 | Extension architecture and signed .smx lifecycle | CLI/service source added; integration test untested |
-| P4 | Live/installer/persistence/recovery boot journey | Partial live-build config; installer journey not verified |
-| P5 | Security: signatures, least privilege, firewall, sandbox policy, encrypted install | Partial (extension signature checks only); not complete |
-| P6 | Performance budgets and automated measurements | Not implemented; budgets remain unverified |
+| P4 | Live/installer/persistence/recovery boot journey | Live, persistence, toram, safe-graphics and recovery menu entries added; installer still missing |
+| P5 | Security: signatures, least privilege, firewall, sandbox policy, encrypted install | Signed extension verification and nftables default-deny inbound policy added; sandbox/LUKS/A-B update security missing |
+| P6 | Performance budgets and automated measurements | 450 MiB ISO gate added; runtime metrics still unmeasured |
 | P7 | Full acceptance journeys, accessibility, AHIAN polish | Partial; not acceptance-tested |
 
 ## Current visual rules
@@ -24,7 +24,7 @@ This file distinguishes implemented source from tested behaviour. Source code is
 
 ## Required before completion
 
-- Build both native architectures and boot both ISOs in QEMU.
+- Complete the latest native amd64/arm64 builds and boot both ISOs in QEMU.
 - Implement and test installer, persistence, safe graphics and recovery menu paths.
 - Separate core and extension images in live-build output.
 - Add nftables default-deny rules, application sandbox policy, LUKS installation, signed A/B updates and rollback.

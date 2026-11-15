@@ -8,7 +8,7 @@ Status: TEST PLAN ONLY — not yet run on a booted ISO.
 - [ ] Verify ISO checksums.
 - [ ] Boot Live mode in UEFI QEMU at 2GB RAM.
 - [ ] Boot safe graphics and recovery shell.
-- [ ] Boot persistence mode and verify a file survives reboot.
+- [ ] Prepare a SMTH-PERSISTENCE partition, boot persistence mode and verify a file survives reboot.
 - [ ] Install to a disposable virtual disk and verify reboot into installed system.
 
 ## Desktop

@@ -15,6 +15,8 @@ Commands:
     smthctl extension list
     sudo smthctl extension remove browser
 
+The repository includes package manifests under extensions/ and a builder at tools/build_extension.py. The builder uses debootstrap and mksquashfs, then signs the exact manifest bytes. The main ISO build invokes it only when both signing-key environment variables are supplied. It never creates or embeds a private key.
+
 Build/signing policy:
 1. Build the extension filesystem independently from the core image.
 2. Produce SquashFS with mksquashfs.
