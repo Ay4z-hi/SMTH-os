@@ -1,0 +1,29 @@
+name: probe
+on: push
+permissions:
+  contents: read
+jobs:
+  plain:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "plain runner: $(uname -a)" >> "$GITHUB_STEP_SUMMARY"
+  dockerhub_no_privileged:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+    steps:
+      - run: echo "dockerhub, no privileged: $(head -1 /etc/os-release)" >> "$GITHUB_STEP_SUMMARY"
+  dockerhub_privileged:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+      options: --privileged
+    steps:
+      - run: echo "dockerhub, privileged: $(head -1 /etc/os-release)" >> "$GITHUB_STEP_SUMMARY"
+  ecr_privileged:
+    runs-on: ubuntu-latest
+    container:
+      image: public.ecr.aws/docker/library/debian:trixie
+      options: --privileged
+    steps:
+      - run: echo "ecr, privileged: $(head -1 /etc/os-release)" >> "$GITHUB_STEP_SUMMARY"
