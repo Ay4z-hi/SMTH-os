@@ -31,11 +31,27 @@ jobs:
       # The debian image has no git, so checkout cannot run inside it yet.
       - name: Prepare container (git for checkout)
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends git ca-certificates
+          set -o pipefail
+          {
+            apt-get update
+            apt-get install -y --no-install-recommends git ca-certificates
+          } 2>&1 | tee /tmp/prep.log
+          status=$?
+          if [ $status -ne 0 ]; then
+            # Job summaries are publicly readable, unlike the raw logs.
+            { echo '### Container preparation failed'; echo '```'; tail -40 /tmp/prep.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit $status
+          fi
       - uses: actions/checkout@v4
       - name: Build ISO (${{ matrix.arch }})
-        run: SMTH_ARCH=${{ matrix.arch }} bash scripts/build.sh
+        run: |
+          set -o pipefail
+          SMTH_ARCH=${{ matrix.arch }} bash scripts/build.sh 2>&1 | tee /tmp/build.log
+          status=$?
+          if [ $status -ne 0 ]; then
+            { echo '### ISO build failed (${{ matrix.arch }})'; echo '```'; tail -60 /tmp/build.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            exit $status
+          fi
       - name: Verify ISO and checksum
         run: |
           set -euo pipefail

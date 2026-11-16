@@ -9,7 +9,24 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// Tests run in parallel threads of one process, so a socket path keyed only on
+/// the pid is shared between them and the two tests fight over it.
+static SOCKET_SEQ: AtomicU32 = AtomicU32::new(0);
+
+fn socket_path() -> PathBuf {
+    let seq = SOCKET_SEQ.fetch_add(1, Ordering::SeqCst);
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    std::env::temp_dir().join(format!(
+        "smthd-test-{}-{now}-{seq}.sock",
+        std::process::id()
+    ))
+}
 
 struct Daemon {
     child: Child,
@@ -18,11 +35,7 @@ struct Daemon {
 
 impl Daemon {
     fn start() -> Daemon {
-        let socket = std::env::temp_dir().join(format!(
-            "smthd-test-{}-{}.sock",
-            std::process::id(),
-            Instant::now().elapsed().as_nanos()
-        ));
+        let socket = socket_path();
         let child = Command::new(env!("CARGO_BIN_EXE_smthd"))
             .arg("--socket")
             .arg(&socket)
@@ -157,4 +170,6 @@ fn second_daemon_on_the_same_socket_is_refused() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("already served"), "stderr was: {stderr}");
+    // The original daemon must still be the one serving the socket.
+    assert!(matches!(daemon.call(Request::Ping), Response::Pong { .. }));
 }
