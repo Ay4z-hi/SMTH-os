@@ -66,6 +66,7 @@ if [ -n "${SMTH_SIGNING_PUBKEY:-}" ]; then
   install -D -m644 "$SMTH_SIGNING_PUBKEY" "$C/etc/smth/extensions.pub"
 fi
 
+echo "STAGE: live-build setup"
 echo "-- live-build"
 $SUDO lb clean --purge >/dev/null 2>&1 || true
 $SUDO env SMTH_ARCH=$SMTH_ARCH lb config
@@ -76,7 +77,7 @@ set +e
 $SUDO env SMTH_ARCH=$SMTH_ARCH lb build
 LB_STATUS=$?
 set -e
-echo "-- lb build exit status: $LB_STATUS"
+echo "STAGE: lb build finished exit=$LB_STATUS"
 
 mkdir -p out
 ISO="$(find . -maxdepth 1 -type f -name '*.iso' -print -quit)"
@@ -84,9 +85,11 @@ test -n "$ISO" || { echo "no ISO produced (lb build exited $LB_STATUS, looked fo
 if [ "$LB_STATUS" -ne 0 ]; then
   echo "!! lb build reported $LB_STATUS during teardown, but $ISO exists; continuing to verify it" >&2
 fi
-echo "-- ISO produced: $ISO ($(stat -c%s "$ISO") bytes)"
+echo "STAGE: found ISO $ISO size=$(stat -c%s "$ISO")"
 python3 tools/check_budgets.py "$ISO" || { echo "budget gate failed for $ISO" >&2; exit 1; }
+echo "STAGE: budget ok"
 $SUDO mv "$ISO" "out/smth-os-$SMTH_ARCH.iso"
+echo "STAGE: moved ISO to out/"
 $SUDO chown "$(id -u):$(id -g)" "out/smth-os-$SMTH_ARCH.iso"
 
 if [ -n "${SMTH_SIGNING_KEY:-}" ]; then
@@ -99,8 +102,10 @@ else
   echo "SMTH_SIGNING_KEY not set; signed extension artifacts skipped (fail-closed install remains active)."
 fi
 
+echo "STAGE: extensions done"
 echo "-- checksums"
 ( cd out && sha256sum smth-os-*.iso > SHA256SUMS \
   && [ -d extensions ] && sha256sum extensions/*.smx >> SHA256SUMS || true )
 ls -lh out/
+echo "STAGE: checksums written"
 echo "== build complete: out/smth-os-$SMTH_ARCH.iso =="

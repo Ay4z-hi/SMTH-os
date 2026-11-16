@@ -60,12 +60,23 @@ jobs:
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then
             # Keep the END of the log: the failing command is the last thing logged.
-            detail=$(tail -c 2500 /tmp/build.log | tr '\n' ' ' | tr -s ' ')
-            # A literal % starts a workflow-command escape and truncates the text.
-            detail=${detail//\%/pct}
-            echo "::error title=ISO build failed (${{ matrix.arch }}) exit $status::$detail"
+            # The raw tail is full of carriage returns and percents, which mangles
+            # annotations, so report the stage markers instead.
+            stages=$(tr -d '\r' < /tmp/build.log | grep -a '^STAGE:' | tail -6 | tr '\n' ';' | tr -s ' ')
+            echo "::error title=ISO build failed (${{ matrix.arch }}) exit $status::last stages: $stages"
+            if [ -f /tmp/build.log ]; then
+              cp /tmp/build.log "/tmp/build-${{ matrix.arch }}.log" || true
+            fi
             exit $status
           fi
+      - name: Keep the build log when it fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.arch }}
+          path: /tmp/build-${{ matrix.arch }}.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify ISO and checksum
         run: |
           set -euo pipefail
