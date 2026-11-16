@@ -69,11 +69,21 @@ fi
 echo "-- live-build"
 $SUDO lb clean --purge >/dev/null 2>&1 || true
 $SUDO env SMTH_ARCH=$SMTH_ARCH lb config
+# live-build's teardown (dpkg cleanup of its build-host helpers) can return
+# non-zero after the ISO has already been written successfully. Keep the status,
+# say so loudly, and let the checks below decide whether the image is usable.
+set +e
 $SUDO env SMTH_ARCH=$SMTH_ARCH lb build
+LB_STATUS=$?
+set -e
+echo "-- lb build exit status: $LB_STATUS"
 
 mkdir -p out
 ISO="$(find . -maxdepth 1 -type f -name '*.iso' -print -quit)"
-test -n "$ISO" || { echo "no ISO produced (looked for ./*.iso)" >&2; exit 1; }
+test -n "$ISO" || { echo "no ISO produced (lb build exited $LB_STATUS, looked for ./*.iso)" >&2; exit 1; }
+if [ "$LB_STATUS" -ne 0 ]; then
+  echo "!! lb build reported $LB_STATUS during teardown, but $ISO exists; continuing to verify it" >&2
+fi
 echo "-- ISO produced: $ISO ($(stat -c%s "$ISO") bytes)"
 python3 tools/check_budgets.py "$ISO" || { echo "budget gate failed for $ISO" >&2; exit 1; }
 $SUDO mv "$ISO" "out/smth-os-$SMTH_ARCH.iso"
