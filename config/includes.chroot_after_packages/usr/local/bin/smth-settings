@@ -193,7 +193,16 @@ def accessibility(win):
         run("pkill", "-USR1", "-f", "lib/smth/home.py")
     sw.connect("notify::active", change); g.add(sw)
     c = Group(p, "Display")
-    c.add(Adw.ActionRow(title="High contrast", subtitle="SMTH uses black surfaces and white text with orange/blue accents"))
+    c.add(Adw.ActionRow(title="High contrast", subtitle="Black surfaces, white text, grey neutrals and the red accent"))
+    ah = Group(p, "AHIAN")
+    ahian_on = os.path.exists(f"{CFG}/ahian")
+    switch = Adw.SwitchRow(title="AHIAN mode", subtitle="Purple/teal dot field, dot clock and orbiting dots",
+                           active=ahian_on)
+    def toggle_ahian(row, _):
+        subprocess.Popen(["ahian" if row.get_active() else "unahian"])
+    switch.connect("notify::active", toggle_ahian)
+    ah.add(switch)
+    ah.add(Adw.ActionRow(title="Terminal easter egg", subtitle="Run `ahian` in a terminal; `unahian` restores normal mode"))
     return p
 
 def security(win):

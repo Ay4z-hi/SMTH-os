@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # SMTH CoreLink v0: device discovery/pairing, file + clipboard sync (KDE Connect protocol), screen mirroring (wayvnc).
 set -euo pipefail
+# KDE Connect and WayVNC live in the signed Hypervisor extension to keep the
+# core ISO inside its size budget; say so instead of failing with a bare 127.
+for dep in kdeconnect-cli wayvnc; do
+  command -v "$dep" >/dev/null || {
+    echo "SMTH CoreLink needs the signed Hypervisor extension (missing: $dep)." >&2
+    echo "Install it with: sudo smthctl extension install Hypervisor-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').smx" >&2
+    exit 1
+  }
+done
 case "${1:-status}" in
   status) kdeconnect-cli -l ;;
   pair)   kdeconnect-cli -d "${2:?device id}" --pair ;;

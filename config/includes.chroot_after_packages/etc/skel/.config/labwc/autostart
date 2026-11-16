@@ -1,5 +1,11 @@
-smth-notifd >/dev/null 2>&1 &
+# SMTH session start-up.
+# smthd supervises the long-lived shell helpers (notifications, layout watcher)
+# and restarts them with backoff if they die. If it cannot start, fall back to
+# launching them directly so the desktop still comes up.
+smthd --config /etc/smth/services.json --palette /usr/local/lib/smth/palette.json >/dev/null 2>&1 || {
+  smth-notifd >/dev/null 2>&1 &
+  smth-moded >/dev/null 2>&1 &
+}
 smth-welcome >/dev/null 2>&1 &
 ( smth-home || swaybg -m fill -i /usr/share/backgrounds/smth/wallpaper.png ) >/dev/null 2>&1 &
-smth-moded >/dev/null 2>&1 &
 swayidle -w timeout 300 'smth-lock' before-sleep 'smth-lock' >/dev/null 2>&1 &

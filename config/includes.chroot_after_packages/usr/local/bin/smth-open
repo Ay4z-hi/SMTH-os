@@ -26,9 +26,9 @@ case "$ext" in
     if [ "$host" = x86_64 ] && command -v wine >/dev/null; then exec wine "$f"; fi
     w="$HOME/.local/share/smth/wine-x64/bin/wine64"
     if [ "$host" = aarch64 ] && command -v box64 >/dev/null && [ -x "$w" ]; then exec box64 "$w" "$f"; fi
-    say "Windows apps: x86_64 uses Wine. On arm64, unpack an x86_64 Wine build into ~/.local/share/smth/wine-x64/ (runs under box64)."; exit 1 ;;
+    say "Windows apps need the signed Hypervisor extension (Wine). Install it with: sudo smthctl extension install Hypervisor-$([ "$host" = aarch64 ] && echo arm64 || echo amd64).smx"; exit 1 ;;
   apk)
-    command -v waydroid >/dev/null || { say "APK support needs Waydroid. Run: sudo smth-install-waydroid"; exit 1; }
+    command -v waydroid >/dev/null || { say "APK support needs Waydroid (optional). Run: sudo smth-install-waydroid"; exit 1; }
     waydroid status 2>/dev/null | grep -q RUNNING || waydroid session start &
     sleep 3; exec waydroid app install "$f" ;;
   bin|elf|"")

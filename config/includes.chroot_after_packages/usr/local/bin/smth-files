@@ -8,6 +8,16 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 import smthdot as D
 
 CLIP = {"paths": [], "cut": False}
+
+
+def alert(message):
+    """Report a failed file operation. Silent `except: pass` used to hide data
+    loss; every mutation path now ends here."""
+    print(f"smth-files: {message}", file=sys.stderr)
+    try:
+        subprocess.Popen(["notify-send", "-a", "Files", "SMTH Files", message])
+    except OSError:
+        pass
 VM_EXT = {".iso", ".img", ".bin", ".apk", ".exe", ".msi", ".qcow2", ".vdi", ".vmdk"}
 ARCH_EXT = (".zip", ".tar", ".tar.gz", ".tgz", ".tar.xz", ".tar.bz2")
 
@@ -97,7 +107,10 @@ class Pane(Gtk.Box):
             dev = o.split(" as ")[-1].strip().rstrip(".")
             m = subprocess.run(["udisksctl", "mount", "-b", dev], capture_output=True, text=True).stdout
             mp = m.split(" at ")[-1].strip().rstrip(".")
-            if os.path.isdir(mp): GLib.idle_add(self.go, mp)
+            if os.path.isdir(mp):
+                GLib.idle_add(self.go, mp)
+            else:
+                alert(f"Could not mount {os.path.basename(p)}")
         threading.Thread(target=job, daemon=True).start()
 
     def view_archive(self, p):
@@ -115,7 +128,8 @@ class Pane(Gtk.Box):
             try:
                 if p.lower().endswith(".zip"): zipfile.ZipFile(p).extractall(dest)
                 else: tarfile.open(p).extractall(dest, filter="data")
-            except Exception: pass
+            except Exception as e:
+                alert(f"Could not extract {os.path.basename(p)}: {e}")
             w.close(); self.refresh()
         ex.connect("clicked", extract); tv.add_bottom_bar(ex); w.set_content(tv); w.present()
 
@@ -145,26 +159,34 @@ class Pane(Gtk.Box):
 
     def rename(self, p, new):
         try: os.rename(p, os.path.join(os.path.dirname(p), new))
-        except OSError: pass
+        except OSError as e: alert(f"Rename failed: {e}")
         self.refresh()
     def mkdir(self, name):
         try: os.makedirs(unique(os.path.join(self.path, name)))
-        except OSError: pass
+        except OSError as e: alert(f"Could not create folder: {e}")
         self.refresh()
     def trash(self, paths):
+        failed = 0
         for p in paths:
             try: Gio.File.new_for_path(p).trash(None)
-            except GLib.Error: pass
+            except GLib.Error as e:
+                failed += 1
+                alert(f"Could not move {os.path.basename(p)} to Trash: {e.message}")
         self.refresh()
     def paste(self):
+        done, failed = 0, 0
         for p in CLIP["paths"]:
             dest = unique(os.path.join(self.path, os.path.basename(p)))
             try:
                 if CLIP["cut"]: shutil.move(p, dest)
                 elif os.path.isdir(p): shutil.copytree(p, dest)
                 else: shutil.copy2(p, dest)
-            except OSError: pass
-        if CLIP["cut"]: CLIP["paths"] = []
+                done += 1
+            except (OSError, shutil.Error) as e:
+                failed += 1
+                alert(f"Paste failed for {os.path.basename(p)}: {e}")
+        if CLIP["cut"] and failed == 0: CLIP["paths"] = []
+        if failed: alert(f"{failed} of {done + failed} item(s) could not be pasted")
         self.refresh()
 
 class Files(Adw.ApplicationWindow):

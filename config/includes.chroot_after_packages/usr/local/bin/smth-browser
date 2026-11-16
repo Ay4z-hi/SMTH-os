@@ -4,8 +4,15 @@ import json, os, sys
 os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
 sys.path.insert(0, "/usr/local/lib/smth")
 import gi
-gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1"); gi.require_version("WebKit", "6.0")
-from gi.repository import Adw, Gdk, GLib, Gtk, WebKit
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+# WebKitGTK is not part of the core image (124 MiB installed): it ships with the
+# signed Browser extension. Without it the app must explain that, not crash.
+try:
+    gi.require_version("WebKit", "6.0")
+    from gi.repository import WebKit
+except (ImportError, ValueError):
+    WebKit = None
+from gi.repository import Adw, Gdk, GLib, Gtk
 import smthdot as D
 
 DL = os.path.expanduser("~/Downloads"); os.makedirs(DL, exist_ok=True)
@@ -13,9 +20,9 @@ DATA = os.path.expanduser("~/.local/share/smth-browser"); os.makedirs(DATA, exis
 BLOCK = ["doubleclick.net", "googlesyndication.com", "googleadservices.com", "google-analytics.com", "googletagmanager.com", "adservice.google.com",
          "facebook.net", "connect.facebook.net", "taboola.com", "outbrain.com", "criteo.com", "adnxs.com", "scorecardresearch.com", "hotjar.com",
          "quantserve.com", "amazon-adsystem.com", "adsrvr.org", "rubiconproject.com", "pubmatic.com", "moatads.com", "zedo.com", "mixpanel.com"]
-START = """<html><body style="margin:0;background:#000;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh">
-<div style="font-size:64px;font-weight:700;letter-spacing:.3em;color:#ff7a00">SM<span style="color:#2f6bff">TH</span></div>
-<form action="https://duckduckgo.com/" style="margin-top:36px"><input name="q" autofocus placeholder="Search or type an address" style="width:min(560px,80vw);padding:16px 22px;border-radius:999px;border:1px solid #2f6bff;background:#000000;color:#fff;font-size:17px;outline:none"></form></body></html>"""
+START = """<html><body style="margin:0;background:#000;color:#fff;font-family:'Space Mono',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh">
+<div style="font-size:64px;font-weight:700;letter-spacing:.3em;color:#d71921">SM<span style="color:#8c8c8c">TH</span></div>
+<form action="https://duckduckgo.com/" style="margin-top:36px"><input name="q" autofocus placeholder="Search or type an address" style="width:min(560px,80vw);padding:16px 22px;border-radius:999px;border:1px solid #8c8c8c;background:#000000;color:#fff;font-size:17px;outline:none"></form></body></html>"""
 
 def to_url(t):
     t = t.strip()
@@ -80,6 +87,31 @@ class Browser(Adw.ApplicationWindow):
             if val == Gdk.KEY_r: self.cur().reload(); return True
         return False
 
+def missing_extension(app):
+    """Explain how to get WebKit instead of showing a blank window."""
+    win = Adw.ApplicationWindow(application=app, default_width=520, default_height=340)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14,
+                  margin_top=28, margin_bottom=28, margin_start=24, margin_end=24)
+    box.append(D.dot_label("BROWSER", 3))
+    title = Gtk.Label(xalign=0, wrap=True)
+    title.set_markup("<b>The Browser extension is not installed</b>")
+    box.append(title)
+    body = Gtk.Label(xalign=0, wrap=True,
+                     label="SMTH Browser is a WebKitGTK shell and WebKit is not part of the "
+                           "core image. Install the signed Browser extension with:\n\n"
+                           "    sudo smthctl extension install Browser-amd64.smx")
+    body.add_css_class("dim-label")
+    box.append(body)
+    tv = Adw.ToolbarView(content=box)
+    tv.add_top_bar(Adw.HeaderBar())
+    win.set_content(tv)
+    win.present()
+
 first = sys.argv[1] if len(sys.argv) > 1 else None
-app = Adw.Application(application_id="os.smth.Browser"); app.connect("activate", lambda a: Browser(a, first).present())
+app = Adw.Application(application_id="os.smth.Browser")
+if WebKit is None:
+    print("SMTH Browser: WebKitGTK missing; install the Browser extension.", file=sys.stderr)
+    app.connect("activate", missing_extension)
+else:
+    app.connect("activate", lambda a: Browser(a, first).present())
 sys.exit(app.run(sys.argv[:1]))

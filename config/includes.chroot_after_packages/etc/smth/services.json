@@ -1,0 +1,6 @@
+{
+  "services": [
+    { "name": "notifd", "command": ["/usr/local/bin/smth-notifd"], "restart": true },
+    { "name": "moded", "command": ["/usr/local/bin/smth-moded"], "restart": true }
+  ]
+}
