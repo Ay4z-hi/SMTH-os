@@ -1,2 +1,3 @@
+# Core kernel only. box64 (x86-64 translation) ships in the Hypervisor
+# extension so the core image stays inside the size budget.
 linux-image-arm64
-box64

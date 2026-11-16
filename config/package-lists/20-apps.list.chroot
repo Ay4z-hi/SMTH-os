@@ -11,7 +11,9 @@ gstreamer1.0-tools
 gstreamer1.0-plugins-base
 gstreamer1.0-plugins-good
 gstreamer1.0-pipewire
-file-roller
-gir1.2-webkit-6.0
 libgtk-4-media-gstreamer
 gstreamer1.0-libav
+# WebKitGTK (93 MiB + JavaScriptCore 31 MiB installed) is not core: the SMTH
+# Browser app detects its absence and points at the signed Browser extension.
+# Archives are handled directly by the Files app (zipfile/tarfile), so
+# file-roller is not needed either.

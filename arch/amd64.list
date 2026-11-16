@@ -1,2 +1,5 @@
+# Core kernel only. Wine is not here on purpose: libwine is 725 MiB installed
+# (~250 MiB compressed) and cannot fit the 450 MiB ISO budget alongside the
+# desktop. It ships in the signed Hypervisor extension instead; see
+# docs/architecture/iso-budget.md.
 linux-image-amd64
-wine

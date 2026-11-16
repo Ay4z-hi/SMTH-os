@@ -1,2 +1,4 @@
-wayvnc
-kdeconnect
+# CoreLink (device pairing/mirroring) moved to the signed Hypervisor
+# extension: kdeconnect pulls Qt, and wayvnc pulls GTK3, which together cost
+# more than the remaining ISO headroom. The core apps detect the missing tools
+# and say so instead of appearing broken.

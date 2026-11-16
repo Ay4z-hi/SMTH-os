@@ -5,7 +5,10 @@ sed -i 's/^PRETTY_NAME=.*/PRETTY_NAME="SMTH OS"/' /etc/os-release
 echo 'vm.swappiness=150' > /etc/sysctl.d/99-smth.conf
 
 # services
-systemctl enable freezerd.service zramswap.service NetworkManager.service bluetooth.service nftables.service smth-extensions.service 2>/dev/null || true
+# freezerd is intentionally not enabled: it is still a scaffold (see
+# docs/architecture/rust-migration.md) and starting a daemon that cannot act on
+# foreground state would be a fake feature.
+systemctl enable zramswap.service NetworkManager.service bluetooth.service nftables.service smth-extensions.service 2>/dev/null || true
 mkdir -p /etc/systemd/system/multi-user.target.wants
 ln -sf /etc/systemd/system/smth-extensions.service /etc/systemd/system/multi-user.target.wants/smth-extensions.service
 systemctl set-default multi-user.target   # labwc is started from the autologin shell, not a display manager
@@ -17,9 +20,10 @@ dconf update
 update-mime-database /usr/share/mime
 update-desktop-database /usr/share/applications
 
-# generate the SMTH icon theme
+# generate the SMTH icon theme and index the bundled fonts (offline)
 python3 /usr/local/share/smth/icons/gen_icons.py /usr/share/icons/SMTH
 gtk-update-icon-cache -f /usr/share/icons/SMTH 2>/dev/null || true
+fc-cache -f >/dev/null 2>&1 || true
 
 # hide upstream launchers; SMTH-branded entries replace them
 for f in org.gnome.Nautilus org.gnome.Snapshot org.gnome.Loupe com.github.maoschanz.drawing Alacritty org.gnome.FileRoller; do

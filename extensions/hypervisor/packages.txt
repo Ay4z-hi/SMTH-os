@@ -1,3 +1,8 @@
 qemu-system-x86
 qemu-utils
 virt-manager
+# Moved out of the core ISO to respect the 450 MiB budget.
+wine @amd64
+kdeconnect
+wayvnc
+mesa-vulkan-drivers

@@ -1,1 +1,4 @@
 firefox-esr
+# SMTH Browser is a WebKitGTK shell; WebKit is 124 MiB installed, so it lives
+# here with the browser rather than in the core image.
+gir1.2-webkit-6.0

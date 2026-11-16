@@ -16,11 +16,12 @@ power-profiles-daemon
 zram-tools
 libinput-tools
 libgl1-mesa-dri
-mesa-vulkan-drivers
 xwayland
+# mesa-vulkan-drivers (79 MiB installed) moved to the Hypervisor extension.
+# The desktop renders through mesa-libgallium/GL; Vulkan is only needed for
+# 3D-accelerated VMs and games.
 dconf-cli
 adwaita-icon-theme
-fonts-inter
 fonts-dejavu-core
 sound-theme-freedesktop
 pipewire
@@ -32,5 +33,4 @@ rtkit
 openssl
 nftables
 bubblewrap
-fonts-jetbrains-mono
 desktop-file-utils
