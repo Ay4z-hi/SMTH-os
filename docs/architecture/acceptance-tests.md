@@ -39,12 +39,16 @@ journey on a booted image and must not be claimed as passing.
       clippy -D warnings, 50 Rust tests, package names, asset generation, palette,
       wiring and committed-token checks).
 
-## Build and boot — NOT RUN (blocked: no root, no qemu in the audit environment)
+## Build and boot
 
-- [ ] Native amd64 build completes and emits ISO + SHA-256.
-- [ ] Native arm64 build completes and emits ISO + SHA-256.
-- [ ] `sha256sum -c SHA256SUMS` for both ISOs.
-- [ ] `tools/check_budgets.py` passes on the real ISO (450 MiB gate).
+- [x] Native amd64 build completes and emits an ISO: run 43951424994 wrote
+      `live-image-amd64.hybrid.iso` (1,170,964,480 bytes) after `lb build` exited 0.
+- [x] Native arm64 build completes and emits an ISO: same run,
+      `live-image-arm64.hybrid.iso` (1,267,804,160 bytes).
+- [ ] `sha256sum -c SHA256SUMS` for both ISOs (the size gate fails first, so the
+      artifacts are never published).
+- [ ] `tools/check_budgets.py` passes on the real ISO: **FAILS**, 1117 MiB and
+      1209 MiB against 450 MiB. See `iso-budget.md`.
 - [ ] Boot Live mode in UEFI QEMU at 2 GB RAM.
 - [ ] Boot safe graphics and recovery shell.
 - [ ] Persistence: file survives a reboot with a SMTH-PERSISTENCE partition.

@@ -140,8 +140,9 @@ def main():
                         help="fail when a listed package does not exist in Debian Trixie")
     parser.add_argument("--enforce", action="store_true",
                         help="fail when the estimated core ISO exceeds the budget")
-    parser.add_argument("--no-recommends", action="store_true",
-                        help="model an install without Recommends (live-build installs them by default)")
+    parser.add_argument("--recommends", action="store_true",
+                        help="also resolve Recommends; auto/config passes --apt-recommends false, "
+                             "but other live-build configurations do not")
     args = parser.parse_args()
 
     print(f"Debian Trixie index for {args.arch}")
@@ -154,9 +155,9 @@ def main():
         if args.check_names:
             return 1
 
-    recommends = not args.no_recommends
-    print(f"Modelling {'Depends + Recommends' if recommends else 'Depends only'} "
-          f"(live-build installs Recommends by default)")
+    recommends = args.recommends
+    print(f"Modelling {'Depends + Recommends' if recommends else 'Depends only'}"
+          f" (auto/config builds with --apt-recommends false)")
     core_mib, missing = report(f"core lists ({args.arch})", core, index, recommends)
     estimated = core_mib / args.ratio + BOOT_OVERHEAD_MIB
     print(f"  estimated ISO: {core_mib:.0f} MiB / {args.ratio:.1f} + {BOOT_OVERHEAD_MIB} MiB boot"

@@ -1,11 +1,56 @@
 # ISO size budget: measurement and the optional-extension split
 
-Status: **estimated from the real Debian Trixie package index; the ISO itself was
-not built in this environment** (live-build needs root + debootstrap, see
-`docs/audit/2026-11-audit.md`). `tools/check_budgets.py` remains the authoritative
-gate on a real ISO.
+Status: **the ISO builds on both architectures, and it is over budget.** The gate
+stopped the build at 1117 MiB (amd64) and 1209 MiB (arm64) against a 450 MiB
+limit, so no ISO was published. Budget: **450 MiB, unchanged** — it was not raised
+to make a build pass.
 
-Budget: **450 MiB**, unchanged.
+## Measured on real builds (GitHub Actions run 43951424994)
+
+| | amd64 | arm64 |
+|---|---:|---:|
+| Installed chroot | **2410 MiB** | **2927 MiB** |
+| ISO written | **1116.7 MiB** | **1209.1 MiB** |
+| `lb build` | exit 0 | exit 0 |
+| Size gate | FAIL (>450 MiB) | FAIL (>450 MiB) |
+| effective compression | ~2.16x (zstd) | ~2.42x |
+
+Largest installed packages (amd64): firmware-netronome 140.6 MiB, libllvm19
+123.7 MiB, firmware-iwlwifi 111.4 MiB, linux-image-6.12.117+deb13-amd64
+106.3 MiB, firmware-atheros 95.0 MiB, firmware-amd-graphics 89.8 MiB,
+firmware-nvidia-graphics 63.1 MiB, firmware-nvidia-tesla-535-gsp 59.4 MiB,
+firmware-marvell-prestera 59.0 MiB, firmware-mediatek 45.2 MiB, mesa-libgallium
+40.6 MiB, firmware-sof-signed 34.2 MiB. `chroot/usr/lib` alone is 1599 MiB.
+
+arm64 is heavier still: firmware-qcom-soc is 298 MiB and the kernel 170 MiB.
+
+**At least ~780 MiB of the payload is non-free firmware** pulled in by the
+`linux-image` firmware recommends, i.e. more than the entire ISO budget on its own
+before any desktop is added. The rest is a full GTK/GNOME-class stack under
+`/usr/lib`.
+
+### Why the earlier estimate was wrong
+
+The estimator resolved `Depends` only and assumed 2.8x compression. The real
+image installs 2410 MiB where the model counted 1013 MiB, and compresses at
+~2.16x, so it predicted ~368 MiB for an image that came out at 1117 MiB. The
+tool now models the install more honestly, but it remains an estimate: only
+`tools/check_budgets.py` on a real ISO decides.
+
+### What closing the gap requires (needs a decision)
+
+1. **Firmware extension** (mechanical, ~320 MiB of ISO): keep
+   `firmware-linux-free`, move the non-free firmware packs into a signed
+   `extensions/firmware`. Wired networking and graphics still work; Wi-Fi and
+   exotic hardware need the extension.
+2. **LLVM/llvmpipe reduction** (~60 MiB): drop `libllvm19` by not shipping the
+   software rasteriser path.
+3. **The remaining ~400 MiB is the application stack.** Reaching 450 MiB means
+   replacing the GTK/GNOME-class apps with lighter equivalents, or moving most of
+   them into extensions — a product decision, not a build tweak.
+
+Options that are explicitly *not* being taken unilaterally: raising the budget,
+or silently deleting capabilities.
 
 ## Why the budget was at risk
 
