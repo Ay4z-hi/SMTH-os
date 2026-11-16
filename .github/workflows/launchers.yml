@@ -35,16 +35,6 @@ jobs:
           unzip -t "$APK"
           unzip -l "$APK" | grep -E 'classes(2)?\.dex' 
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep "package: name='os.smth.launcher'"
-      - name: Verify Android APK contents
-        run: |
-          APK=launchers/android/app/build/outputs/apk/debug/app-debug.apk
-          test -s "$APK"
-          SIZE=$(stat -c%s "$APK")
-          echo "APK size: $SIZE bytes"
-          test "$SIZE" -gt 100000
-          unzip -t "$APK"
-          unzip -l "$APK" | grep -E 'classes(2)?\\.dex'
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep "package: name='os.smth.launcher'"
       - name: Name Android package
         run: cp launchers/android/app/build/outputs/apk/debug/app-debug.apk launchers/android/SMTH-Android-Launcher.apk
       - name: Install and launch on Android emulator
@@ -94,7 +84,7 @@ jobs:
           test -s dist/SMTH-Android-Launcher.apk
           test "$(stat -c%s dist/SMTH-Android-Launcher.apk)" -gt 100000
           unzip -t dist/SMTH-Android-Launcher.apk
-          unzip -l dist/SMTH-Android-Launcher.apk | grep -E 'classes(2)?\\.dex'
+          unzip -l dist/SMTH-Android-Launcher.apk | grep -E 'classes(2)?\.dex'
           cd dist
           sha256sum *.apk *.exe > SHA256SUMS
       - uses: softprops/action-gh-release@v2
