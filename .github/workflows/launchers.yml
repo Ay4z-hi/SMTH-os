@@ -44,10 +44,16 @@ jobs:
           arch: x86_64
           profile: pixel_2
           script: |
-            adb install launchers/android/SMTH-Android-Launcher.apk
-            adb shell am start -n os.smth.launcher/.MainActivity
-            sleep 5
-            adb shell pidof os.smth.launcher
+            adb logcat -c
+            adb install -r launchers/android/SMTH-Android-Launcher.apk
+            adb shell am start -W -n os.smth.launcher/.MainActivity
+            sleep 8
+            if ! adb shell pidof os.smth.launcher; then
+              echo "Launcher process exited; recent Android logs:"
+              adb logcat -d -t 600
+              exit 1
+            fi
+            adb shell dumpsys activity activities | grep -E 'ResumedActivity|mResumedActivity'
       - uses: actions/upload-artifact@v4
         with:
           name: SMTH-Android-Launcher
