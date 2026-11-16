@@ -54,9 +54,11 @@ def load_index(arch: str):
             deps = [re.search(r"^Depends: (.+)$", stanza, re.M),
                     re.search(r"^Pre-Depends: (.+)$", stanza, re.M)]
             joined = ",".join(m.group(1) for m in deps if m)
+            rec = re.search(r"^Recommends: (.+)$", stanza, re.M)
             index[name.group(1)] = {
                 "size": int(size.group(1)) if size else 0,
                 "deps": joined,
+                "recs": rec.group(1) if rec else "",
                 "component": component,
             }
     return index
@@ -84,7 +86,13 @@ def lists_for(arch: str):
     return core, extensions
 
 
-def closure(packages, index):
+def closure(packages, index, recommends=True):
+    """Resolve the full install closure.
+
+    live-build installs Recommends unless told not to, and ignoring them is what
+    made an earlier version of this tool report ~370 MiB for an image that
+    actually came out at 1117 MiB.
+    """
     seen, missing, stack = set(), set(), list(packages)
     while stack:
         name = stack.pop()
@@ -95,7 +103,10 @@ def closure(packages, index):
             missing.add(name)
             continue
         seen.add(name)
-        for group in entry["deps"].split(","):
+        groups = entry["deps"]
+        if recommends and entry.get("recs"):
+            groups = groups + "," + entry["recs"] if groups else entry["recs"]
+        for group in groups.split(","):
             group = group.strip()
             if not group:
                 continue
@@ -109,8 +120,8 @@ def closure(packages, index):
     return seen, missing, total_kib
 
 
-def report(label, packages, index):
-    seen, missing, kib = closure(packages, index)
+def report(label, packages, index, recommends=True):
+    seen, missing, kib = closure(packages, index, recommends)
     mib = kib / 1024
     print(f"\n{label}: {len(seen)} packages, {mib:.1f} MiB installed")
     for name, entry in sorted(((n, index[n]) for n in seen), key=lambda item: -item[1]["size"])[:10]:
@@ -129,6 +140,8 @@ def main():
                         help="fail when a listed package does not exist in Debian Trixie")
     parser.add_argument("--enforce", action="store_true",
                         help="fail when the estimated core ISO exceeds the budget")
+    parser.add_argument("--no-recommends", action="store_true",
+                        help="model an install without Recommends (live-build installs them by default)")
     args = parser.parse_args()
 
     print(f"Debian Trixie index for {args.arch}")
@@ -141,13 +154,16 @@ def main():
         if args.check_names:
             return 1
 
-    core_mib, missing = report(f"core lists ({args.arch})", core, index)
+    recommends = not args.no_recommends
+    print(f"Modelling {'Depends + Recommends' if recommends else 'Depends only'} "
+          f"(live-build installs Recommends by default)")
+    core_mib, missing = report(f"core lists ({args.arch})", core, index, recommends)
     estimated = core_mib / args.ratio + BOOT_OVERHEAD_MIB
     print(f"  estimated ISO: {core_mib:.0f} MiB / {args.ratio:.1f} + {BOOT_OVERHEAD_MIB} MiB boot"
           f" = ~{estimated:.0f} MiB (budget {BUDGET_MIB} MiB)")
 
     for name, packages in extensions.items():
-        ext_mib, _ = report(f"extension '{name}' (not in the core ISO)", packages, index)
+        ext_mib, _ = report(f"extension '{name}' (not in the core ISO)", packages, index, recommends)
         if missing and name == "hypervisor":
             pass
         del ext_mib

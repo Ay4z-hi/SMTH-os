@@ -86,6 +86,12 @@ if [ "$LB_STATUS" -ne 0 ]; then
   echo "!! lb build reported $LB_STATUS during teardown, but $ISO exists; continuing to verify it" >&2
 fi
 echo "STAGE: found ISO $ISO size=$(stat -c%s "$ISO")"
+# What is actually inside the image, so a budget failure is actionable.
+if [ -d chroot/var/lib/dpkg ]; then
+  echo "STAGE: chroot $(du -sm chroot 2>/dev/null | cut -f1) MiB installed"
+  echo "STAGE: top packages $(dpkg-query --admindir=chroot/var/lib/dpkg -W -f='${Installed-Size} ${Package}\n' 2>/dev/null | sort -rn | head -12 | tr '\n' ';')"
+  echo "STAGE: top dirs $(du -sm chroot/usr/* chroot/var/* 2>/dev/null | sort -rn | head -8 | tr '\n' ';')"
+fi
 python3 tools/check_budgets.py "$ISO" || { echo "budget gate failed for $ISO" >&2; exit 1; }
 echo "STAGE: budget ok"
 $SUDO mv "$ISO" "out/smth-os-$SMTH_ARCH.iso"
