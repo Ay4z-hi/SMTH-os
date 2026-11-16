@@ -73,8 +73,9 @@ $SUDO env SMTH_ARCH=$SMTH_ARCH lb build
 
 mkdir -p out
 ISO="$(find . -maxdepth 1 -type f -name '*.iso' -print -quit)"
-test -n "$ISO" || { echo "no ISO produced" >&2; exit 1; }
-python3 tools/check_budgets.py "$ISO"
+test -n "$ISO" || { echo "no ISO produced (looked for ./*.iso)" >&2; exit 1; }
+echo "-- ISO produced: $ISO ($(stat -c%s "$ISO") bytes)"
+python3 tools/check_budgets.py "$ISO" || { echo "budget gate failed for $ISO" >&2; exit 1; }
 $SUDO mv "$ISO" "out/smth-os-$SMTH_ARCH.iso"
 $SUDO chown "$(id -u):$(id -g)" "out/smth-os-$SMTH_ARCH.iso"
 

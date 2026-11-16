@@ -58,7 +58,8 @@ jobs:
           SMTH_ARCH=${{ matrix.arch }} bash scripts/build.sh 2>&1 | tee /tmp/build.log
           status=${PIPESTATUS[0]}
           if [ $status -ne 0 ]; then
-            detail=$(tail -60 /tmp/build.log | tr '\n' ' ' | tr -s ' ' | cut -c1-2500)
+            # Keep the END of the log: the failing command is the last thing logged.
+            detail=$(tail -c 2500 /tmp/build.log | tr '\n' ' ' | tr -s ' ')
             echo "::error title=ISO build failed (${{ matrix.arch }}) exit $status::$detail"
             exit $status
           fi
