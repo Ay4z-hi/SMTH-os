@@ -1,0 +1,86 @@
+name: SMTH checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smth-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Rust core (fmt, clippy, tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+      - name: Formatting
+        working-directory: core
+        run: cargo fmt --all -- --check
+      - name: Lints (warnings are errors)
+        working-directory: core
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests
+        working-directory: core
+        run: cargo test --workspace --locked
+
+  repository:
+    name: Packaged files (palette, wiring, scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install image-build helpers
+        run: python -m pip install --upgrade pip pillow numpy
+      - name: Package names exist in Debian Trixie
+        run: bash scripts/check-packages.sh
+      - name: Shell syntax
+        run: |
+          for script in scripts/build.sh auto/build auto/clean auto/config config/hooks/normal/*.chroot; do
+            bash -n "$script"
+          done
+      - name: Generate runtime tokens and artwork
+        run: |
+          python3 tools/gen_tokens.py
+          python3 tools/gen_assets.py config/includes.chroot_after_packages
+          python3 tools/gen_cursor.py config/includes.chroot_after_packages
+      - name: Palette, artwork and offline fonts
+        run: python3 tools/test_palette.py
+      - name: Desktop entry / taskbar / keybind wiring
+        run: python3 tools/check_wiring.py
+      - name: Generated tokens are committed
+        run: |
+          git diff --exit-code -- \
+            config/includes.chroot_after_packages/usr/local/lib/smth/palette.json \
+            config/includes.chroot_after_packages/etc/skel/.config/gtk-4.0/smth-tokens.css \
+            config/includes.chroot_after_packages/etc/skel/.config/gtk-4.0/smth-typography.css
+
+  launchers:
+    name: Launcher sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Windows launcher parses
+        run: python3 -m py_compile launchers/windows/smth_launcher.py
+      - name: Android sources are complete
+        run: |
+          test -f launchers/android/app/src/main/kotlin/os/smth/launcher/MainActivity.kt
+          test -f launchers/android/app/src/main/res/font/space_mono.ttf
+          test -f launchers/android/app/src/main/res/font/doto.ttf
+          grep -q 'os.smth.launcher' launchers/android/app/build.gradle

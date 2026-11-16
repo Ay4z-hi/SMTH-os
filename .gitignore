@@ -7,3 +7,13 @@
 /freezerd/target/
 /config/package-lists/90-arch.list.chroot
 /config/binary /config/bootstrap /config/chroot /config/common /config/source
+
+/core/target/
+__pycache__/
+*.pyc
+/launchers/android/.gradle/
+/launchers/android/app/build/
+/launchers/android/local.properties
+/launchers/windows/build/
+/launchers/windows/dist/
+/launchers/android/SMTH-Android-Launcher.apk

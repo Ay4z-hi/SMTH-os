@@ -1,14 +1,21 @@
 name: Build SMTH OS
+
 on:
   workflow_dispatch:
   push:
     branches: [main]
     tags: ['v*']
+
+permissions:
+  contents: read
+
 concurrency:
   group: smth-os-build-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   iso:
+    name: ISO (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -16,6 +23,7 @@ jobs:
           - { arch: amd64, runner: ubuntu-latest }
           - { arch: arm64, runner: ubuntu-24.04-arm }   # native ARM runner, no emulation
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     container:
       image: debian:trixie
       options: --privileged
@@ -23,18 +31,45 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build ISO (${{ matrix.arch }})
         run: SMTH_ARCH=${{ matrix.arch }} bash scripts/build.sh
+      - name: Verify ISO and checksum
+        run: |
+          set -euo pipefail
+          ISO=out/smth-os-${{ matrix.arch }}.iso
+          test -s "$ISO"
+          test "$(stat -c%s "$ISO")" -gt 100000000
+          ( cd out && sha256sum -c SHA256SUMS )
       - uses: actions/upload-artifact@v4
         with:
           name: smth-os-${{ matrix.arch }}
           path: out/*
+          if-no-files-found: error
           retention-days: 14
+
   release:
+    name: Release verified artifacts
+    # Publishing happens only for version tags, and only if every ISO built.
     if: startsWith(github.ref, 'refs/tags/v')
     needs: iso
     runs-on: ubuntu-latest
-    permissions: { contents: write }
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v4
-        with: { path: dist, merge-multiple: true }
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Verify every artifact before publishing
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            test -s "dist/smth-os-$arch.iso" || { echo "missing $arch ISO"; exit 1; }
+            test -s "dist/smth-os-$arch.iso.sha256" || echo "note: per-file checksum absent for $arch"
+          done
+          cd dist
+          sha256sum smth-os-*.iso > SHA256SUMS
+          sha256sum -c SHA256SUMS
+          ls -lh
       - uses: softprops/action-gh-release@v2
-        with: { files: dist/* }
+        with:
+          files: dist/*
+          generate_release_notes: true
