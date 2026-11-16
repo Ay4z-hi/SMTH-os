@@ -46,7 +46,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(20), dp(22), dp(16))
-            background = DotBackground()
+            background = GradientDrawable().apply { setColor(BLACK) }
         }
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val brand = TextView(this).apply { text = "△ SMTH"; textSize = 23f; setTextColor(WHITE); typeface = Typeface.create("sans-serif-medium", Typeface.BOLD) }
@@ -58,7 +58,7 @@ class MainActivity : Activity() {
         root.addView(date)
         val search = EditText(this).apply {
             hint = "Search apps"; setHintTextColor(0xFF999999.toInt()); setTextColor(WHITE)
-            textSize = 15f; singleLine = true; setPadding(dp(14), dp(10), dp(14), dp(10))
+            textSize = 15f; setSingleLine(true); setPadding(dp(14), dp(10), dp(14), dp(10))
             background = rounded(BLACK, BLUE)
         }
         root.addView(search, LinearLayout.LayoutParams(-1, dp(48)))
