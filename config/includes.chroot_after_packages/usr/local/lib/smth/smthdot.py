@@ -17,10 +17,14 @@ GLYPHS = {
 def _rgb(h):
     h = h.lstrip("#"); return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
 try:
-    _P = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "palette.json"))); ACCENT, VIOLET = _rgb(_P["A"]), _rgb(_P["B"])
+    _P = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "palette.json")))
+    ACCENT, VIOLET = _rgb(_P["A"]), _rgb(_P["B"])
+    AHIAN_ACCENT, AHIAN_TEAL = _rgb(_P["AHIAN_A"]), _rgb(_P["AHIAN_B"])
 except Exception:
-    ACCENT, VIOLET = (1.0, 0.478, 0.0), (0.184, 0.42, 1.0)
+    ACCENT, VIOLET = _rgb("#d71921"), _rgb("#8c8c8c")
+    AHIAN_ACCENT, AHIAN_TEAL = _rgb("#7c4dff"), _rgb("#00c2a8")
 RED = ACCENT                     # old name kept so older apps still work
+GREY = VIOLET
 TAU = math.tau
 
 def lerp(a, b, t): return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
@@ -36,12 +40,15 @@ def draw_text(cr, text, x, y, dot, on=None, off=None):
                 if col is None: continue
                 cr.set_source_rgb(*col); cr.arc(x + (i * 6 + c) * dot + dot / 2, y + r * dot + dot / 2, dot * 0.38, 0, TAU); cr.fill()
 
-def dot_ring(cr, cx, cy, radius, frac, n=30, dot=3.4, phase=0.0, neon=False):
+def dot_ring(cr, cx, cy, radius, frac, n=30, dot=3.4, phase=0.0, neon=False, cols=None):
+    """Dot gauge. `cols` selects the accent pair: core by default, AHIAN when
+    neon is set, so the easter egg never borrows the normal desktop colours."""
+    lo, hi = cols if cols else ((AHIAN_ACCENT, AHIAN_TEAL) if neon else (ACCENT, VIOLET))
     lit = round(max(0.0, min(1.0, frac)) * n)
     for k in range(n):
         a = -math.pi / 2 + TAU * k / n + phase; x, y = cx + radius * math.cos(a), cy + radius * math.sin(a)
-        if k < lit: cr.set_source_rgb(*(ACCENT if k % 2 == 0 else VIOLET)); r = dot
-        else: cr.set_source_rgb(*VIOLET); r = dot * 0.35          # unlit = tiny dot, still only two colours
+        if k < lit: cr.set_source_rgb(*(lo if k % 2 == 0 else hi)); r = dot
+        else: cr.set_source_rgb(*hi); r = dot * 0.35          # unlit = tiny dot, still only two colours
         cr.arc(x, y, r, 0, TAU); cr.fill()
 
 def dot_label(text, dot=3.0, on=None, off=None):

@@ -12,17 +12,18 @@ import smthdot as D
 FLAG = os.path.expanduser("~/.config/smth/ahian")
 REDUCE_MOTION = os.path.expanduser("~/.config/smth/reduce-motion")
 WALL = "/usr/share/backgrounds/smth/wallpaper.png"
+AHIAN_WALL = "/usr/share/backgrounds/smth/ahian-teal.png"
 APPS = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint", "smth-notes",
         "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings"]
 GOLD = math.pi * (3 - math.sqrt(5)); TAU = math.tau
-CY, VI = D.ACCENT, D.VIOLET
+CY, VI = D.AHIAN_ACCENT, D.AHIAN_TEAL      # the live dot field is AHIAN art only
 
 def wall_path():
     try:
         w = open(os.path.expanduser("~/.config/smth/wallpaper")).read().strip()
         if os.path.exists(w): return w
     except OSError: pass
-    return WALL
+    return AHIAN_WALL if os.path.exists(FLAG) else WALL
 
 class S:
     ahian = False; t0 = time.time(); mx = 0.5; my = 0.5; timer = 0; animated = []
@@ -30,18 +31,19 @@ def T(): return time.time() - S.t0
 
 CSS = b"""
 window.home { background: #000000; color: #ffffff; }
+.home, .home label, .home button { font-family: "Space Mono", "Doto", "DotGothic16", monospace; }
 .home button.app { border-radius: 4px; padding: 8px 10px; background: #000000; border: 1px solid #000000; }
-.home button.app:hover { background: #000000; border-color: #ff7a00; }
-.home button.app:active { border-color: #2f6bff; }
+.home button.app:hover { background: #000000; border-color: #d71921; }
+.home button.app:active { border-color: #8c8c8c; }
 .home label.cap { color: #ffffff; font-size: 11px; }
-.home .glance { background: #000000; border-radius: 8px; border: 1px solid #2f6bff; padding: 10px 14px; }
+.home .glance { background: #000000; border-radius: 8px; border: 1px solid #8c8c8c; padding: 10px 14px; }
 @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0px); } }
-window.home.ahian button.app { animation: float 3.2s ease-in-out infinite; border: 1px solid #ff7a00; background: #000000; }
+window.home.ahian button.app { animation: float 3.2s ease-in-out infinite; border: 1px solid #7c4dff; background: #000000; }
 window.home.ahian flowboxchild:nth-child(2n) button.app { animation-delay: 0.8s; }
 window.home.ahian flowboxchild:nth-child(3n) button.app { animation-delay: 1.6s; }
 window.home.reduce-motion button.app { animation: none; }
-window.home.ahian button.app image { }
-window.home.ahian .glance { border-color: #ff7a00; }
+window.home.ahian .glance { border-color: #00c2a8; }
+window.home.ahian label.cap { color: #00c2a8; }
 """
 
 class Stats:

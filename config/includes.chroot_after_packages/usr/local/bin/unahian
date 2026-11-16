@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# unahian: exit AHIAN mode. Shows the angry red screen, then restores normal mode.
+exec ahian unahian "$@"
