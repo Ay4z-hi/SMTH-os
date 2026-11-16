@@ -1,0 +1,15 @@
+[package]
+name = "smth-ahian"
+description = "AHIAN script planner: emits the timeline consumed by the GTK shell."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+smth-core = { path = "../smth-core" }
+serde_json.workspace = true
+
+[[bin]]
+name = "smth-ahian"
+path = "src/main.rs"

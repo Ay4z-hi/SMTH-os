@@ -1,0 +1,11 @@
+[package]
+name = "smth-core"
+description = "Shared, platform-independent SMTH OS logic: palette, layout, AHIAN script, IPC, settings, files, media pills."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
