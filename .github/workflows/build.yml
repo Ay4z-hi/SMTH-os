@@ -28,6 +28,11 @@ jobs:
       image: debian:trixie
       options: --privileged
     steps:
+      # The debian image has no git, so checkout cannot run inside it yet.
+      - name: Prepare container (git for checkout)
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates
       - uses: actions/checkout@v4
       - name: Build ISO (${{ matrix.arch }})
         run: SMTH_ARCH=${{ matrix.arch }} bash scripts/build.sh
