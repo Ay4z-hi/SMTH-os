@@ -25,7 +25,10 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     container:
-      image: debian:trixie
+      # Public mirror of the Docker Hub library image: anonymous pulls of
+      # debian:trixie on shared runners get rate limited, which killed the job
+      # during container start-up before any step ran.
+      image: public.ecr.aws/docker/library/debian:trixie
       options: --privileged
     steps:
       # The debian image has no git, so checkout cannot run inside it yet.
