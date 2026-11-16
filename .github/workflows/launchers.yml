@@ -54,17 +54,29 @@ jobs:
           arch: x86_64
           profile: pixel_2
           script: |
+            # Every step reports into the public run summary: raw job logs need
+            # an authenticated account, so a silent failure would be unreviewable.
+            note() { echo "$*" >> "$GITHUB_STEP_SUMMARY"; }
+            fail() { note "### $1"; adb devices >> "$GITHUB_STEP_SUMMARY" 2>&1 || true; exit 1; }
+            note "emulator: $(adb shell getprop ro.build.version.sdk 2>&1)"
             adb logcat -c
-            adb install -r launchers/android/SMTH-Android-Launcher.apk
-            adb shell am start -W -n os.smth.launcher/.MainActivity
+            adb install -r launchers/android/SMTH-Android-Launcher.apk > /tmp/install.log 2>&1 \
+              || { note '```'; cat /tmp/install.log >> "$GITHUB_STEP_SUMMARY"; note '```'; fail "adb install failed"; }
+            note "installed: $(adb shell pm path os.smth.launcher 2>&1)"
+            adb shell am start -W -n os.smth.launcher/.MainActivity > /tmp/start.log 2>&1 \
+              || { note '```'; cat /tmp/start.log >> "$GITHUB_STEP_SUMMARY"; note '```'; fail "am start failed"; }
+            cat /tmp/start.log
             sleep 8
-            if ! adb shell pidof os.smth.launcher; then
-              echo "Launcher process exited; recent Android logs:"
-              adb logcat -d -t 600
-              exit 1
+            pidof_out=$(adb shell pidof os.smth.launcher 2>&1 | tr -d '\r')
+            if [ -z "$pidof_out" ]; then
+              note '```'
+              adb logcat -d -t 400 >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+              note '```'
+              fail "launcher process exited"
             fi
-            adb shell dumpsys activity activities | grep -E 'ResumedActivity|mResumedActivity'
-            adb shell cmd package resolve-activity --brief android.intent.action.MAIN 2>/dev/null || true
+            note "process alive: pid $pidof_out"
+            adb shell dumpsys activity activities 2>&1 | grep -E 'ResumedActivity|mResumedActivity' >> "$GITHUB_STEP_SUMMARY" || true
+            note "home resolves to: $(adb shell cmd package resolve-activity --brief android.intent.action.MAIN 2>&1 | tr -d '\r')"
       - uses: actions/upload-artifact@v4
         with:
           name: SMTH-Android-Launcher
