@@ -5,8 +5,25 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__)); OUT = sys.argv[1] if len(sys.argv) > 1 else "."
 P = json.load(open(os.path.join(HERE, "palette.json"))); hx = lambda h: tuple(int(h.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
-A, B = hx(P["A"]), hx(P["B"])
-FONT = next(iter(glob.glob("/usr/share/fonts/truetype/inter/*Bold*") + glob.glob("/usr/share/fonts/truetype/inter/*Variable*") + ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]))
+for _k in ("A", "B", "AHIAN_A", "AHIAN_B"):
+    if _k not in P: raise SystemExit(f"palette.json is missing {_k}")
+A, B, AA, AB = hx(P["A"]), hx(P["B"]), hx(P["AHIAN_A"]), hx(P["AHIAN_B"])
+# Prefer the fonts bundled in the image so generated artwork is reproducible
+# without network access and matches the shipped typography.
+FONT = next(iter(
+    [p for p in (os.path.join(OUT, "usr/share/fonts/truetype/smth/Doto.ttf"),
+                 "/usr/share/fonts/truetype/smth/Doto.ttf",
+                 "/usr/share/fonts/truetype/inter/InterVariable.ttf",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf") if os.path.exists(p)]
+    + sorted(glob.glob("/usr/share/fonts/truetype/*/*.ttf"))), None)
+
+def font(px):
+    """Bundled Doto when present, else any usable local font, else PIL's default."""
+    if FONT:
+        try: return ImageFont.truetype(FONT, px)
+        except OSError: pass
+    try: return ImageFont.load_default(size=px)
+    except TypeError: return ImageFont.load_default()
 GOLD = math.pi * (3 - math.sqrt(5))
 
 def flat(img, pal):                                  # snap every pixel to the nearest palette colour (no in-between shades)
@@ -33,7 +50,7 @@ def scene(W, H, cx, cy, R, seed=3):
     return flat(im.resize((W, H), Image.LANCZOS), [(0, 0, 0), A, B])
 
 def wordmark(px, text="SMTH", tracking=None):
-    f = ImageFont.truetype(FONT, px); tracking = px * 0.28 if tracking is None else tracking
+    f = font(px); tracking = px * 0.28 if tracking is None else tracking
     ws = [f.getlength(c) for c in text]; w = int(sum(ws) + tracking * (len(text) - 1)) + 4; h = int(px * 1.4)
     im = Image.new("RGBA", (w, h), (0, 0, 0, 0)); x = 2
     for i, (c, wc) in enumerate(zip(text, ws)):
@@ -113,12 +130,40 @@ def wallpaper(kind, W, H):
     im.paste(wm,(110,H-170),wm)
     return flat(im,[(0,0,0),A,B])
 
+def ahian_wallpaper(W, H):
+    """AHIAN mode wallpaper: purple/teal dot field on black. No gradients."""
+    S = 2; im = Image.new("RGB", (W * S, H * S), (0, 0, 0)); d = ImageDraw.Draw(im)
+    cx, cy = W * 0.34 * S, H * 0.62 * S
+    step = 26 * S
+    for y in range(0, H * S, step):
+        for x in range(0, W * S, step):
+            dist = math.hypot(x - cx, y - cy) / (H * S)
+            v = math.sin(dist * 14.0) * 0.5 + 0.5
+            v *= max(0.0, 1.0 - dist * 0.55)
+            if v < 0.16: continue
+            r = (1.4 + 3.2 * v) * S / 1.6
+            col = AB if (int(x / step) + int(y / step)) % 2 == 0 else AA
+            d.ellipse((x - r, y - r, x + r, y + r), fill=col)
+    # A teal horizon band and a purple arc keep the composition intentional.
+    band = int(H * 0.68) * S
+    for i in range(0, 5):
+        d.line((0, band + i * 3 * S, W * S, band + i * 3 * S), fill=AB, width=S)
+    arc_r = H * 0.30 * S
+    for k in range(0, 2000):
+        q = math.pi * 1.05 + k / 2000 * math.pi * 0.9
+        px, py = cx + arc_r * math.cos(q), cy + arc_r * math.sin(q)
+        d.ellipse((px - 4 * S, py - 4 * S, px + 4 * S, py + 4 * S), fill=AA if k % 3 else AB)
+    wm = wordmark(46)
+    im.paste(wm, (110 * S, H * S - 260 * S), wm)
+    return flat(im.resize((W, H), Image.LANCZOS), [(0, 0, 0), AA, AB])
+
 bg = os.path.join(OUT, "usr/share/backgrounds/smth"); pl = os.path.join(OUT, "usr/share/plymouth/themes/smth"); sh = os.path.join(OUT, "usr/share/smth"); bt = os.path.join(sh, "boot")
 for p in (bg, pl, sh, bt): os.makedirs(p, exist_ok=True)
 W, H = 2560, 1440; wm = wordmark(46)
 for name in ("black-hole", "spiral-galaxy", "orbit-rings", "dot-topography", "horizon-grid", "eclipse", "double-helix", "plain-black"):
     wallpaper(name, W, H).save(os.path.join(bg, name + ".png"), optimize=True)
 shutil.copyfile(os.path.join(bg, "black-hole.png"), os.path.join(bg, "wallpaper.png"))
+ahian_wallpaper(W, H).save(os.path.join(bg, "ahian-teal.png"), optimize=True)
 l = scene(W, H, W * 0.5, H * 0.36, H * 0.07); l.paste(wm, ((W - wm.width) // 2, H - 190), wm); l.save(os.path.join(bg, "lock.png"), optimize=True)
 mark(256).save(os.path.join(sh, "mark.png")); logo_full().save(os.path.join(sh, "logo.png")); logo_full().save(os.path.join(pl, "logo.png"))
 for i, dm in enumerate((14, 11, 8, 6, 4)): sprite(A, dm).save(os.path.join(pl, f"dot-c{i}.png")); sprite(B, dm).save(os.path.join(pl, f"dot-v{i}.png"))

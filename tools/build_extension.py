@@ -22,9 +22,18 @@ def main():
     meta_file = source / "manifest.json"
     if not packages_file.is_file() or not meta_file.is_file():
         raise SystemExit(f"unknown extension: {args.extension}")
-    packages = [x.strip() for x in packages_file.read_text().splitlines() if x.strip() and not x.startswith("#")]
+    packages = []
+    for line in packages_file.read_text().splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        name, _, only_arch = line.partition("@")
+        name, only_arch = name.strip(), only_arch.strip()
+        if only_arch and only_arch != args.arch:
+            continue          # arch-specific package (e.g. wine on amd64, box64 on arm64)
+        packages.append(name)
     if not packages:
-        raise SystemExit("extension package list is empty")
+        raise SystemExit(f"extension '{args.extension}' has no packages for {args.arch}")
     meta = json.loads(meta_file.read_text())
     with tempfile.TemporaryDirectory(prefix="smth-ext-") as td:
         root = pathlib.Path(td) / "root"
