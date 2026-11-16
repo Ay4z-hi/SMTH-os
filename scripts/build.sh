@@ -27,7 +27,7 @@ GRUB="grub-efi-$SMTH_ARCH-bin"
 [ "$SMTH_ARCH" = amd64 ] && GRUB="grub-efi-amd64-bin grub-pc-bin syslinux syslinux-common isolinux"
 $SUDO apt-get install -y --no-install-recommends \
   live-build debootstrap xorriso squashfs-tools mtools dosfstools \
-  cargo rustc rustfmt clippy ca-certificates debian-archive-keyring \
+  cargo rustc rustfmt rust-clippy ca-certificates debian-archive-keyring \
   python3-numpy python3-pil fonts-dejavu-core $GRUB
 
 echo "-- static repository checks"
