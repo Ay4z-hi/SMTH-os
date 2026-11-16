@@ -1,14 +1,47 @@
 # SMTH launchers
 
-The Android launcher is a native Android HOME app (minSdk 26). Install the APK, open it, and select SMTH Launcher as the default Home app. It provides a searchable app grid, date/time, and a strict black/orange/blue visual style. Apps that are not installed on the phone show a clear message.
+Companion launchers for the SMTH OS identity. They are not the bootable ISO.
 
-The Windows launcher is a standalone desktop shell/window built with Tkinter. It opens Windows system apps and settings through their normal launch targets. It does not replace Windows Explorer or claim to be a bootable OS.
+## Android (`launchers/android`)
 
-Release builds are produced by GitHub Actions:
-- Android: unsigned universal APK (sign locally before Play Store distribution).
-- Windows: portable PyInstaller EXE.
+A native HOME app (`os.smth.launcher`, minSdk 26, targetSdk 35).
 
-These are companion launchers, not the full Linux SMTH OS ISO.
+* Enumerates installed launcher apps from `PackageManager` on every resume — no
+  hard-coded package list and no "App not installed" grid.
+* Searchable app grid rebuilt on each query (no invisible holes), 4/5/6 columns by
+  screen width, long-press for app info.
+* Dock shows four real, tappable shortcuts for the preferred apps that are
+  actually installed; it is empty-safe rather than decorative.
+* Battery + live clock header, dot-field background drawn at runtime, SMTH icon
+  and black theme (no white flash), pointer icons suppressed so no mouse cursor
+  ever appears.
+* Bundled Space Mono / Doto fonts in `res/font` (OFL, licences in `licenses/`).
 
+Verification: `gradle assembleDebug` was run locally (JDK 17.0.21, Android SDK 35,
+Gradle 8.9) — BUILD SUCCESSFUL, APK 894,010 bytes, sha256
+`fe2a87fd1397f56280193363ff58109fad80c1fc04c559a59d7a74bac92315a2`. Checks that
+passed: `unzip -t`, `classes.dex`/`classes2.dex`/`classes3.dex`, bundled
+`res/font`, `aapt dump badging` package `os.smth.launcher` + launchable activity
+`os.smth.launcher.MainActivity`, `apksigner verify` (debug key).
 
-**APK validation:** CI applies the Kotlin Android plugin, verifies the APK ZIP structure, checks that compiled DEX bytecode exists, checks the package ID, and rejects unexpectedly tiny APKs before publishing.
+**Not verified: install and launch.** This environment has no emulator, no
+KVM group access and no system image. `.github/workflows/launchers.yml` performs
+the install + launch check on an API 35 emulator with a process-liveness
+assertion; treat the app as compile-verified, not runtime-verified, until that run
+exists.
+
+## Windows (`launchers/windows`)
+
+A standalone Tkinter shell in the SMTH visual language.
+
+* Real targets with fallbacks; protocol handlers use `os.startfile`
+  (`webbrowser.open("ms-settings:")` silently fails on Windows).
+* Failures are reported in an in-window status line instead of a raw traceback.
+* Responsive app grid, Escape closes, Ctrl+F focuses search, bundled fonts are
+  registered process-locally with `AddFontResourceExW`.
+* Battery percentage via `GetSystemPowerStatus`; shutdown asks for confirmation
+  and reports errors.
+
+Verification (CI): PyInstaller build, size sanity check, and a smoke test that
+launches the EXE and requires the process to stay alive for 8 seconds. A GUI is
+not visually inspected in CI.
