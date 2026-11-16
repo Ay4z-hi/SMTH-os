@@ -26,7 +26,14 @@ gtk-update-icon-cache -f /usr/share/icons/SMTH 2>/dev/null || true
 fc-cache -f >/dev/null 2>&1 || true
 
 # hide upstream launchers; SMTH-branded entries replace them
+# `[ -f "$d" ] && sed ...` as the last command of a loop body aborts the whole
+# hook under `set -e` when a launcher is not installed. Use an explicit if.
 for f in org.gnome.Nautilus org.gnome.Snapshot org.gnome.Loupe com.github.maoschanz.drawing Alacritty org.gnome.FileRoller; do
   d=/usr/share/applications/$f.desktop
-  [ -f "$d" ] && sed -i '0,/^\[Desktop Entry\]/s//[Desktop Entry]\nNoDisplay=true/' "$d"
+  if [ -f "$d" ]; then
+    sed -i '0,/^\[Desktop Entry\]/s//[Desktop Entry]\nNoDisplay=true/' "$d"
+  else
+    echo "smth: $f is not installed, nothing to hide"
+  fi
 done
+echo "smth: system hook complete"
