@@ -14,7 +14,7 @@ was checked and where.
 | P5 | Security: signatures, least privilege, firewall, sandbox, encrypted install | signed verification + nftables default-deny present in source; sandbox/LUKS/A-B updates missing | PARTIAL |
 | P6 | Size budgets | `tools/estimate_iso.py` closure measurement (1050 MiB core, est. ~381 MiB ISO); real ISO not built | ESTIMATED |
 | P7 | Acceptance journeys, accessibility, AHIAN polish | plan only; AHIAN timeline verified by unit tests | PARTIAL |
-| P8 | Launchers | Android/Windows sources rewritten; compile/install/run happen in CI only | SOURCE, CI-UNVERIFIED HERE |
+| P8 | Launchers | CI run 43936372541: APK built, verified and installed/launched on an API 35 emulator; EXE built and passed an 8 s liveness check | VERIFIED IN CI |
 | P9 | Release | tag-gated workflows with checksums and artifact verification; not yet executed | CONFIGURED |
 
 ## Current visual rules

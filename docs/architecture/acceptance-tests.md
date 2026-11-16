@@ -29,8 +29,15 @@ journey on a booted image and must not be claimed as passing.
       zip integrity, DEX presence, bundled-font presence, package identity,
       launchable-activity identity and `apksigner verify` (894,010 bytes,
       sha256 `fe2a87fd1397f56280193363ff58109fad80c1fc04c559a59d7a74bac92315a2`).
-- [ ] Android APK install + launch on an emulator (blocked here: no emulator/KVM).
-- [ ] Windows EXE build + smoke test (blocked here: no Windows host/Wine/tkinter).
+- [x] Android APK installs and launches: GitHub Actions run 43936372541 (API 35,
+      x86_64, pixel_2) — `adb install -r` ok, `am start -W -n
+      os.smth.launcher/.MainActivity` ok, process still alive after 8 s, HOME
+      resolves to the launcher.
+- [x] Windows EXE builds and stays running: same run, windows-latest,
+      PyInstaller one-file build then an 8 s liveness check (10.7 MB artifact).
+- [x] CI on every push: `.github/workflows/ci.yml` ran 5 times green (rustfmt,
+      clippy -D warnings, 50 Rust tests, package names, asset generation, palette,
+      wiring and committed-token checks).
 
 ## Build and boot — NOT RUN (blocked: no root, no qemu in the audit environment)
 
