@@ -3,35 +3,38 @@ on: push
 permissions:
   contents: read
 jobs:
-  plain:
-    runs-on: ubuntu-latest
-    steps:
-      - name: plain
-        run: |
-          echo "plain runner: $(uname -m)" >> "$GITHUB_STEP_SUMMARY"
-  dockerhub_plain:
-    runs-on: ubuntu-latest
-    container:
-      image: debian:trixie
-    steps:
-      - name: dockerhub plain
-        run: |
-          echo "dockerhub no-privileged: $(head -1 /etc/os-release)" >> "$GITHUB_STEP_SUMMARY"
-  dockerhub_privileged:
+  container_deps:
     runs-on: ubuntu-latest
     container:
       image: debian:trixie
       options: --privileged
     steps:
-      - name: dockerhub privileged
+      - name: deps
+        shell: bash
         run: |
-          echo "dockerhub privileged: $(head -1 /etc/os-release)" >> "$GITHUB_STEP_SUMMARY"
-  ecr_privileged:
+          set +e
+          log=/tmp/deps.log
+          : > "$log"
+          apt-get update >> "$log" 2>&1
+          echo "update_exit=$?" >> "$log"
+          apt-get install -y --no-install-recommends \
+            live-build debootstrap xorriso squashfs-tools mtools dosfstools \
+            cargo rustc rustfmt clippy ca-certificates debian-archive-keyring \
+            python3-numpy python3-pil fonts-dejavu-core \
+            grub-efi-amd64-bin grub-pc-bin syslinux syslinux-common isolinux >> "$log" 2>&1
+          echo "install_exit=$?" >> "$log"
+          {
+            echo '### container dependency install'
+            echo '```'
+            tail -50 "$log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+  summary_on_failure:
     runs-on: ubuntu-latest
-    container:
-      image: public.ecr.aws/docker/library/debian:trixie
-      options: --privileged
     steps:
-      - name: ecr privileged
+      - name: fail after writing a summary
+        shell: bash
         run: |
-          echo "ecr privileged: $(head -1 /etc/os-release)" >> "$GITHUB_STEP_SUMMARY"
+          echo '### summary written before a failure' >> "$GITHUB_STEP_SUMMARY"
+          exit 100
