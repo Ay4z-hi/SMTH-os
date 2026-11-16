@@ -46,7 +46,8 @@ jobs:
           echo "apt-get update exit: $update_status, install exit: $install_status"
           if [ $update_status -ne 0 ] || [ $install_status -ne 0 ]; then
             # Annotations are readable without an account, raw logs are not.
-            detail=$(tail -25 "$log" | tr '\n' ' ' | tr -s ' ' | cut -c1-2500)
+            detail=$(tail -c 2500 "$log" | tr '\n' ' ' | tr -s ' ')
+            detail=${detail//\%/pct}
             echo "::error title=Container preparation failed::update=$update_status install=$install_status :: $detail"
             exit 1
           fi
@@ -60,6 +61,8 @@ jobs:
           if [ $status -ne 0 ]; then
             # Keep the END of the log: the failing command is the last thing logged.
             detail=$(tail -c 2500 /tmp/build.log | tr '\n' ' ' | tr -s ' ')
+            # A literal % starts a workflow-command escape and truncates the text.
+            detail=${detail//\%/pct}
             echo "::error title=ISO build failed (${{ matrix.arch }}) exit $status::$detail"
             exit $status
           fi
