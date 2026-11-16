@@ -1,6 +1,6 @@
 /* SMTH Ion: libadwaita overrides */
-@define-color accent_bg_color #ff7a00;
-@define-color accent_color #ff7a00;
+@define-color accent_bg_color #d71921;
+@define-color accent_color #d71921;
 @define-color accent_fg_color #000000;
 @define-color window_bg_color #000000;
 @define-color window_fg_color #FFFFFF;
@@ -11,9 +11,9 @@
 @define-color card_bg_color #000000;
 @define-color popover_bg_color #000000;
 @define-color sidebar_bg_color #000000;
-window, .background { font-family: "Inter", sans-serif; }
-headerbar { border-bottom: 1px solid #2f6bff; }
+window, .background { font-family: "Space Mono", "Doto", "DotGothic16", monospace; }
+headerbar { border-bottom: 1px solid #8c8c8c; }
 button { border-radius: 4px; }
 button:active { transform: scale(0.96); transition: transform 90ms ease-out; }
-.card, list.boxed-list { background: #000000; border: 1px solid #2f6bff; border-radius: 8px; }
-switch:checked { background: #ff7a00; }
+.card, list.boxed-list { background: #000000; border: 1px solid #8c8c8c; border-radius: 8px; }
+switch:checked { background: #d71921; }

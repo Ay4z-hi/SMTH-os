@@ -1,12 +1,13 @@
-* { font-family: "Inter", "JetBrains Mono", sans-serif; font-size: 13px; border: none; min-height: 0; }
+* { font-family: "Space Mono", "Doto", "DotGothic16", monospace; font-size: 13px; border: none; min-height: 0; }
 window#waybar { background: #000000; color: #ffffff; }
-.modules-left, .modules-center, .modules-right { background: #000000; border: 1px solid #ff7a00; border-radius: 4px; padding: 0 10px; margin: 0 4px; }
+.modules-left, .modules-center, .modules-right { background: #000000; border: 1px solid #7c4dff; border-radius: 4px; padding: 0 10px; margin: 0 4px; }
 #custom-start, #custom-apps, #custom-term, #custom-kbd, #custom-files, #custom-settings { font-size: 20px; padding: 0 12px; margin: 4px 2px; border-radius: 4px; background: #000000; }
-#custom-start:hover, #custom-apps:hover, #custom-term:hover, #custom-kbd:hover, #custom-files:hover, #custom-settings:hover { background: #ff7a00; color: #000000; }
+#custom-start:hover, #custom-apps:hover, #custom-term:hover, #custom-kbd:hover, #custom-files:hover, #custom-settings:hover { background: #00c2a8; color: #000000; }
 #taskbar button { padding: 0 10px; margin: 4px 2px; border-radius: 4px; background: #000000; }
-#taskbar button.active { border: 1px solid #ff7a00; background: #000000; }
-#custom-glance-cpu, #custom-glance-mem, #custom-glance-disk { font-family: "JetBrains Mono", monospace; padding: 0 10px; letter-spacing: 1px; color: #ffffff; }
-#custom-glance-cpu.hot, #custom-glance-mem.hot, #battery.critical { color: #2f6bff; }
+#taskbar button.active { border: 1px solid #00c2a8; background: #000000; }
+#custom-glance-cpu, #custom-glance-mem, #custom-glance-disk { padding: 0 10px; letter-spacing: 1px; color: #ffffff; }
+#custom-glance-cpu.hot, #custom-glance-mem.hot, #battery.critical { color: #00c2a8; }
 #clock, #network, #battery, #pulseaudio, #bluetooth, #mpris { padding: 0 10px; }
+#clock { color: #7c4dff; }
 #tray, #custom-notify { padding: 0 10px; }
-#custom-notify:hover { background: #ff7a00; color: #000000; border-radius: 4px; }
+#custom-notify:hover { background: #7c4dff; color: #000000; border-radius: 4px; }

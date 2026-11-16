@@ -3,7 +3,7 @@
 import json, os, sys
 OUT = sys.argv[1] if len(sys.argv) > 1 else "SMTH"
 try: P = json.load(open("/usr/local/lib/smth/palette.json"))
-except Exception: P = {"A": "#ff7a00", "B": "#2f6bff"}
+except Exception: P = {"A": "#d71921", "B": "#8c8c8c"}
 Pth = lambda d: f'<path d="{d}"/>'; Ci = lambda x, y, r: f'<circle cx="{x}" cy="{y}" r="{r}"/>'; Re = lambda x, y, w, h, rx=0: f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}"/>'
 ICONS = {
  "smth-camera": [Pth("M3 8h4l2-3h6l2 3h4v12H3z"), Ci(12, 13.5, 3.8)], "smth-gallery": [Re(3, 4, 18, 16, 3), Pth("M3 16l5-5 4 4 3-3 6 6"), Ci(16, 9, 1.4)],
