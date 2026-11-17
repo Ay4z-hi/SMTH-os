@@ -112,6 +112,7 @@ jobs:
       options: --privileged
     steps:
       - name: Prepare container
+        shell: bash
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
@@ -119,6 +120,7 @@ jobs:
             debian-archive-keyring python3
       - uses: actions/checkout@v4
       - name: Build the firmware extension with a test key
+        shell: bash
         run: |
           set +e
           (
@@ -146,6 +148,7 @@ jobs:
           fi
       - name: Report extension build failure
         if: failure()
+        shell: bash
         run: |
           echo "summary path: ${GITHUB_STEP_SUMMARY:-unset}"
           if [ -f /tmp/ext.log ]; then
@@ -166,6 +169,7 @@ jobs:
           fi
 
       - name: Verify the extension with smthctl and inspect the payload
+        shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
