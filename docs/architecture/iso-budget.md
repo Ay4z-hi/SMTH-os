@@ -1,12 +1,12 @@
 # ISO size budget: measurement and the optional-extension split
 
-Status: **the ISO builds reach ISO generation on both architectures, but the
-first attempt still exceeded the size gate.** Real builds produced 1117 MiB
-(amd64) and 1209 MiB (arm64). The budget policy is: **450 MiB preferred target,
-900 MiB maximum acceptable size**. The gate warns above 450 MiB and fails only
-above 900 MiB, so an image no longer fails automatically merely for exceeding
-450 MiB. 450 MiB was not raised silently; the preferred target is kept and the
-maximum acceptable size is documented.
+Status: **both architectures build an ISO and pass the size gate.** The final
+measured images are **861.0 MiB (amd64)** and **627.7 MiB (arm64)**, down from
+1117 MiB and 1209 MiB. The budget policy is: **450 MiB preferred target, 900 MiB
+maximum acceptable size**. The gate warns above 450 MiB and fails only above
+900 MiB, so an image no longer fails automatically merely for exceeding 450 MiB.
+450 MiB was not raised silently; the preferred target is kept and the maximum
+acceptable size is documented.
 
 The first post-policy builds failed the gate because live-build's
 `--firmware-chroot` default (true) installs the whole non-free-firmware archive
@@ -15,27 +15,27 @@ passes `--firmware-chroot false`, and the base lists explicitly install only
 common Wi-Fi/Bluetooth/storage firmware; the rest is in `extensions/firmware`.
 The sizes below are from before that change and are kept as the baseline.
 
-## Latest measured (run 44127205589, commit ff82556)
+## Final measured (run 44131721760, commit 4d69a4c)
 
 | | amd64 | arm64 |
 |---|---:|---:|
 | Installed chroot | **2019 MiB** | ~1900 MiB |
-| ISO written | **903.0 MiB** (946,864,128 B) | **667.3 MiB** (699,707,392 B) |
+| ISO written | **861.0 MiB** (902,823,936 B) | **627.7 MiB** (658,206,720 B) |
 | `lb build` | exit 0 | exit 0 |
-| Size gate | FAIL by 3 MiB | PASS |
-| effective compression | ~2.24x (zstd 19) | ~2.4x |
+| Size gate | PASS | PASS |
+| effective compression | ~2.34x (zstd 22, 1 MiB blocks) | ~3.0x |
 
-Run `bbcda93` with zstd level 22 reproduced amd64 at exactly 946,864,128 bytes,
-confirming that the level alone does not move this payload.
+Intermediate runs show where the savings came from: 908.0 MiB (zstd 15),
+903.0 MiB (zstd 19), unchanged at zstd 22, then 861.0 MiB with 1 MiB blocks.
+The larger block saved 42 MiB on amd64 and 39.6 MiB on arm64 while keeping
+zstd's fast decompression.
 
 The firmware split did its job: the amd64 chroot fell from 2410 to 2019 MiB and
-the full-archive firmware packages disappeared from the top list. amd64 missed
-the 900 MiB cap by 3 MiB only because the remaining common firmware is large
+the full-archive firmware packages disappeared from the top list. amd64 was
+only 3 MiB over after zstd 19 because the remaining common firmware is large
 (`firmware-iwlwifi` 111 MiB, `firmware-atheros` 95 MiB, `firmware-amd-graphics`
 90 MiB, `firmware-nvidia-graphics` 63 MiB). Rather than drop a driver, the build
-now uses zstd level 22 with 1 MiB squashfs blocks. Level 22 alone stayed at
-903.0 MiB (zstd 19 and 22 produce the same size here); the larger block is the
-lever, measured at about 4-5% on a test tree, and it keeps fast decompression.
+now uses zstd level 22 with 1 MiB squashfs blocks.
 
 ## Baseline measured on real builds (GitHub Actions run 43951424994)
 
@@ -128,7 +128,7 @@ window, and `smth-corelink` reports the missing tool.
 installed**; at the measured 2.2x zstd ratio plus 6 MiB boot files: **~698 MiB**.
 arm64 (kernel is larger, x86-only GPU/audio firmware excluded): **~633 MiB**.
 The model still misses roughly 500 MiB of packages that live-build itself adds,
-so the real amd64 chroot is 2019 MiB and the ISO 903 MiB. Measure the ISO; the
+so the real amd64 chroot is 2019 MiB and the ISO 861 MiB. Measure the ISO; the
 estimate only validates the direction of a change.
 
 Caveats, stated explicitly:
