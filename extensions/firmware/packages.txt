@@ -1,8 +1,27 @@
-# Exotic / data-centre / SoC firmware that is too large or too rarely needed
-# for the base image. Installed via the signed Firmware extension.
+# Firmware moved out of the base image. The base installs only the common
+# Wi-Fi/Bluetooth/storage blobs; everything exotic, data-centre, SoC-specific
+# or x86-only GPU/audio firmware is installed through this signed extension.
 firmware-netronome
 firmware-marvell-prestera
 firmware-nvidia-tesla-535-gsp
+firmware-nvidia-gsp
 firmware-qcom-soc @arm64
-# firmware-misc-nonfree pulls a grab-bag of rarely used blobs; keep it here.
+firmware-qcom-media @arm64
 firmware-misc-nonfree
+firmware-intel-misc @amd64
+firmware-libertas
+firmware-ti-connectivity
+firmware-cavium
+firmware-qlogic
+firmware-cirrus
+firmware-myricom
+firmware-samsung
+firmware-bnx2x
+firmware-netxen
+firmware-siano
+firmware-ivtv
+firmware-bnx2
+firmware-zd1211
+firmware-ast
+firmware-carl9170
+firmware-ath9k-htc

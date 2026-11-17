@@ -3,3 +3,11 @@
 # desktop. It ships in the signed Hypervisor extension instead; see
 # docs/architecture/iso-budget.md.
 linux-image-amd64
+# x86-only GPU and audio firmware. The arm64 image does not need these, so they
+# stay out of the shared 00-core list.
+firmware-amd-graphics
+firmware-nvidia-graphics
+firmware-intel-graphics
+firmware-intel-sound
+firmware-sof-signed
+firmware-ipw2x00

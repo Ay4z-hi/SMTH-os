@@ -16,6 +16,7 @@ lb config noauto \
   --mode debian --distribution trixie --architectures "$ARCH" \
   --archive-areas "main contrib non-free-firmware" \
   --apt-recommends false --apt-indices false \
+  --firmware-chroot false \
   --debootstrap-options "--variant=minbase" \
   --binary-images iso-hybrid --bootloaders "$BL" \
   --debian-installer none --linux-flavours "$FLAV" \

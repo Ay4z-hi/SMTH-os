@@ -16,6 +16,17 @@ power-profiles-daemon
 zram-tools
 libinput-tools
 libgl1-mesa-dri
+# Common hardware firmware. live-build's --firmware-chroot default installs the
+# entire non-free-firmware archive (~1.2 GiB installed); we disable that and
+# install only the Wi-Fi/Bluetooth/storage blobs ordinary laptops need. The
+# exotic, data-centre and SoC blobs live in the signed Firmware extension.
+firmware-linux-free
+firmware-iwlwifi
+firmware-atheros
+firmware-mediatek
+firmware-realtek
+firmware-brcm80211
+bluez-firmware
 xwayland
 # mesa-vulkan-drivers (79 MiB installed) moved to the Hypervisor extension.
 # The desktop renders through mesa-libgallium/GL; Vulkan is only needed for

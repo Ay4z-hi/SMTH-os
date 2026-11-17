@@ -1,12 +1,19 @@
 # ISO size budget: measurement and the optional-extension split
 
-Status: **the ISO builds on both architectures, and it is over budget.** The gate
-stopped the build at 1117 MiB (amd64) and 1209 MiB (arm64). The budget policy has
-changed: **450 MiB is now the preferred target, 900 MiB the maximum acceptable
-size** (see the updated requirements). The gate now warns above 450 MiB and fails
-only above 900 MiB, so an image no longer fails automatically merely for
-exceeding 450 MiB. 450 MiB was not raised silently; the preferred target is kept
-and the maximum acceptable size is documented.
+Status: **the ISO builds reach ISO generation on both architectures, but the
+first attempt still exceeded the size gate.** Real builds produced 1117 MiB
+(amd64) and 1209 MiB (arm64). The budget policy is: **450 MiB preferred target,
+900 MiB maximum acceptable size**. The gate warns above 450 MiB and fails only
+above 900 MiB, so an image no longer fails automatically merely for exceeding
+450 MiB. 450 MiB was not raised silently; the preferred target is kept and the
+maximum acceptable size is documented.
+
+The first post-policy builds failed the gate because live-build's
+`--firmware-chroot` default (true) installs the whole non-free-firmware archive
+(~1.2 GiB installed) regardless of `--apt-recommends false`. `auto/config` now
+passes `--firmware-chroot false`, and the base lists explicitly install only
+common Wi-Fi/Bluetooth/storage firmware; the rest is in `extensions/firmware`.
+The sizes below are from before that change and are kept as the baseline.
 
 ## Measured on real builds (GitHub Actions run 43951424994)
 
@@ -27,10 +34,10 @@ firmware-marvell-prestera 59.0 MiB, firmware-mediatek 45.2 MiB, mesa-libgallium
 
 arm64 is heavier still: firmware-qcom-soc is 298 MiB and the kernel 170 MiB.
 
-**At least ~780 MiB of the payload is non-free firmware** pulled in by the
-`linux-image` firmware recommends, i.e. more than the entire ISO budget on its own
-before any desktop is added. The rest is a full GTK/GNOME-class stack under
-`/usr/lib`.
+**At least ~780 MiB of the payload is non-free firmware** installed by
+live-build's `--firmware-chroot true` default, i.e. more than the entire ISO
+budget on its own before any desktop is added. The rest is a full GTK/GNOME-class
+stack under `/usr/lib`.
 
 ### Why the earlier estimate was wrong
 
@@ -42,10 +49,12 @@ tool now models the install more honestly, but it remains an estimate: only
 
 ### What closing the gap requires (needs a decision)
 
-1. **Firmware extension** (mechanical, ~320 MiB of ISO): keep
-   `firmware-linux-free`, move the non-free firmware packs into a signed
-   `extensions/firmware`. Wired networking and graphics still work; Wi-Fi and
-   exotic hardware need the extension.
+1. **Firmware split** (implemented): `--firmware-chroot false` stops the automatic
+   full-archive install. The base lists keep `firmware-linux-free`, Intel/Atheros/
+   MediaTek/Realtek/Broadcom Wi-Fi and Bluetooth, and (amd64 only) AMD/NVIDIA/Intel
+   graphics plus Intel/SOF audio. Every other firmware package is in the signed
+   `extensions/firmware`, so common laptops keep working out of the box and rare
+   hardware is one extension install away.
 2. **LLVM/llvmpipe reduction** (~60 MiB): drop `libllvm19` by not shipping the
    software rasteriser path.
 3. **The remaining ~400 MiB is the application stack.** Reaching 450 MiB means
@@ -93,16 +102,19 @@ window, and `smth-corelink` reports the missing tool.
 
 ## Current estimate
 
-`python3 tools/estimate_iso.py --arch amd64` — 595 packages, **1050 MiB installed**;
-at the tool's default 2.8x squashfs ratio plus 6 MiB boot files: **~381 MiB**.
-arm64 (kernel is larger): **~404 MiB**.
+`python3 tools/estimate_iso.py --arch amd64` — 607 packages, **1523 MiB
+installed**; at the tool's default 2.8x squashfs ratio plus 6 MiB boot files:
+**~550 MiB**. arm64 (kernel is larger, x86-only GPU/audio firmware excluded):
+**~499 MiB**. The model is deliberately conservative; the real zstd image
+compresses at ~2.2x, so measure the ISO before quoting a final size.
 
 Caveats, stated explicitly:
 
 * 2.8x is an assumption. A real ISO must be measured: the estimate validates the
   *decision*, it does not replace `check_budgets.py`.
-* The closure ignores firmware pulled by `linux-image-*` recommends (recommends
-  are disabled in `auto/config` with `--apt-recommends false`).
+* The closure models `Depends` only, matching `--apt-recommends false`, but it
+  does not model live-build's own package injection. Firmware injection is now
+  disabled with `--firmware-chroot false` and replaced by explicit base lists.
 * initramfs contents depend on the hook; `BOOT_OVERHEAD_MIB = 6` in the tool is a
   placeholder for kernel + initrd + grub/isolinux assets.
 
