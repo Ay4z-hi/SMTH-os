@@ -25,13 +25,17 @@ The sizes below are from before that change and are kept as the baseline.
 | Size gate | FAIL by 3 MiB | PASS |
 | effective compression | ~2.24x (zstd 19) | ~2.4x |
 
+Run `bbcda93` with zstd level 22 reproduced amd64 at exactly 946,864,128 bytes,
+confirming that the level alone does not move this payload.
+
 The firmware split did its job: the amd64 chroot fell from 2410 to 2019 MiB and
 the full-archive firmware packages disappeared from the top list. amd64 missed
 the 900 MiB cap by 3 MiB only because the remaining common firmware is large
 (`firmware-iwlwifi` 111 MiB, `firmware-atheros` 95 MiB, `firmware-amd-graphics`
-90 MiB, `firmware-nvidia-graphics` 63 MiB). Rather than drop a driver, `auto/config`
-now uses zstd level 22, the maximum, which keeps fast decompression and should
-recover the last few MiB.
+90 MiB, `firmware-nvidia-graphics` 63 MiB). Rather than drop a driver, the build
+now uses zstd level 22 with 1 MiB squashfs blocks. Level 22 alone stayed at
+903.0 MiB (zstd 19 and 22 produce the same size here); the larger block is the
+lever, measured at about 4-5% on a test tree, and it keeps fast decompression.
 
 ## Baseline measured on real builds (GitHub Actions run 43951424994)
 

@@ -74,7 +74,11 @@ $SUDO env SMTH_ARCH=$SMTH_ARCH lb config
 # non-zero after the ISO has already been written successfully. Keep the status,
 # say so loudly, and let the checks below decide whether the image is usable.
 set +e
-$SUDO env SMTH_ARCH=$SMTH_ARCH lb build
+# live-build exposes no squashfs block-size option, but binary_rootfs appends
+# MKSQUASHFS_OPTIONS from the environment. A 1 MiB block improves the zstd
+# ratio (about 4-5% on a test tree) without removing any payload, and keeps
+# zstd's fast decompression.
+$SUDO env SMTH_ARCH=$SMTH_ARCH MKSQUASHFS_OPTIONS="-b 1M" lb build
 LB_STATUS=$?
 set -e
 echo "STAGE: lb build finished exit=$LB_STATUS"
