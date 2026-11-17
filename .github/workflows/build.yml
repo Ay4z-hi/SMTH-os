@@ -88,6 +88,11 @@ jobs:
           test -s "$ISO"
           test "$(stat -c%s "$ISO")" -gt 100000000
           ( cd out && sha256sum -c SHA256SUMS )
+      - name: Report ISO size
+        run: |
+          ISO=out/smth-os-${{ matrix.arch }}.iso
+          bytes=$(stat -c%s "$ISO")
+          echo "::notice title=ISO size (${{ matrix.arch }})::$bytes bytes ($(du -h "$ISO" | cut -f1))"
       - uses: actions/upload-artifact@v4
         with:
           name: smth-os-${{ matrix.arch }}

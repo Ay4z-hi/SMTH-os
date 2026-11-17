@@ -9,12 +9,12 @@ closure of the core lists from the published Debian index, reports the largest
 packages, and compares an estimated squashfs-compressed image size against the
 budget.
 
-The compressed estimate uses `--ratio` (default 2.8x, measured range for
-zstd-compressed Debian desktops is roughly 2.5x-3.0x). It is an estimate, not a
+The compressed estimate uses `--ratio` (default 2.2x, the measured zstd ratio on
+this image; the old 2.8x default was optimistic). It is an estimate, not a
 replacement for `tools/check_budgets.py`, which measures the real ISO.
 
 Usage:
-  python3 tools/estimate_iso.py [--arch amd64|arm64] [--ratio 2.8] [--check-names] [--enforce]
+  python3 tools/estimate_iso.py [--arch amd64|arm64] [--ratio 2.2] [--check-names] [--enforce]
 """
 import argparse
 import lzma
@@ -136,7 +136,7 @@ def report(label, packages, index, recommends=True):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--arch", default="amd64", choices=("amd64", "arm64"))
-    parser.add_argument("--ratio", type=float, default=2.8,
+    parser.add_argument("--ratio", type=float, default=2.2,
                         help="assumed squashfs compression ratio (installed/compressed)")
     parser.add_argument("--check-names", action="store_true",
                         help="fail when a listed package does not exist in Debian Trixie")
