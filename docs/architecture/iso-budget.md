@@ -15,23 +15,23 @@ passes `--firmware-chroot false`, and the base lists explicitly install only
 common Wi-Fi/Bluetooth/storage firmware; the rest is in `extensions/firmware`.
 The sizes below are from before that change and are kept as the baseline.
 
-## Latest measured (run 44125648564, commit 15e0985)
+## Latest measured (run 44127205589, commit ff82556)
 
 | | amd64 | arm64 |
 |---|---:|---:|
 | Installed chroot | **2019 MiB** | ~1900 MiB |
-| ISO written | **908.0 MiB** (952,107,008 B) | **~641 MiB** |
+| ISO written | **903.0 MiB** (946,864,128 B) | **667.3 MiB** (699,707,392 B) |
 | `lb build` | exit 0 | exit 0 |
-| Size gate | FAIL by 8 MiB | PASS |
-| effective compression | ~2.22x (zstd) | ~2.4x |
+| Size gate | FAIL by 3 MiB | PASS |
+| effective compression | ~2.24x (zstd 19) | ~2.4x |
 
 The firmware split did its job: the amd64 chroot fell from 2410 to 2019 MiB and
 the full-archive firmware packages disappeared from the top list. amd64 missed
-the 900 MiB cap by 8 MiB only because the remaining common firmware is large
+the 900 MiB cap by 3 MiB only because the remaining common firmware is large
 (`firmware-iwlwifi` 111 MiB, `firmware-atheros` 95 MiB, `firmware-amd-graphics`
 90 MiB, `firmware-nvidia-graphics` 63 MiB). Rather than drop a driver, `auto/config`
-now uses zstd level 19, which keeps fast decompression and should recover more
-than the 8 MiB needed.
+now uses zstd level 22, the maximum, which keeps fast decompression and should
+recover the last few MiB.
 
 ## Baseline measured on real builds (GitHub Actions run 43951424994)
 
@@ -124,7 +124,7 @@ window, and `smth-corelink` reports the missing tool.
 installed**; at the measured 2.2x zstd ratio plus 6 MiB boot files: **~698 MiB**.
 arm64 (kernel is larger, x86-only GPU/audio firmware excluded): **~633 MiB**.
 The model still misses roughly 500 MiB of packages that live-build itself adds,
-so the real amd64 chroot is 2019 MiB and the ISO 908 MiB. Measure the ISO; the
+so the real amd64 chroot is 2019 MiB and the ISO 903 MiB. Measure the ISO; the
 estimate only validates the direction of a change.
 
 Caveats, stated explicitly:
