@@ -63,7 +63,11 @@ jobs:
             # The raw tail is full of carriage returns and percents, which mangles
             # annotations, so report the stage markers instead.
             stages=$(tr -d '\r' < /tmp/build.log | grep -a '^STAGE:' | tail -6 | tr '\n' ';' | tr -s ' ')
-            echo "::error title=ISO build failed (${{ matrix.arch }}) exit $status::last stages: $stages"
+            # Raw logs require an account even for public repositories; put the
+            # end of the log in the annotation so the failure is diagnosable.
+            tail_detail=$(tr -d '\r' < /tmp/build.log | tail -c 3000 | tr '\n' ' ' | tr -s ' ')
+            tail_detail=${tail_detail//\%/pct}
+            echo "::error title=ISO build failed (${{ matrix.arch }}) exit $status::last stages: $stages || log tail: $tail_detail"
             if [ -f /tmp/build.log ]; then
               cp /tmp/build.log "/tmp/build-${{ matrix.arch }}.log" || true
             fi
