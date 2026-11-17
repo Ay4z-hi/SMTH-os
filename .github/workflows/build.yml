@@ -160,7 +160,9 @@ jobs:
               tail -c 6000 /tmp/ext.log
               echo '```'
             } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
-            msg=$(tail -c 400 /tmp/ext.log | tr '\n' ' ' | tr -d '\r')
+            msg=$(grep -a -B30 'Traceback (most recent call last)' /tmp/ext.log | tail -30 | tr '\n' ' ' | tr -d '\r')
+            [ -n "$msg" ] || msg=$(tail -c 3000 /tmp/ext.log | tr '\n' ' ' | tr -d '\r')
+            msg=$(printf '%s' "$msg" | tr -s ' ')
             msg=${msg//\%/pct}
             msg=${msg//::/:}
             echo "::error title=Extension build failed::${msg}"
