@@ -494,7 +494,7 @@ private class ConstructionView(
             invalidate()
         }
         animator.addListener(object : AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: Animator?) {
+            override fun onAnimationEnd(animation: Animator) {
                 if (!closed) finishIntro()
             }
         })

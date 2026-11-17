@@ -229,9 +229,11 @@ def run_ui(plan, on_done):
             "label.dim-label { color: #cfd8ff; font-size: 14px; }".encode())
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css,
                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        state["label"].set_text(f"making your life beautiful in {countdown}…")
         win.present()
         state["bsod"] = win
-        tick()
+        # Show 9 immediately, then 8…1 and close at zero: a full 9 seconds.
+        GLib.timeout_add(1000, tick)
 
     def tick():
         state["left"] -= 1
@@ -249,9 +251,6 @@ def run_ui(plan, on_done):
         for spec in dialogs:
             GLib.timeout_add(spec["at_ms"], lambda s=spec: (state["windows"].append(dialog(s)), False)[1])
         GLib.timeout_add(int(plan.get("fill_ms", 10000)), lambda: (show_bsod(), False)[1])
-        if not dialogs:
-            # A plan without dialogs still has to reach the blue screen.
-            GLib.timeout_add(int(plan.get("fill_ms", 10000)), lambda: (show_bsod(), False)[1])
 
     app.connect("activate", activate)
     if app.run([]) != 0:
@@ -286,6 +285,11 @@ def ahian(on, arg=""):
             import gi
             gi.require_version("Gtk", "4.0")
             from gi.repository import GLib, Gtk
+            try:
+                gi.require_version("Gtk4LayerShell", "1.0")
+                from gi.repository import Gtk4LayerShell as LS
+            except (ImportError, ValueError):
+                LS = None
             app = Gtk.Application(application_id="os.smth.UnAhian")
             css = Gtk.CssProvider()
             css.load_from_data(
@@ -296,6 +300,14 @@ def ahian(on, arg=""):
                 win = Gtk.Window(application=a)
                 win.set_decorated(False)
                 win.set_default_size(width, height)
+                if LS:
+                    LS.init_for_window(win)
+                    LS.set_namespace(win, "smth-unahian")
+                    LS.set_layer(win, LS.Layer.OVERLAY)
+                    for edge in (LS.Edge.TOP, LS.Edge.BOTTOM, LS.Edge.LEFT, LS.Edge.RIGHT):
+                        LS.set_anchor(win, edge, True)
+                    LS.set_exclusive_zone(win, -1)
+                    LS.set_keyboard_mode(win, LS.KeyboardMode.NONE)
                 box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16,
                               valign=Gtk.Align.CENTER, halign=Gtk.Align.CENTER)
                 title = Gtk.Label()
