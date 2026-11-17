@@ -100,6 +100,63 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  extension:
+    name: Firmware extension (test-signed)
+    # Builds the real firmware extension from the Trixie archive with an
+    # ephemeral key. This verifies the builder and the verifier without
+    # touching the production signing key or publishing an artifact.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: public.ecr.aws/docker/library/debian:trixie
+      options: --privileged
+    steps:
+      - name: Prepare container
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git ca-certificates debootstrap squashfs-tools openssl debian-archive-keyring
+      - uses: actions/checkout@v4
+      - name: Build the firmware extension with a test key
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out /tmp/ext.key
+          openssl rsa -in /tmp/ext.key -pubout -out /tmp/ext.pub
+          python3 tools/build_extension.py firmware --arch amd64 \
+            --private-key /tmp/ext.key --out /tmp/ext
+          ls -lh /tmp/ext
+      - name: Verify the extension with smthctl and inspect the payload
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.machinery, importlib.util, pathlib, subprocess, zipfile
+
+          smx = next(pathlib.Path("/tmp/ext").glob("firmware-amd64.smx"))
+          loader = importlib.machinery.SourceFileLoader(
+              "smthctl_under_test",
+              "config/includes.chroot_after_packages/usr/local/bin/smthctl",
+          )
+          spec = importlib.util.spec_from_loader(loader.name, loader)
+          mod = importlib.util.module_from_spec(spec)
+          loader.exec_module(mod)
+          mod.PUBKEY = pathlib.Path("/tmp/ext.pub")
+          manifest, payload = mod.read_package(smx)
+          print("verified manifest:", manifest)
+          assert manifest["id"] == "firmware"
+          assert manifest["arch"] == "amd64"
+          with zipfile.ZipFile(smx) as z:
+              assert sorted(z.namelist()) == ["manifest.json", "manifest.sig", "payload.squashfs"]
+          payload_path = pathlib.Path("/tmp/payload.squashfs")
+          payload_path.write_bytes(payload)
+          listing = subprocess.run(
+              ["unsquashfs", "-l", str(payload_path)],
+              check=True, capture_output=True, text=True,
+          ).stdout
+          hits = [line for line in listing.splitlines() if "/lib/firmware/" in line]
+          print(f"payload firmware files: {len(hits)}")
+          assert hits, "extension payload contains no /lib/firmware files"
+          PY
+
   release:
     name: Release verified artifacts
     # Publishing happens only for version tags, and only if every ISO built.
