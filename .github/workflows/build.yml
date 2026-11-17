@@ -121,14 +121,14 @@ jobs:
       - name: Build the firmware extension with a test key
         run: |
           set +e
-          {
+          (
             set -e
             openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out /tmp/ext.key
             openssl rsa -in /tmp/ext.key -pubout -out /tmp/ext.pub
             python3 tools/build_extension.py firmware --arch amd64 \
               --private-key /tmp/ext.key --out /tmp/ext
             ls -lh /tmp/ext
-          } > /tmp/ext.log 2>&1
+          ) > /tmp/ext.log 2>&1
           status=$?
           cat /tmp/ext.log
           if [ "$status" -ne 0 ]; then
