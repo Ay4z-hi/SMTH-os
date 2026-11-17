@@ -47,12 +47,30 @@ command -v adb >/dev/null || fail "adb is not on PATH"
 
 step "wait for device" adb wait-for-device || fail "emulator never became available"
 step "android version" adb shell getprop ro.build.version.sdk || true
-note "boot completed: $(adb shell getprop sys.boot_completed 2>&1 | tr -d '\r')"
+
+# `wait-for-device` only means adbd is up.  Package installation can race the
+# rest of the boot and die with a truncated "Performing Streamed Install".
+booted=0
+for _ in $(seq 1 90); do
+  if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+    booted=1
+    break
+  fi
+  sleep 2
+done
+note "boot completed: $booted"
+[ "$booted" -eq 1 ] || fail "emulator did not finish booting" "sys.boot_completed stayed 0 for 180s"
 
 adb logcat -c || true
 
-if ! step "install" adb install -r "$APK"; then
-  fail "adb install failed" "$LAST_OUT"
+if ! step "install" timeout 180 adb install -r "$APK"; then
+  # The emulator runner occasionally drops the package service for a few
+  # seconds after boot.  Remove any partial registration and try once more.
+  adb shell pm uninstall "$PKG" >/dev/null 2>&1 || true
+  sleep 5
+  if ! step "install retry" timeout 180 adb install -r "$APK"; then
+    fail "adb install failed" "$LAST_OUT"
+  fi
 fi
 
 if ! step "installed package path" adb shell pm path "$PKG"; then
