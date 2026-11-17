@@ -19,12 +19,12 @@ firmware-samsung
 firmware-bnx2x
 firmware-netxen
 firmware-siano
-firmware-ivtv
 firmware-bnx2
 firmware-zd1211
 firmware-ast
 firmware-carl9170
 firmware-ath9k-htc
-# firmware-ipw2x00 is deliberately not shipped: its preinst requires an
-# interactive acceptance of the Intel PRO/Wireless license, so debootstrap
-# cannot install it unattended. It is a 2003-era driver, not essential.
+# firmware-ipw2x00 and firmware-ivtv are deliberately not shipped: their
+# preinst scripts require interactive acceptance of third-party licenses
+# (Intel PRO/Wireless and Hauppauge), so debootstrap cannot install them
+# unattended. Both are legacy hardware and neither is essential.
