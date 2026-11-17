@@ -25,6 +25,6 @@ firmware-zd1211
 firmware-ast
 firmware-carl9170
 firmware-ath9k-htc
-# 2003-era Intel PRO/Wireless 2100/2200; the only base candidate with a
-# debconf prompt, and not common enough to keep in the live image.
-firmware-ipw2x00
+# firmware-ipw2x00 is deliberately not shipped: its preinst requires an
+# interactive acceptance of the Intel PRO/Wireless license, so debootstrap
+# cannot install it unattended. It is a 2003-era driver, not essential.
