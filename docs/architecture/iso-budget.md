@@ -13,9 +13,9 @@ The first post-policy builds failed the gate because live-build's
 (~1.2 GiB installed) regardless of `--apt-recommends false`. `auto/config` now
 passes `--firmware-chroot false`, and the base lists explicitly install only
 common Wi-Fi/Bluetooth/storage firmware; the rest is in `extensions/firmware`.
-The sizes below are from before that change and are kept as the baseline.
+The baseline table near the end records the pre-split sizes.
 
-## Final measured (run 44131721760, commit 4d69a4c)
+## Final measured (run 44141628362, commit f2124e1)
 
 | | amd64 | arm64 |
 |---|---:|---:|
@@ -24,6 +24,9 @@ The sizes below are from before that change and are kept as the baseline.
 | `lb build` | exit 0 | exit 0 |
 | Size gate | PASS | PASS |
 | effective compression | ~2.34x (zstd 22, 1 MiB blocks) | ~3.0x |
+
+Run 44131721760 first reached these sizes; run 44141628362 reproduced them and
+also passed the firmware-extension job.
 
 Intermediate runs show where the savings came from: 908.0 MiB (zstd 15),
 903.0 MiB (zstd 19), unchanged at zstd 22, then 861.0 MiB with 1 MiB blocks.
@@ -36,6 +39,25 @@ only 3 MiB over after zstd 19 because the remaining common firmware is large
 (`firmware-iwlwifi` 111 MiB, `firmware-atheros` 95 MiB, `firmware-amd-graphics`
 90 MiB, `firmware-nvidia-graphics` 63 MiB). Rather than drop a driver, the build
 now uses zstd level 22 with 1 MiB squashfs blocks.
+
+### Firmware extension verification
+
+CI job `Firmware extension (test-signed)` builds the real `extensions/firmware`
+payload from Trixie with an ephemeral RSA key, then loads `smthctl` and checks the
+signature, manifest id/arch, payload SHA-256, and the exact `.smx` member list.
+It also lists the squashfs payload and requires `/lib/firmware` entries. The job
+passes on run 44141628362 (commit f2124e1).
+
+Two firmware packages are deliberately not shipped: `firmware-ipw2x00` and
+`firmware-ivtv`. Their `preinst` scripts require interactive acceptance of the
+Intel PRO/Wireless and Hauppauge licences, so debootstrap cannot install them
+unattended. Both are legacy hardware; the omission is recorded in
+`extensions/firmware/packages.txt`. `tools/check_packages.py` now verifies 123
+names for amd64 and 119 for arm64.
+
+Still unverified: installing and mounting the built `.smx` into a running SMTH
+system. The build and signature verification are covered; the live mount path is
+not.
 
 ## Baseline measured on real builds (GitHub Actions run 43951424994)
 
