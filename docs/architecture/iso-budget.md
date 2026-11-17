@@ -1,9 +1,12 @@
 # ISO size budget: measurement and the optional-extension split
 
 Status: **the ISO builds on both architectures, and it is over budget.** The gate
-stopped the build at 1117 MiB (amd64) and 1209 MiB (arm64) against a 450 MiB
-limit, so no ISO was published. Budget: **450 MiB, unchanged** — it was not raised
-to make a build pass.
+stopped the build at 1117 MiB (amd64) and 1209 MiB (arm64). The budget policy has
+changed: **450 MiB is now the preferred target, 900 MiB the maximum acceptable
+size** (see the updated requirements). The gate now warns above 450 MiB and fails
+only above 900 MiB, so an image no longer fails automatically merely for
+exceeding 450 MiB. 450 MiB was not raised silently; the preferred target is kept
+and the maximum acceptable size is documented.
 
 ## Measured on real builds (GitHub Actions run 43951424994)
 
@@ -107,6 +110,7 @@ Caveats, stated explicitly:
 
 1. `tools/estimate_iso.py --check-names` fails if a listed package does not exist.
 2. CI runs it on every change (see `.github/workflows/ci.yml`).
-3. `tools/check_budgets.py` still fails the real ISO build above 450 MiB.
-4. If a feature genuinely cannot fit, it belongs in a signed extension — never in
-   a raised budget and never as a silently removed capability.
+3. `tools/check_budgets.py` now warns above the 450 MiB preferred target and fails
+   the real ISO build only above the 900 MiB maximum acceptable size.
+4. If a feature genuinely cannot fit even in the acceptable range, it belongs in
+   a signed extension — never as a silently removed capability.

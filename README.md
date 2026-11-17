@@ -62,8 +62,8 @@ SMTH_ARCH=arm64 sudo -E ./scripts/build.sh
 
 The build runs, in order: package-name validation, shell/Python syntax, wiring and
 palette checks, `cargo fmt`/`clippy`/`test`, asset generation, release build of
-`smthd`/`smth-ahian`/`smthctl-core`, live-build, the 450 MiB budget gate, and
-SHA-256 checksums.
+`smthd`/`smth-ahian`/`smthctl-core`, live-build, the ISO size gate (preferred
+450 MiB, maximum acceptable 900 MiB), and SHA-256 checksums.
 
 ## Quick checks (no root, no ISO)
 
@@ -77,8 +77,9 @@ python3 tools/estimate_iso.py --arch amd64 --check-names
 ## Signed extensions
 
 Wine, WebKitGTK, Vulkan, KDE Connect/WayVNC, box64, LibreOffice-class office apps
-and developer tools ship as signed `.smx` images so the core ISO stays inside
-450 MiB (measurements and the full table: `docs/architecture/iso-budget.md`).
+and developer tools ship as signed `.smx` images so the core ISO aims for the 450 MiB preferred target and must stay below the 900 MiB
+maximum acceptable size (measurements and the full table:
+`docs/architecture/iso-budget.md`).
 
 Provide an RSA key pair to build artifacts:
 

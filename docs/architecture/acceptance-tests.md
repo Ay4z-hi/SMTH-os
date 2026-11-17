@@ -103,7 +103,7 @@ journey on a booted image and must not be claimed as passing.
 ## Performance — NOT RUN
 
 Record hardware, VM configuration, kernel, commit and method. Budgets:
-core ISO ≤ 450 MiB, idle RAM ≤ 350 MB on 2 GB, boot ≤ 12 s SSD / ≤ 20 s USB,
+core ISO ≤ 450 MiB preferred (≤ 900 MiB maximum acceptable), idle RAM ≤ 350 MB on 2 GB, boot ≤ 12 s SSD / ≤ 20 s USB,
 start menu ≤ 150 ms, settings ≤ 500 ms, cold app ≤ 700 ms, idle CPU < 3 %.
 
 Do not mark a checkbox complete from source inspection alone.

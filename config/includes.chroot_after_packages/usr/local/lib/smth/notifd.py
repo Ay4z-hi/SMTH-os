@@ -80,6 +80,8 @@ class Server(Gtk.Application):
     def close(self, nid, reason):
         if nid not in self.cards: return
         card, tid = self.cards.pop(nid)
+        try: GLib.source_remove(tid)
+        except (ValueError, GLib.Error): pass
         self.stack.remove(card); self.emit_closed(nid, reason)
         if not self.cards: self.toast_win.set_visible(False)
 

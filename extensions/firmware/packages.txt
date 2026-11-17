@@ -1,0 +1,8 @@
+# Exotic / data-centre / SoC firmware that is too large or too rarely needed
+# for the base image. Installed via the signed Firmware extension.
+firmware-netronome
+firmware-marvell-prestera
+firmware-nvidia-tesla-535-gsp
+firmware-qcom-soc @arm64
+# firmware-misc-nonfree pulls a grab-bag of rarely used blobs; keep it here.
+firmware-misc-nonfree

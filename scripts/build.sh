@@ -100,7 +100,7 @@ $SUDO chown "$(id -u):$(id -g)" "out/smth-os-$SMTH_ARCH.iso"
 
 if [ -n "${SMTH_SIGNING_KEY:-}" ]; then
   test -n "${SMTH_SIGNING_PUBKEY:-}" || { echo "Set SMTH_SIGNING_PUBKEY with SMTH_SIGNING_KEY" >&2; exit 1; }
-  for ext in browser hypervisor creative office-lite developer; do
+  for ext in browser hypervisor creative office-lite developer firmware; do
     $SUDO python3 tools/build_extension.py "$ext" --arch "$SMTH_ARCH" \
       --private-key "$SMTH_SIGNING_KEY" --out out/extensions
   done

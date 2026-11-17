@@ -14,6 +14,8 @@ def main():
     ap.add_argument("--arch", choices=("amd64", "arm64"), required=True)
     ap.add_argument("--private-key", required=True)
     ap.add_argument("--out", default="out/extensions")
+    ap.add_argument("--components", default="main,contrib,non-free,non-free-firmware",
+                   help="comma-separated Debian components for debootstrap")
     args = ap.parse_args()
     if os.geteuid() != 0:
         raise SystemExit("run as root so debootstrap can create the extension rootfs")
@@ -37,7 +39,9 @@ def main():
     meta = json.loads(meta_file.read_text())
     with tempfile.TemporaryDirectory(prefix="smth-ext-") as td:
         root = pathlib.Path(td) / "root"
-        call(["debootstrap", "--arch=" + args.arch, "--variant=minbase", "--include=" + ",".join(packages), "trixie", str(root), "https://deb.debian.org/debian"])
+        call(["debootstrap", "--arch=" + args.arch, "--variant=minbase",
+              "--components=" + args.components,
+              "--include=" + ",".join(packages), "trixie", str(root), "https://deb.debian.org/debian"])
         payload = pathlib.Path(td) / "payload.squashfs"
         call(["mksquashfs", str(root), str(payload), "-noappend", "-comp", "zstd", "-b", "1M"])
         digest = hashlib.sha256(payload.read_bytes()).hexdigest()

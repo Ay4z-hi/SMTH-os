@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Estimate the ISO payload from the real Debian Trixie package index.
 
-Why this exists: the 450 MiB ISO budget could not be judged from the package
+Why this exists: the ISO size target (preferred 450 MiB, maximum acceptable 900 MiB)
+could not be judged from the package
 lists alone. `wine` is a metapackage, so the list looks small while its closure
 (libwine alone) is 725 MiB installed. This tool resolves the full dependency
 closure of the core lists from the published Debian index, reports the largest
@@ -23,7 +24,8 @@ import sys
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-BUDGET_MIB = 450
+PREFERRED_MIB = 450
+MAX_ACCEPTABLE_MIB = 900
 COMPONENTS = ("main", "contrib", "non-free-firmware")
 # Installed boot files that are not part of any package closure.
 BOOT_OVERHEAD_MIB = 6
@@ -161,7 +163,8 @@ def main():
     core_mib, missing = report(f"core lists ({args.arch})", core, index, recommends)
     estimated = core_mib / args.ratio + BOOT_OVERHEAD_MIB
     print(f"  estimated ISO: {core_mib:.0f} MiB / {args.ratio:.1f} + {BOOT_OVERHEAD_MIB} MiB boot"
-          f" = ~{estimated:.0f} MiB (budget {BUDGET_MIB} MiB)")
+          f" = ~{estimated:.0f} MiB (preferred target {PREFERRED_MIB} MiB, "
+          f"maximum acceptable {MAX_ACCEPTABLE_MIB} MiB)")
 
     for name, packages in extensions.items():
         ext_mib, _ = report(f"extension '{name}' (not in the core ISO)", packages, index, recommends)
@@ -169,14 +172,16 @@ def main():
             pass
         del ext_mib
 
-    if args.enforce and estimated > BUDGET_MIB:
-        print(f"\nFAIL: estimated core ISO ~{estimated:.0f} MiB exceeds the {BUDGET_MIB} MiB budget.")
+    if args.enforce and estimated > MAX_ACCEPTABLE_MIB:
+        print(f"\nFAIL: estimated core ISO ~{estimated:.0f} MiB exceeds the maximum acceptable "
+              f"size of {MAX_ACCEPTABLE_MIB} MiB.")
         print("Move the largest offenders into signed extensions instead of raising the budget.")
         return 1
-    if estimated > BUDGET_MIB:
-        print(f"\nWARNING: estimated core ISO ~{estimated:.0f} MiB is over budget.")
+    if estimated > PREFERRED_MIB:
+        print(f"\nWARNING: estimated core ISO ~{estimated:.0f} MiB is above the preferred target "
+              f"of {PREFERRED_MIB} MiB (acceptable up to {MAX_ACCEPTABLE_MIB} MiB).")
         return 0
-    print("\nOK: estimated core ISO is within budget.")
+    print("\nOK: estimated core ISO is within the preferred target.")
     return 0
 
 
