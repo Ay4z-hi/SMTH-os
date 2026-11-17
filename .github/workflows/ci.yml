@@ -49,7 +49,7 @@ jobs:
         run: bash scripts/check-packages.sh
       - name: Shell syntax
         run: |
-          for script in scripts/build.sh auto/build auto/clean auto/config config/hooks/normal/*.chroot; do
+          for script in scripts/build.sh auto/build auto/clean auto/config config/hooks/normal/*.chroot tools/*.sh; do
             bash -n "$script"
           done
       - name: Generate runtime tokens and artwork
@@ -61,6 +61,8 @@ jobs:
         run: python3 tools/test_palette.py
       - name: Desktop entry / taskbar / keybind wiring
         run: python3 tools/check_wiring.py
+      - name: Startup construction timeline
+        run: python3 tools/test_startup.py
       - name: Generated tokens are committed
         run: |
           git diff --exit-code -- \

@@ -32,7 +32,7 @@ $SUDO apt-get install -y --no-install-recommends \
 
 echo "-- static repository checks"
 bash scripts/check-packages.sh
-for script in scripts/build.sh auto/build auto/clean config/hooks/normal/*.chroot; do
+for script in scripts/build.sh auto/build auto/clean config/hooks/normal/*.chroot tools/*.sh; do
   bash -n "$script"
 done
 # check_wiring.py parses every packaged script (Python syntax, shell syntax and
@@ -40,6 +40,7 @@ done
 python3 -m py_compile tools/*.py
 python3 tools/check_wiring.py
 python3 tools/test_palette.py
+python3 tools/test_startup.py
 
 echo "-- Rust core: format, lint, test"
 ( cd core && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings )

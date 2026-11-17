@@ -1,0 +1,15 @@
+[Unit]
+Description=SMTH OS boot verification probe
+ConditionKernelCommandLine=smth.bootcheck=1
+Wants=smth-extensions.service
+After=smth-extensions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/smth-bootcheck
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=240
+
+[Install]
+WantedBy=multi-user.target

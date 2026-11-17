@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# CI/hardware boot probe.  Only runs when the kernel command line contains
+# smth.bootcheck=1, so a normal image boot never waits on it.
+#
+# The live session is started from the tty1 autologin shell, not by systemd, so
+# this unit waits for the compositor and its helpers instead of assuming that
+# graphical.target means a desktop exists.
+set -u
+
+say() {
+    echo "SMTH_BOOT: $*"
+    echo "SMTH_BOOT: $*" >/dev/console 2>/dev/null || true
+}
+
+say "start arch=$(uname -m) kernel=$(uname -r)"
+
+if ! grep -q 'smth.bootcheck=1' /proc/cmdline 2>/dev/null; then
+    say "skip (smth.bootcheck not set)"
+    exit 0
+fi
+
+# Wait up to 180 s for the real session.  The animation overlay may still be
+# running; it is not a prerequisite.
+ready=0
+for _ in $(seq 1 90); do
+    if pgrep -x labwc >/dev/null 2>&1 \
+       && pgrep -x waybar >/dev/null 2>&1 \
+       && pgrep -x smthd >/dev/null 2>&1; then
+        ready=1
+        break
+    fi
+    sleep 2
+done
+if [ "$ready" -ne 1 ]; then
+    say "FAIL session timeout labwc=$(pgrep -x labwc >/dev/null && echo yes || echo no) waybar=$(pgrep -x waybar >/dev/null && echo yes || echo no) smthd=$(pgrep -x smthd >/dev/null && echo yes || echo no)"
+    journalctl -b -p err --no-pager -n 25 2>/dev/null || true
+    exit 1
+fi
+
+fail=0
+for proc in labwc waybar smthd; do
+    if pgrep -x "$proc" >/dev/null 2>&1; then
+        say "process $proc=yes"
+    else
+        say "process $proc=no"
+        fail=1
+    fi
+done
+for pattern in '/usr/local/lib/smth/home.py' '/usr/local/lib/smth/notifd.py'; do
+    if pgrep -f "$pattern" >/dev/null 2>&1; then
+        say "process $pattern=yes"
+    else
+        say "process $pattern=no"
+        fail=1
+    fi
+done
+
+wayland=$(find /run/user -maxdepth 2 -name wayland-0 -print -quit 2>/dev/null || true)
+if [ -n "$wayland" ]; then say "socket wayland=yes path=$wayland"; else say "socket wayland=no"; fail=1; fi
+smth_sock=$(find /run/user -maxdepth 2 -name smthd.sock -print -quit 2>/dev/null || true)
+if [ -n "$smth_sock" ]; then say "socket smthd=yes path=$smth_sock"; else say "socket smthd=no"; fail=1; fi
+
+for unit in smth-extensions.service nftables.service; do
+    state=$(systemctl is-active "$unit" 2>/dev/null || true)
+    say "unit $unit=$state"
+    [ "$state" = "active" ] || fail=1
+done
+
+# These are warnings, not boot failures: a live VM may legitimately lack a
+# battery, Bluetooth adapter or Wi-Fi device.
+for unit in bluetooth.service NetworkManager.service; do
+    say "unit $unit=$(systemctl is-active "$unit" 2>/dev/null || true)"
+done
+say "failed-units=$(systemctl --failed --no-legend --plain 2>/dev/null | wc -l)"
+
+if [ "$fail" -ne 0 ]; then
+    say "FAIL one or more desktop/session checks failed"
+    journalctl -b -p err --no-pager -n 40 2>/dev/null || true
+    exit 1
+fi
+say "OK desktop session is up arch=$(uname -m)"
+exit 0

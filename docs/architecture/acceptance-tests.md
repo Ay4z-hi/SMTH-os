@@ -38,6 +38,13 @@ journey on a booted image and must not be claimed as passing.
 - [x] CI on every push: `.github/workflows/ci.yml` ran 5 times green (rustfmt,
       clippy -D warnings, 50 Rust tests, package names, asset generation, palette,
       wiring and committed-token checks).
+- [x] Startup construction model: `python3 tools/test_startup.py` → 8/8 tests
+      pass (timeline 9.6 s, logo reveal, seven independent cursors, six boxes,
+      construction items, landscape/portrait bounds, Reduced Motion);
+      `python3 -m startup.py --print-plan` returns phase/plan without a display.
+- [ ] Startup construction renderer on a booted compositor: layer-shell
+      overlay, fade, click/key skip, Settings toggle. Not run in this
+      environment; the QEMU boot job does not yet assert the overlay visually.
 
 ## Build and boot
 
@@ -49,7 +56,9 @@ journey on a booted image and must not be claimed as passing.
       artifacts are never published).
 - [ ] `tools/check_budgets.py` passes on the real ISO: **FAILS**, 1117 MiB and
       1209 MiB against 450 MiB. See `iso-budget.md`.
-- [ ] Boot Live mode in UEFI QEMU at 2 GB RAM.
+- [ ] Boot Live mode in UEFI QEMU at 2 GB RAM. Harness: `tools/qemu_boot_test.sh`
+      plus the `boot` matrix in `.github/workflows/build.yml`; no recorded run
+      for the current revision.
 - [ ] Boot safe graphics and recovery shell.
 - [ ] Persistence: file survives a reboot with a SMTH-PERSISTENCE partition.
 - [ ] Install to a disposable disk and boot the installed system.

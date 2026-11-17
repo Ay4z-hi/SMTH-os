@@ -183,7 +183,7 @@ def accessibility(win):
     path = os.path.expanduser("~/.config/smth/reduce-motion")
     try: active = open(path).read().strip().lower() in ("1", "true", "yes", "on")
     except OSError: active = False
-    sw = Adw.SwitchRow(title="Reduce motion", subtitle="Disable decorative AHIAN motion and floating effects", active=active)
+    sw = Adw.SwitchRow(title="Reduce motion", subtitle="Use a short startup reveal and disable decorative AHIAN motion", active=active)
     def change(row, _):
         os.makedirs(CFG, exist_ok=True)
         if row.get_active(): open(path, "w").write("1\n")
@@ -192,6 +192,25 @@ def accessibility(win):
             except OSError: pass
         run("pkill", "-USR1", "-f", "lib/smth/home.py")
     sw.connect("notify::active", change); g.add(sw)
+    anim = Group(p, "Startup")
+    anim_path = os.path.join(CFG, "startup-animation")
+    try: anim_on = open(anim_path).read().strip().lower() not in ("0", "off", "false", "no")
+    except OSError: anim_on = True
+    anim_switch = Adw.SwitchRow(
+        title="Startup animation",
+        subtitle="Cinematic desktop construction before the live desktop is revealed",
+        active=anim_on)
+    def set_anim(row, _):
+        os.makedirs(CFG, exist_ok=True)
+        if row.get_active():
+            try: os.remove(anim_path)
+            except OSError: pass
+        else:
+            open(anim_path, "w").write("0\n")
+    anim_switch.connect("notify::active", set_anim); anim.add(anim_switch)
+    preview = Adw.ActionRow(title="Preview animation", subtitle="Runs the construction overlay over the current desktop")
+    preview.add_suffix(btn("Preview", lambda: subprocess.Popen(["smth-startup", "--force"])))
+    anim.add(preview)
     c = Group(p, "Display")
     c.add(Adw.ActionRow(title="High contrast", subtitle="Black surfaces, white text, grey neutrals and the red accent"))
     ah = Group(p, "AHIAN")

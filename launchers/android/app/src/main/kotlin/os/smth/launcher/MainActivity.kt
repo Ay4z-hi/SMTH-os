@@ -1,12 +1,19 @@
 package os.smth.launcher
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
@@ -20,6 +27,7 @@ import android.view.Gravity
 import android.view.PointerIcon
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.GridLayout
@@ -212,8 +220,27 @@ class MainActivity : Activity() {
         column.addView(actions)
 
         root.addView(column)
+        if (animationsEnabled()) {
+            root.addView(
+                ConstructionView(this, typefaceDot, typefaceMono),
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
         suppressPointer(root)
         setContentView(root)
+    }
+
+    private fun animationsEnabled(): Boolean = try {
+        Settings.Global.getFloat(
+            contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) != 0f
+    } catch (e: Exception) {
+        true
     }
 
     private fun columnsForWidth(): Int = when {
@@ -424,5 +451,266 @@ private class DotField(context: android.content.Context) : FrameLayout(context) 
             row++
         }
         super.dispatchDraw(canvas)
+    }
+}
+
+/**
+ * Android adaptation of the SMTH construction intro.  It is a real animated
+ * View over the already-built launcher: cursors, selection boxes and panels are
+ * drawn each frame, then the overlay fades to reveal the live app grid.  Tapping
+ * anywhere skips it.  It is also skipped when the system animator scale is zero.
+ */
+private class ConstructionView(
+    context: Context,
+    private val dot: Typeface?,
+    private val mono: Typeface?,
+) : View(context) {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val colours = intArrayOf(
+        0xFFD71921.toInt(), 0xFF2F6BFF.toInt(), 0xFF00C2A8.toInt(),
+        0xFF7C4DFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFAD29.toInt(),
+    )
+    private val animator = ValueAnimator.ofFloat(0f, 1f)
+    private var progress = 0f
+    private var closed = false
+
+    private data class Box(
+        val rect: RectF,
+        val start: Float,
+        val colour: Int,
+        val label: String,
+    )
+
+    init {
+        setBackgroundColor(BLACK)
+        isClickable = true
+        contentDescription = "SMTH startup construction; tap to skip"
+        setOnClickListener { finishIntro() }
+        animator.duration = 5_600
+        animator.interpolator = DecelerateInterpolator()
+        animator.addUpdateListener { animation ->
+            progress = animation.animatedValue as Float
+            alpha = if (progress > 0.90f) (1f - progress) / 0.10f else 1f
+            invalidate()
+        }
+        animator.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator?) {
+                if (!closed) finishIntro()
+            }
+        })
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        if (!animator.isStarted) animator.start()
+    }
+
+    override fun onDetachedFromWindow() {
+        animator.cancel()
+        super.onDetachedFromWindow()
+    }
+
+    private fun finishIntro() {
+        if (closed) return
+        closed = true
+        animator.cancel()
+        animate().alpha(0f).setDuration(300).withEndAction {
+            (parent as? ViewGroup)?.removeView(this)
+        }.start()
+    }
+
+    private fun dp(value: Float): Float = value * resources.displayMetrics.density
+
+    private fun lerp(a: Float, b: Float, t: Float): Float = a + (b - a) * t
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        val p = progress.coerceIn(0f, 1f)
+        canvas.drawColor(BLACK)
+        drawDotField(canvas, w, h)
+        drawLogo(canvas, w, h, p)
+        if (p >= 0.14f) {
+            drawPanels(canvas, w, h, p)
+            drawBoxes(canvas, w, h, p)
+        }
+        if (p in 0.12f..0.88f) drawCursors(canvas, w, h, p)
+        paint.style = Paint.Style.FILL
+        paint.typeface = mono
+        paint.textSize = dp(8f)
+        paint.textAlign = Paint.Align.RIGHT
+        paint.color = GREY
+        canvas.drawText("TAP TO SKIP", w - dp(14f), h - dp(12f), paint)
+    }
+
+    private fun drawDotField(canvas: Canvas, w: Float, h: Float) {
+        paint.style = Paint.Style.FILL
+        val step = dp(26f)
+        var y = step
+        var row = 0
+        while (y < h) {
+            var x = step
+            var col = 0
+            while (x < w) {
+                paint.color = if ((row + col) % 11 == 0) 0x22D71921 else 0x188C8C8C
+                canvas.drawCircle(x, y, dp(1f), paint)
+                x += step
+                col++
+            }
+            y += step
+            row++
+        }
+    }
+
+    private fun drawLogo(canvas: Canvas, w: Float, h: Float, p: Float) {
+        val fade = when {
+            p < 0.10f -> p / 0.10f
+            p < 0.16f -> 1f
+            p < 0.22f -> 1f - (p - 0.16f) / 0.06f
+            else -> 0f
+        }
+        if (fade <= 0f) return
+        paint.style = Paint.Style.FILL
+        paint.typeface = dot ?: Typeface.DEFAULT
+        paint.textSize = dp(44f)
+        paint.textAlign = Paint.Align.CENTER
+        paint.color = Color.argb((fade * 255).toInt(), 255, 255, 255)
+        canvas.drawText("SMTH", w / 2f, h / 2f - dp(4f), paint)
+        if (fade > 0.3f) {
+            paint.color = Color.argb((fade * 255).toInt(), 215, 25, 33)
+            paint.strokeWidth = dp(2f)
+            canvas.drawLine(w / 2f - dp(36f), h / 2f + dp(26f),
+                w / 2f + dp(36f), h / 2f + dp(26f), paint)
+        }
+    }
+
+    private fun panel(canvas: Canvas, rect: RectF, q: Float, accent: Int = GREY) {
+        if (q <= 0f) return
+        val visible = RectF(rect.left, rect.top, rect.left + rect.width() * q.coerceIn(0f, 1f), rect.bottom)
+        paint.style = Paint.Style.FILL
+        paint.color = BLACK
+        canvas.drawRect(visible, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = dp(1f)
+        paint.color = accent
+        canvas.drawRoundRect(visible, dp(3f), dp(3f), paint)
+    }
+
+    private fun drawPanels(canvas: Canvas, w: Float, h: Float, p: Float) {
+        panel(canvas, RectF(w * .05f, h * .03f, w * .95f, h * .095f),
+            (p - 0.18f) / 0.18f)
+        paint.style = Paint.Style.FILL
+        paint.typeface = dot ?: Typeface.DEFAULT
+        paint.textSize = dp(14f)
+        paint.textAlign = Paint.Align.LEFT
+        paint.color = WHITE
+        if (p > 0.24f) canvas.drawText("SMTH", w * .075f, h * .073f, paint)
+        paint.typeface = mono
+        paint.textSize = dp(10f)
+        paint.textAlign = Paint.Align.RIGHT
+        paint.color = RED
+        if (p > 0.24f) canvas.drawText("00:00", w * .925f, h * .073f, paint)
+        panel(canvas, RectF(w * .05f, h * .15f, w * .95f, h * .215f),
+            (p - 0.22f) / 0.18f)
+        panel(canvas, RectF(w * .05f, h * .26f, w * .95f, h * .73f),
+            (p - 0.28f) / 0.26f)
+        for (row in 0..1) {
+            for (col in 0..3) {
+                val start = 0.31f + (row * 4 + col) * 0.018f
+                panel(canvas, RectF(
+                    w * (0.075f + col * 0.215f), h * (0.285f + row * 0.21f),
+                    w * (0.255f + col * 0.215f), h * (0.445f + row * 0.21f),
+                ), (p - start) / 0.16f, 0xFF00C2A8.toInt())
+            }
+        }
+        panel(canvas, RectF(w * .30f, h * .82f, w * .70f, h * .895f),
+            (p - 0.38f) / 0.18f, RED)
+    }
+
+    private fun drawBoxes(canvas: Canvas, w: Float, h: Float, p: Float) {
+        if (p >= 0.86f) return
+        val boxes = arrayOf(
+            Box(RectF(w * .05f, h * .025f, w * .95f, h * .10f), 0.16f, 0xFF2F6BFF.toInt(), "TASKBAR"),
+            Box(RectF(w * .05f, h * .14f, w * .95f, h * .225f), 0.23f, 0xFF00C2A8.toInt(), "SEARCH"),
+            Box(RectF(w * .05f, h * .25f, w * .95f, h * .74f), 0.30f, 0xFF7C4DFF.toInt(), "APP GRID"),
+            Box(RectF(w * .26f, h * .815f, w * .74f, h * .91f), 0.38f, RED, "DOCK"),
+        )
+        for (box in boxes) {
+            drawSelection(canvas, box, p)
+        }
+    }
+
+    private fun drawSelection(canvas: Canvas, box: Box, p: Float) {
+        val q = ((p - box.start) / 0.16f).coerceIn(0f, 1f)
+        if (q <= 0f) return
+        val r = box.rect
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = dp(1.4f)
+        paint.color = box.colour
+        canvas.drawRect(r, paint)
+        val perimeter = 2f * (r.width() + r.height())
+        var drawn = perimeter * q
+        fun segment(x1: Float, y1: Float, x2: Float, y2: Float) {
+            if (drawn <= 0f) return
+            val length = kotlin.math.abs(x2 - x1) + kotlin.math.abs(y2 - y1)
+            val f = (drawn / length).coerceAtMost(1f)
+            canvas.drawLine(x1, y1, x1 + (x2 - x1) * f, y1 + (y2 - y1) * f, paint)
+            drawn -= length
+        }
+        segment(r.left, r.top, r.right, r.top)
+        segment(r.right, r.top, r.right, r.bottom)
+        segment(r.right, r.bottom, r.left, r.bottom)
+        segment(r.left, r.bottom, r.left, r.top)
+        paint.style = Paint.Style.FILL
+        paint.typeface = mono
+        paint.textSize = dp(8f)
+        paint.textAlign = Paint.Align.LEFT
+        paint.color = box.colour
+        canvas.drawText(box.label, r.left, (r.top - dp(4f)).coerceAtLeast(dp(9f)), paint)
+    }
+
+    private fun drawCursors(canvas: Canvas, w: Float, h: Float, p: Float) {
+        val paths = arrayOf(
+            floatArrayOf(0.08f, 0.02f, 0.24f, 0.06f, 0.44f, 0.16f, 0.62f, 0.30f),
+            floatArrayOf(0.55f, 0.00f, 0.40f, 0.12f, 0.55f, 0.34f, 0.78f, 0.26f),
+            floatArrayOf(1.00f, 0.18f, 0.78f, 0.24f, 0.62f, 0.44f, 0.38f, 0.36f),
+            floatArrayOf(0.02f, 0.58f, 0.20f, 0.52f, 0.34f, 0.68f, 0.58f, 0.60f),
+            floatArrayOf(0.88f, 0.90f, 0.68f, 0.76f, 0.46f, 0.86f, 0.24f, 0.78f),
+        )
+        val labels = arrayOf("ARCH", "UI", "LAYOUT", "TYPE", "SYNC")
+        for (i in paths.indices) {
+            val q = ((p - 0.12f - i * 0.025f) / 0.72f).coerceIn(0f, 1f)
+            val path = paths[i]
+            val seg = q * (path.size / 2 - 1)
+            val index = seg.toInt().coerceAtMost(path.size / 2 - 2)
+            val local = seg - index
+            val x = lerp(path[index * 2], path[(index + 1) * 2], local) * w
+            val y = lerp(path[index * 2 + 1], path[(index + 1) * 2 + 1], local) * h
+            paint.style = Paint.Style.FILL
+            paint.color = colours[i]
+            val arrow = Path().apply {
+                moveTo(x, y)
+                lineTo(x, y + dp(17f))
+                lineTo(x + dp(4.5f), y + dp(13f))
+                lineTo(x + dp(7.2f), y + dp(19f))
+                lineTo(x + dp(10f), y + dp(17.8f))
+                lineTo(x + dp(7.2f), y + dp(11.6f))
+                lineTo(x + dp(13f), y + dp(11.6f))
+                close()
+            }
+            canvas.drawPath(arrow, paint)
+            paint.strokeWidth = dp(1f)
+            paint.style = Paint.Style.STROKE
+            paint.color = BLACK
+            canvas.drawPath(arrow, paint)
+            paint.style = Paint.Style.FILL
+            paint.typeface = mono
+            paint.textSize = dp(7f)
+            paint.textAlign = Paint.Align.LEFT
+            paint.color = colours[i]
+            canvas.drawText(labels[i], x + dp(16f), y + dp(15f), paint)
+        }
     }
 }

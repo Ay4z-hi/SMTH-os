@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# SMTH OS cinematic startup construction.
+# The real desktop is already running below this layer; startup.py draws the
+# construction and fades out to reveal it.  It exits immediately when disabled,
+# on a headless display, or when the session asks for reduced motion.
+set -u
+exec python3 /usr/local/lib/smth/startup.py "$@"

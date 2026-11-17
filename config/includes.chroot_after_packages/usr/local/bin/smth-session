@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Start one interactive Wayland session.  The live image logs the smth user in
+# on tty1; this is the only place a compositor is started, so there is no
+# display-manager dependency and no duplicate session if the user opens a
+# terminal later.
+set -u
+# logind normally provides this; a live autologin on minimal images can omit it.
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+    mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null || true
+    chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null || true
+fi
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=SMTH
+export XDG_SESSION_DESKTOP=SMTH
+export MOZ_ENABLE_WAYLAND=1
+exec dbus-run-session -- labwc

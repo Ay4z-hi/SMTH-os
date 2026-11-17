@@ -100,6 +100,42 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  boot:
+    name: Boot ISO (${{ matrix.arch }})
+    needs: iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: smth-os-${{ matrix.arch }}
+          path: dist
+      - name: Install QEMU and ISO tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xorriso qemu-system-x86 qemu-system-arm
+      - name: Verify El Torito, menu entries and kernel/initrd paths
+        run: bash tools/verify_bootloader.sh "dist/smth-os-${{ matrix.arch }}.iso" "${{ matrix.arch }}"
+      - name: Boot the live image and verify the desktop session
+        env:
+          SMTH_QEMU_LOG: ${{ github.workspace }}/qemu-${{ matrix.arch }}.log
+        run: bash tools/qemu_boot_test.sh "dist/smth-os-${{ matrix.arch }}.iso" "${{ matrix.arch }}"
+      - name: Keep the serial boot log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-log-${{ matrix.arch }}
+          path: qemu-${{ matrix.arch }}.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   extension:
     name: Firmware extension (test-signed)
     # Builds the real firmware extension from the Trixie archive with an
@@ -203,11 +239,102 @@ jobs:
           assert hits, "extension payload contains no /lib/firmware files"
           PY
 
+      - name: Install smthctl and the test trust key
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -D -m 755 config/includes.chroot_after_packages/usr/local/bin/smthctl /usr/local/bin/smthctl
+          install -D -m 644 /tmp/ext.pub /etc/smth/extensions.pub
+
+      - name: Reject tampered, wrong-arch and unsigned packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, shutil, subprocess, zipfile
+          smx = next(pathlib.Path("/tmp/ext").glob("firmware-amd64.smx"))
+          work = pathlib.Path("/tmp/tamper")
+          work.mkdir(exist_ok=True)
+
+          def rewrite(name, manifest, payload, signature=None):
+              with zipfile.ZipFile(smx) as z:
+                  old_sig = z.read("manifest.sig")
+              out = work / name
+              with zipfile.ZipFile(out, "w") as z:
+                  z.writestr("manifest.json", json.dumps(manifest))
+                  z.writestr("manifest.sig", signature if signature is not None else old_sig)
+                  z.writestr("payload.squashfs", payload)
+              return out
+
+          with zipfile.ZipFile(smx) as z:
+              manifest = json.loads(z.read("manifest.json"))
+              payload = z.read("payload.squashfs")
+          tampered = rewrite("tampered.smx", manifest, payload[:-1] + bytes([payload[-1] ^ 1]))
+          wrong = dict(manifest, arch="arm64")
+          wrong_path = work / "wrong.smx"
+          manifest_path = work / "manifest.json"
+          manifest_path.write_text(json.dumps(wrong))
+          sig_path = work / "manifest.sig"
+          subprocess.run(["openssl", "dgst", "-sha256", "-sign", "/tmp/ext.key",
+                          "-out", str(sig_path), str(manifest_path)], check=True)
+          rewrite("wrong.smx", wrong, payload, sig_path.read_bytes())
+          for label, package in (("tampered", tampered), ("wrong-arch", wrong_path)):
+              result = subprocess.run(["smthctl", "extension", "verify", str(package)],
+                                      capture_output=True, text=True)
+              print(label, "exit", result.returncode, result.stdout.strip(), result.stderr.strip())
+              assert result.returncode != 0, f"{label} package was accepted"
+          saved = pathlib.Path("/etc/smth/extensions.pub").read_bytes()
+          pathlib.Path("/etc/smth/extensions.pub").unlink()
+          try:
+              result = subprocess.run(["smthctl", "extension", "verify", str(smx)],
+                                      capture_output=True, text=True)
+              print("missing-key exit", result.returncode, result.stderr.strip())
+              assert result.returncode != 0, "package accepted without a trusted key"
+          finally:
+              pathlib.Path("/etc/smth/extensions.pub").write_bytes(saved)
+          PY
+
+      - name: Install, mount, activate and remove the firmware extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /var/lib/smth/extensions /opt/smth/extensions /usr/local/share/applications
+          # A privileged container has the kernel loop driver but may not have
+          # the device nodes; create the standard nodes rather than skipping mount.
+          [ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237
+          for i in $(seq 0 7); do [ -e "/dev/loop$i" ] || mknod "/dev/loop$i" b 7 "$i"; done
+          SMX=/tmp/ext/firmware-amd64.smx
+          smthctl extension verify "$SMX"
+          smthctl extension install "$SMX"
+          mountpoint -q /opt/smth/extensions/firmware
+          test -f /var/lib/smth/extensions/firmware/payload.squashfs
+          count=$(find /opt/smth/extensions/firmware -path '*/lib/firmware/*' -type f | wc -l)
+          echo "firmware files visible after mount: $count"
+          test "$count" -gt 0
+          smthctl extension list | grep -q '^firmware[[:space:]]'
+          smthctl extension remove firmware
+          ! mountpoint -q /opt/smth/extensions/firmware
+          test ! -e /opt/smth/extensions/firmware
+          test ! -e /var/lib/smth/extensions/firmware
+          # Recovery path: reinstall, then use the same activation routine the
+          # boot unit uses.
+          smthctl extension install "$SMX"
+          smthctl extension activate-all
+          mountpoint -q /opt/smth/extensions/firmware
+          count=$(find /opt/smth/extensions/firmware -path '*/lib/firmware/*' -type f | wc -l)
+          echo "firmware files visible after re-activation: $count"
+          test "$count" -gt 0
+          smthctl extension remove firmware
+          ! mountpoint -q /opt/smth/extensions/firmware
+          echo "PASS extension: verified, mounted, firmware visible, removed, reinstalled, activated and removed"
+
   release:
     name: Release verified artifacts
     # Publishing happens only for version tags, and only if every ISO built.
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: iso
+    # A release is published only after both ISO builds, both boot checks and
+    # the real extension install/mount/remove job have passed.
+    needs: [iso, boot, extension]
     runs-on: ubuntu-latest
     permissions:
       contents: write

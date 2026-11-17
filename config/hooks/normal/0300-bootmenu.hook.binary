@@ -5,7 +5,12 @@ K=$(ls binary/live/vmlinuz* 2>/dev/null | head -n1 | sed 's|^binary||')
 I=$(ls binary/live/initrd.img* 2>/dev/null | head -n1 | sed 's|^binary||')
 if [ -z "$K" ] || [ -z "$I" ]; then echo "SMTH: kernel not found, keeping default boot menu"; exit 0; fi
 SRC=config/includes.chroot_after_packages/usr/share/smth/boot
-OPTS="boot=live components quiet splash loglevel=3 username=smth hostname=smth"
+OPTS="boot=live components quiet splash loglevel=3 username=smth hostname=smth console=tty0"
+if [ "${SMTH_ARCH:-amd64}" = "arm64" ]; then
+  OPTS="$OPTS console=ttyAMA0,115200"
+else
+  OPTS="$OPTS console=ttyS0,115200"
+fi
 
 # ---- GRUB ----
 if [ -d binary/boot/grub ]; then

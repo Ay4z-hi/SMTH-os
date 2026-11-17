@@ -8,10 +8,13 @@ echo 'vm.swappiness=150' > /etc/sysctl.d/99-smth.conf
 # freezerd is intentionally not enabled: it is still a scaffold (see
 # docs/architecture/rust-migration.md) and starting a daemon that cannot act on
 # foreground state would be a fake feature.
-systemctl enable zramswap.service NetworkManager.service bluetooth.service nftables.service smth-extensions.service 2>/dev/null || true
+mkdir -p /var/lib/smth/extensions /opt/smth/extensions
+touch /var/lib/smth/extensions/.keep
+systemctl enable zramswap.service NetworkManager.service bluetooth.service nftables.service smth-extensions.service smth-bootcheck.service 2>/dev/null || true
 mkdir -p /etc/systemd/system/multi-user.target.wants
 ln -sf /etc/systemd/system/smth-extensions.service /etc/systemd/system/multi-user.target.wants/smth-extensions.service
-systemctl set-default multi-user.target   # labwc is started from the autologin shell, not a display manager
+ln -sf /etc/systemd/system/smth-bootcheck.service /etc/systemd/system/multi-user.target.wants/smth-bootcheck.service
+systemctl set-default multi-user.target   # labwc is started from the tty1 autologin shell
 
 # desktop defaults (dark, SMTH icons, Inter)
 dconf update
