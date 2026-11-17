@@ -144,6 +144,27 @@ jobs:
             echo "::error title=Firmware extension build failed::exit $status :: $detail"
             exit "$status"
           fi
+      - name: Report extension build failure
+        if: failure()
+        run: |
+          echo "summary path: ${GITHUB_STEP_SUMMARY:-unset}"
+          if [ -f /tmp/ext.log ]; then
+            wc -c /tmp/ext.log
+            cat /tmp/ext.log
+            {
+              echo '### Firmware extension build failed'
+              echo '```'
+              tail -c 6000 /tmp/ext.log
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+            msg=$(tail -c 400 /tmp/ext.log | tr '\n' ' ' | tr -d '\r')
+            msg=${msg//\%/pct}
+            msg=${msg//::/:}
+            echo "::error title=Extension build failed::${msg}"
+          else
+            echo "::error title=Extension build failed::/tmp/ext.log was not created"
+          fi
+
       - name: Verify the extension with smthctl and inspect the payload
         run: |
           set -euo pipefail
