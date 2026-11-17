@@ -108,8 +108,14 @@ Caveats, stated explicitly:
 
 ## How to keep it honest
 
-1. `tools/estimate_iso.py --check-names` fails if a listed package does not exist.
-2. CI runs it on every change (see `.github/workflows/ci.yml`).
+1. `tools/check_packages.py` verifies every core and extension package name
+   against the published Debian Trixie `Packages.xz` indexes (main, contrib,
+   non-free-firmware) for the target architecture. It replaced the host
+   `apt-cache` check, which reported valid non-free-firmware packages as
+   missing when a build container's apt sources were main-only.
+2. `tools/estimate_iso.py --check-names` independently fails if a listed
+   package does not exist; CI runs the check on every change (see
+   `.github/workflows/ci.yml`).
 3. `tools/check_budgets.py` now warns above the 450 MiB preferred target and fails
    the real ISO build only above the 900 MiB maximum acceptable size.
 4. If a feature genuinely cannot fit even in the acceptable range, it belongs in
