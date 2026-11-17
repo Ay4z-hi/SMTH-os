@@ -115,16 +115,28 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            git ca-certificates debootstrap squashfs-tools openssl debian-archive-keyring
+            git ca-certificates debootstrap squashfs-tools openssl \
+            debian-archive-keyring python3
       - uses: actions/checkout@v4
       - name: Build the firmware extension with a test key
         run: |
-          set -euo pipefail
-          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out /tmp/ext.key
-          openssl rsa -in /tmp/ext.key -pubout -out /tmp/ext.pub
-          python3 tools/build_extension.py firmware --arch amd64 \
-            --private-key /tmp/ext.key --out /tmp/ext
-          ls -lh /tmp/ext
+          set +e
+          {
+            set -e
+            openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out /tmp/ext.key
+            openssl rsa -in /tmp/ext.key -pubout -out /tmp/ext.pub
+            python3 tools/build_extension.py firmware --arch amd64 \
+              --private-key /tmp/ext.key --out /tmp/ext
+            ls -lh /tmp/ext
+          } > /tmp/ext.log 2>&1
+          status=$?
+          cat /tmp/ext.log
+          if [ "$status" -ne 0 ]; then
+            detail=$(tail -c 3000 /tmp/ext.log | tr '\n' ' ' | tr -s ' ')
+            detail=${detail//\%/pct}
+            echo "::error title=Firmware extension build failed::exit $status :: $detail"
+            exit "$status"
+          fi
       - name: Verify the extension with smthctl and inspect the payload
         run: |
           set -euo pipefail
