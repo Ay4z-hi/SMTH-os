@@ -132,8 +132,15 @@ jobs:
           status=$?
           cat /tmp/ext.log
           if [ "$status" -ne 0 ]; then
-            detail=$(tail -c 3000 /tmp/ext.log | tr '\n' ' ' | tr -s ' ')
+            {
+              echo "### Firmware extension build failed (exit $status)"
+              echo '```'
+              tail -c 6000 /tmp/ext.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            detail=$(tr -d '\r' < /tmp/ext.log | grep -aE 'E:|error|Error|Traceback|Exception|not found|No such' | tail -4 | tr '\n' ';' | tr -s ' ')
             detail=${detail//\%/pct}
+            [ -n "$detail" ] || detail=$(tail -c 500 /tmp/ext.log | tr '\n' ' ' | tr -s ' ')
             echo "::error title=Firmware extension build failed::exit $status :: $detail"
             exit "$status"
           fi
