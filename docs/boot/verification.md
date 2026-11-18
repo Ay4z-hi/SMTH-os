@@ -1,6 +1,8 @@
 # Boot verification
 
-Status: **harness implemented; CI runs not yet recorded for this revision.**
+Status: **`amd64` and `arm64` boot verified in CI for `b70bc09`** (Build SMTH OS
+run #164, both `Boot ISO` jobs green, each gated on `SMTH_BOOT: OK` in the
+serial log).
 
 ## Local / CI commands
 
@@ -16,10 +18,11 @@ amd64), the GRUB and isolinux menu entries, and that the referenced
 `/live/vmlinuz*` and `/live/initrd.img*` exist and are non-empty.
 
 `qemu_boot_test.sh` extracts the live kernel/initrd, starts QEMU with 2 GB RAM
-and two vCPUs, and attaches the ISO read-only. It uses KVM only when the device
-is readable/writable; otherwise it uses TCG. The kernel command line adds
-`smth.bootcheck=1`, which enables the `smth-bootcheck` systemd unit. The script
-waits up to eight minutes for `SMTH_BOOT: OK` on the serial console and fails on
+and two vCPUs, and attaches the ISO read-only plus a `virtio-rng` device. It
+uses KVM only when the device is readable/writable; otherwise it uses TCG. The
+kernel command line adds `smth.bootcheck=1`, which enables the `smth-bootcheck`
+systemd unit. The script waits up to eight minutes on `amd64` and thirty minutes
+on `arm64` (TCG) for `SMTH_BOOT: OK` on the serial console, and fails on
 `SMTH_BOOT: FAIL` or QEMU exit.
 
 The graphical session is started from tty1 autologin, not a display manager:
