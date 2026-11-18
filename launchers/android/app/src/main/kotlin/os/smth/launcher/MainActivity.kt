@@ -2,35 +2,45 @@ package os.smth.launcher
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
+import android.animation.TimeInterpolator
 import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.view.WindowInsets
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.RenderEffect
+import android.graphics.RenderNode
+import android.graphics.Shader
 import android.graphics.Typeface
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.RippleDrawable
 import android.net.Uri
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Editable
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.PointerIcon
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.GridLayout
@@ -43,38 +53,49 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// SMTH palette: black surfaces, white text, grey neutral, red accent.
-private const val BLACK = 0xFF000000.toInt()
-private const val WHITE = 0xFFFFFFFF.toInt()
-private const val GREY = 0xFF8C8C8C.toInt()
-private const val RED = 0xFFD71921.toInt()
+// ---- SMTH design tokens -------------------------------------------------
+private const val OBSIDIAN = 0xFF09090B.toInt()
+private const val MAROON = 0xFF701B35.toInt()
+private const val BLUSH = 0xFFF2C6D2.toInt()
+
+private fun blush(alpha: Float) = (BLUSH and 0x00FFFFFF) or ((alpha * 255).toInt().coerceIn(0, 255) shl 24)
+private fun maroon(alpha: Float) = (MAROON and 0x00FFFFFF) or ((alpha * 255).toInt().coerceIn(0, 255) shl 24)
+private fun obsidian(alpha: Float) = (OBSIDIAN and 0x00FFFFFF) or ((alpha * 255).toInt().coerceIn(0, 255) shl 24)
+
+private val EASE_OUT: TimeInterpolator = DecelerateInterpolator(1.9f)
 
 /** A launchable app discovered on the device (never a hard-coded package list). */
 private data class AppEntry(
     val label: String,
     val packageName: String,
-    val icon: android.graphics.drawable.Drawable,
+    val icon: Drawable,
 )
 
 class MainActivity : Activity() {
-    private lateinit var grid: GridLayout
-    private lateinit var clock: TextView
-    private lateinit var battery: TextView
-    private lateinit var empty: TextView
+    private lateinit var root: FrameLayout
+    private lateinit var desktop: LinearLayout
+    private lateinit var pinnedRow: LinearLayout
+    private lateinit var startPanel: LinearLayout
+    private lateinit var startGlass: GlassView
+    private lateinit var pinnedBox: LinearLayout
+    private lateinit var allGrid: GridLayout
     private lateinit var search: EditText
-    private lateinit var dock: LinearLayout
-    private lateinit var dateBig: TextView
-    private lateinit var appsValue: TextView
-    private lateinit var appsHeading: TextView
-    private lateinit var batteryValue: TextView
+    private lateinit var empty: TextView
+    private lateinit var clock: TextView
+    private lateinit var dateLabel: TextView
+    private lateinit var battery: TextView
+    private lateinit var startGlyph: ImageView
     private var apps: List<AppEntry> = emptyList()
+    private val launched = LinkedHashSet<String>()
     private var typefaceMono: Typeface? = null
     private var typefaceDot: Typeface? = null
+    private var panelOpen = false
+    private var animation: ValueAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = BLACK
-        window.navigationBarColor = BLACK
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
         typefaceMono = loadFont("space_mono")
         typefaceDot = loadFont("doto") ?: typefaceMono
         build()
@@ -88,13 +109,8 @@ class MainActivity : Activity() {
         refreshApps()
     }
 
-    /** The launcher never shows a mouse pointer, even when a mouse is attached. */
-    private fun suppressPointer(view: View) {
-        view.pointerIcon = PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL)
-        view.setOnHoverListener { v, _ ->
-            v.pointerIcon = PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL)
-            true
-        }
+    override fun onBackPressed() {
+        if (panelOpen) closeStart() else super.onBackPressed()
     }
 
     private fun loadFont(name: String): Typeface? = try {
@@ -105,337 +121,498 @@ class MainActivity : Activity() {
     }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+    private fun dpf(v: Float) = v * resources.displayMetrics.density
 
-    private fun panel(fill: Int, stroke: Int, radius: Int = 4): GradientDrawable =
-        GradientDrawable().apply {
-            setColor(fill)
-            cornerRadius = dp(radius).toFloat()
-            if (stroke != 0) setStroke(dp(1), stroke)
+    private fun suppressPointer(view: View) {
+        view.pointerIcon = PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL)
+        view.setOnHoverListener { v, _ ->
+            v.pointerIcon = PointerIcon.getSystemIcon(this, PointerIcon.TYPE_NULL)
+            true
+        }
+    }
+
+    private fun label(text: String, size: Float, colour: Int, tracking: Float = 0.08f): TextView =
+        TextView(this).apply {
+            this.text = text
+            setTextColor(colour)
+            textSize = size
+            typeface = typefaceMono
+            letterSpacing = tracking
+            includeFontPadding = false
         }
 
     private fun build() {
-        val root = DotField(this).apply { setBackgroundColor(BLACK) }
-        val column = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(12), dp(18), dp(8))
-        }
+        root = FrameLayout(this)
 
-        // ---- top bar: official mark, wordmark, identity, status ----
-        val header = LinearLayout(this).apply {
+        val wallpaper = WallpaperView(this, BitmapFactory.decodeResource(resources, R.drawable.smth_wallpaper))
+        root.addView(wallpaper, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+
+        // Everything except the wallpaper respects the system insets.
+        val surface = FrameLayout(this)
+        root.addView(surface, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+
+        desktop = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(8))
+        }
+        surface.addView(desktop, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { gravity = Gravity.TOP or Gravity.START })
+
+        // ---- taskbar -----------------------------------------------------
+        val taskbar = GlassView(this, wallpaper).apply {
+            setPadding(dp(8), 0, dp(8), 0)
+            radius = dpf(13f)
+        }
+        val barRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        header.addView(ImageView(this).apply {
-            setImageResource(R.drawable.ic_launcher_smth)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-        }, LinearLayout.LayoutParams(dp(26), dp(26)))
-        header.addView(TextView(this).apply {
-            text = "SMTH"
-            setTextColor(WHITE)
-            textSize = 18f
-            typeface = Typeface.create(typefaceDot ?: Typeface.DEFAULT, Typeface.BOLD)
-            letterSpacing = 0.22f
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            marginStart = dp(10)
-        })
-        header.addView(TextView(this).apply {
-            text = "DESKTOP ENVIRONMENT"
-            setTextColor(GREY)
-            textSize = 8f
-            typeface = typefaceMono
-            letterSpacing = 0.24f
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-            marginStart = dp(14)
-        })
-        battery = TextView(this).apply {
-            setTextColor(GREY)
-            textSize = 10f
-            typeface = typefaceMono
-            letterSpacing = 0.10f
-            setPadding(0, 0, dp(14), 0)
-        }
-        clock = TextView(this).apply {
-            setTextColor(RED)
-            textSize = 15f
-            typeface = typefaceMono
-            letterSpacing = 0.06f
-        }
-        header.addView(battery)
-        header.addView(clock)
-        column.addView(header)
-        column.addView(rule(horizontal = true), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(1),
-        ).apply { topMargin = dp(10) })
-
-        // ---- body: information rail on the left, applications on the right ----
-        val body = LinearLayout(this).apply {
+        val startButton = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(12), 0, dp(10))
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), 0, dp(10), 0)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { toggleStart() }
+            addView(ImageView(this@MainActivity).apply {
+                setImageResource(R.drawable.ic_launcher_smth)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(20), dp(20)))
+            addView(label("SMTH", 10.5f, BLUSH, 0.18f), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { marginStart = dp(7) })
         }
+        barRow.addView(startButton, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
 
-        val rail = LinearLayout(this).apply {
+        val searchPill = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = glassPill()
+            setPadding(dp(9), 0, dp(9), 0)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { openStart(focusSearch = true) }
+            addView(ImageView(this@MainActivity).apply {
+                setImageResource(R.drawable.ic_smth_search)
+                alpha = 0.72f
+            }, LinearLayout.LayoutParams(dp(14), dp(14)))
+            addView(label("Search", 10f, blush(0.55f), 0.06f), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { marginStart = dp(6) })
+        }
+        barRow.addView(searchPill, LinearLayout.LayoutParams(dp(150), dp(30)).apply {
+            marginStart = dp(4)
+        })
+
+        pinnedRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(6), 0, dp(6), 0)
+        }
+        barRow.addView(pinnedRow, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+
+        val tray = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(6), 0, dp(6), 0)
+        }
+        battery = label("", 9.5f, blush(0.78f), 0.04f)
+        val trayColumn = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, dp(16), 0)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), 0, 0, 0)
+            addView(label("", 10f, BLUSH, 0.02f).also { dateLabel = it })
+            addView(label("", 8.5f, blush(0.55f), 0.08f).also { dateLabel = it })
         }
-        rail.addView(TextView(this).apply {
-            text = SimpleDateFormat("EEEE", Locale.getDefault()).format(Date()).uppercase(Locale.getDefault())
-            setTextColor(GREY)
-            textSize = 9f
-            typeface = typefaceMono
-            letterSpacing = 0.22f
-        })
-        dateBig = TextView(this).apply {
-            text = SimpleDateFormat("dd", Locale.getDefault()).format(Date())
-            setTextColor(WHITE)
-            textSize = 46f
-            typeface = Typeface.create(typefaceDot ?: Typeface.DEFAULT, Typeface.NORMAL)
-            includeFontPadding = false
-        }
-        rail.addView(dateBig)
-        rail.addView(TextView(this).apply {
-            text = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date()).uppercase(Locale.getDefault())
-            setTextColor(RED)
-            textSize = 9f
-            typeface = typefaceMono
-            letterSpacing = 0.14f
-        })
-        rail.addView(sectionLabel("SYSTEM"), LinearLayout.LayoutParams(
+        // Clock stack: time over date, right aligned like a Windows tray.
+        trayColumn.removeAllViews()
+        clock = label("", 10.5f, BLUSH, 0.02f).apply { gravity = Gravity.END }
+        dateLabel = label("", 8f, blush(0.55f), 0.08f).apply { gravity = Gravity.END }
+        trayColumn.addView(clock, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = dp(16) })
-        appsValue = TextView(this).apply { text = "0" }
-        rail.addView(statusRow("APPS", appsValue))
-        batteryValue = TextView(this).apply { text = "—" }
-        rail.addView(statusRow("BATTERY", batteryValue))
-        val displayValue = TextView(this).apply {
-            text = "LANDSCAPE"
-            setTextColor(WHITE)
-            textSize = 9f
-            typeface = typefaceMono
-            letterSpacing = 0.10f
-        }
-        rail.addView(statusRow("DISPLAY", displayValue))
-        rail.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
-        rail.addView(TextView(this).apply {
-            text = "SMTH OS 1.0"
-            setTextColor(GREY)
-            textSize = 8f
-            typeface = typefaceMono
-            letterSpacing = 0.16f
+        ))
+        trayColumn.addView(dateLabel, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+        tray.addView(battery, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { marginEnd = dp(12) })
+        tray.addView(trayColumn)
+        barRow.addView(tray, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+        taskbar.addView(barRow, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+        surface.addView(taskbar, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(46),
+        ).apply {
+            gravity = Gravity.BOTTOM
+            marginStart = dp(12)
+            marginEnd = dp(12)
+            bottomMargin = dp(10)
         })
-        body.addView(rail, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.30f))
-        body.addView(rule(horizontal = false), LinearLayout.LayoutParams(dp(1), ViewGroup.LayoutParams.MATCH_PARENT))
 
-        val content = LinearLayout(this).apply {
+        // ---- start menu --------------------------------------------------
+        startPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), 0, 0, 0)
         }
+        startGlass = GlassView(this, wallpaper).apply {
+            radius = dpf(15f)
+            visibility = View.INVISIBLE
+            alpha = 0f
+            translationY = dpf(14f)
+        }
+        startGlass.addView(startPanel, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+        val startParams = FrameLayout.LayoutParams(dp(360), dp(430)).apply {
+            gravity = Gravity.BOTTOM or Gravity.START
+            marginStart = dp(12)
+            bottomMargin = dp(64)
+        }
+        surface.addView(startGlass, startParams)
+
+        val startContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(12))
+        }
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(label("SMTH", 13f, BLUSH, 0.20f).apply {
+                typeface = Typeface.create(typefaceDot ?: Typeface.DEFAULT, Typeface.BOLD)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(label("START", 8f, blush(0.5f), 0.26f))
+        }
+        startContent.addView(heading)
+
         search = EditText(this).apply {
             hint = "Search applications"
-            setHintTextColor(GREY)
-            setTextColor(WHITE)
-            textSize = 13f
+            setHintTextColor(blush(0.5f))
+            setTextColor(BLUSH)
+            textSize = 11.5f
             typeface = typefaceMono
             setSingleLine(true)
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            background = panel(BLACK, GREY)
+            setPadding(dp(10), 0, dp(10), 0)
+            background = glassPill()
             setOnFocusChangeListener { v, focused ->
-                v.background = panel(BLACK, if (focused) RED else GREY)
+                v.background = if (focused) focusedPill() else glassPill()
             }
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {
-                    if (::grid.isInitialized) render()
+                    if (::allGrid.isInitialized) renderAll()
                 }
                 override fun afterTextChanged(s: Editable?) {}
             })
+            setOnKeyListener { _, code, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && code == KeyEvent.KEYCODE_ENTER) {
+                    submitFirst(); true
+                } else false
+            }
         }
-        content.addView(search, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)))
+        startContent.addView(search, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(38),
+        ).apply { topMargin = dp(12) })
         suppressPointer(search)
 
-        val section = LinearLayout(this).apply {
+        val pinnedLabel = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(14), 0, dp(8))
-        }
-        section.addView(sectionLabel("APPLICATIONS"), LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-        ))
-        appsHeading = TextView(this).apply {
-            text = ""
-            setTextColor(GREY)
-            textSize = 8f
-            typeface = typefaceMono
-            letterSpacing = 0.12f
-            gravity = Gravity.END
-        }
-        section.addView(appsHeading, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        content.addView(section)
-
-        // ---- app grid: rebuilt on every filter change, so no invisible gaps ----
-        grid = GridLayout(this).apply { columnCount = columnsForWidth() }
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            isVerticalScrollBarEnabled = false
-        }
-        scroll.addView(grid, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        content.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-
-        empty = TextView(this).apply {
-            text = "No applications match"
-            setTextColor(GREY)
-            textSize = 11f
-            typeface = typefaceMono
-            gravity = Gravity.CENTER
-            visibility = View.GONE
-        }
-        content.addView(empty)
-        body.addView(content, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.70f))
-        column.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-
-        // ---- bottom controls: dock plus settings/wallpaper, above the nav inset ----
-        val bottom = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        dock = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = panel(BLACK, GREY)
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-        }
-        bottom.addView(dock, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginEnd = dp(8) })
-        bottom.addView(actionButton("SETTINGS") { startActivitySafely(Intent(Settings.ACTION_SETTINGS)) },
-            LinearLayout.LayoutParams(dp(88), dp(56)).apply { marginEnd = dp(8) })
-        bottom.addView(actionButton("WALLPAPER") { startActivitySafely(Intent(Intent.ACTION_SET_WALLPAPER)) },
-            LinearLayout.LayoutParams(dp(88), dp(56)))
-        column.addView(bottom)
-
-        root.setOnApplyWindowInsetsListener { _, insets ->
-            val topInset = insets.systemWindowInsetTop
-            val bottomInset = insets.systemWindowInsetBottom
-            column.setPadding(dp(18), dp(12) + topInset, dp(18), dp(8) + bottomInset)
-            insets
-        }
-        root.addView(column)
-        if (animationsEnabled()) {
-            root.addView(
-                ConstructionView(this, typefaceDot, typefaceMono),
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                ),
-            )
-        }
-        suppressPointer(root)
-        setContentView(root)
-        root.requestApplyInsets()
-    }
-
-    /** 1 dp hairline used to divide the rail from the applications area. */
-    private fun rule(horizontal: Boolean): View = View(this).apply {
-        setBackgroundColor(0x338C8C8C)
-        layoutParams = if (horizontal) {
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
-        } else {
-            LinearLayout.LayoutParams(dp(1), ViewGroup.LayoutParams.MATCH_PARENT)
-        }
-    }
-
-    private fun sectionLabel(text: String): TextView = TextView(this).apply {
-        this.text = text
-        setTextColor(RED)
-        textSize = 9f
-        typeface = typefaceMono
-        letterSpacing = 0.20f
-    }
-
-    /** Label/value row in the rail; the value TextView is caller-owned for updates. */
-    private fun statusRow(label: String, value: TextView): LinearLayout =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(5), 0, 0)
-            addView(TextView(this@MainActivity).apply {
-                text = label
-                setTextColor(GREY)
-                textSize = 9f
-                typeface = typefaceMono
-                letterSpacing = 0.12f
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            value.setTextColor(WHITE)
-            value.textSize = 9f
-            value.typeface = typefaceMono
-            value.letterSpacing = 0.10f
-            value.gravity = Gravity.END
-            addView(value, LinearLayout.LayoutParams(
+            setPadding(0, dp(14), 0, dp(6))
+            addView(label("PINNED", 7.5f, MAROON.let { blush(0.85f) }, 0.24f), LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             ))
         }
-
-    private fun animationsEnabled(): Boolean = try {
-        Settings.Global.getFloat(
-            contentResolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
-        ) != 0f
-    } catch (e: Exception) {
-        true
-    }
-
-    /** Tile width in pixels for the applications grid (content area / columns). */
-    private fun tileWidthPx(columns: Int): Int {
-        val contentDp = resources.configuration.screenWidthDp * 0.70f - 34f
-        return ((contentDp / columns - 6f) * resources.displayMetrics.density).toInt()
-    }
-
-    /** Column count from the width the grid actually gets (70% of the window). */
-    private fun columnsForWidth(): Int {
-        val gridWidth = resources.configuration.screenWidthDp * 0.70f
-        return when {
-            gridWidth >= 720f -> 6
-            gridWidth >= 560f -> 5
-            gridWidth >= 420f -> 4
-            else -> 3
+        startContent.addView(pinnedLabel)
+        pinnedBox = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.START
         }
-    }
+        startContent.addView(pinnedBox, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(58),
+        ))
 
-    private fun actionButton(label: String, onClick: () -> Unit): TextView =
-        TextView(this).apply {
-            text = label
-            setTextColor(WHITE)
-            textSize = 10f
-            typeface = typefaceMono
-            letterSpacing = 0.14f
+        val allLabel = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(10), 0, dp(4))
+            addView(label("ALL APPLICATIONS", 7.5f, blush(0.85f), 0.22f), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            allCount = label("", 7.5f, blush(0.45f), 0.12f)
+            addView(allCount, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+        }
+        startContent.addView(allLabel)
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            clipToPadding = false
+        }
+        allGrid = GridLayout(this).apply { columnCount = 5 }
+        scroll.addView(allGrid, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+        startContent.addView(scroll, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f,
+        ))
+
+        empty = label("No applications match", 9.5f, blush(0.55f), 0.04f).apply {
             gravity = Gravity.CENTER
-            isClickable = true
-            isFocusable = true
-            background = panel(BLACK, GREY)
-            setOnClickListener { onClick() }
+            visibility = View.GONE
         }
+        startContent.addView(empty)
 
-    private fun dockButton(entry: AppEntry): LinearLayout =
+        val footer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        footer.addView(toolButton(R.drawable.ic_smth_settings, "SETTINGS") {
+            startActivitySafely(Intent(Settings.ACTION_SETTINGS)); closeStart()
+        }, LinearLayout.LayoutParams(0, dp(30), 1f).apply { marginEnd = dp(6) })
+        footer.addView(toolButton(R.drawable.ic_smth_wallpaper, "WALLPAPER") {
+            startActivitySafely(Intent(Intent.ACTION_SET_WALLPAPER)); closeStart()
+        }, LinearLayout.LayoutParams(0, dp(30), 1f))
+        startContent.addView(footer)
+
+        startPanel.addView(startContent, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+
+        // Tap the desktop to dismiss the Start panel, like a real shell.
+        wallpaper.setOnClickListener { if (panelOpen) closeStart() }
+        desktop.setOnClickListener { if (panelOpen) closeStart() }
+
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val top = insets.systemWindowInsetTop
+            val bottom = insets.systemWindowInsetBottom
+            desktop.setPadding(dp(20), dp(18) + top, dp(20), dp(8))
+            taskbar.layoutParams = (taskbar.layoutParams as FrameLayout.LayoutParams).apply {
+                bottomMargin = dp(10) + bottom
+            }
+            startGlass.layoutParams = (startGlass.layoutParams as FrameLayout.LayoutParams).apply {
+                bottomMargin = dp(64) + bottom
+                topMargin = top
+                height = minHeight(dp(430), insets)
+            }
+            insets
+        }
+        setContentView(root)
+        root.requestApplyInsets()
+        applyPanelGeometry(startGlass)
+    }
+
+    private var allCount: TextView? = null
+
+    private fun minHeight(requested: Int, insets: WindowInsets): Int {
+        val top = insets.systemWindowInsetTop
+        val bottom = insets.systemWindowInsetBottom
+        val available = resources.displayMetrics.heightPixels - top - bottom - dp(64) - dp(24)
+        return minOf(requested, maxOf(dp(260), available))
+    }
+
+    private fun applyPanelGeometry(panel: View) {
+        val screen = resources.displayMetrics
+        val params = panel.layoutParams as FrameLayout.LayoutParams
+        params.width = minOf(dp(380), (screen.widthPixels * 0.56f).toInt())
+        panel.layoutParams = params
+    }
+
+    private fun glassPill(): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dpf(7f)
+        setColor(blush(0.055f))
+        setStroke(dp(1), blush(0.14f))
+    }
+
+    private fun focusedPill(): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.RECTANGLE
+        cornerRadius = dpf(7f)
+        setColor(maroon(0.30f))
+        setStroke(dp(1), blush(0.55f))
+    }
+
+    private fun toolButton(icon: Int, text: String, onClick: () -> Unit): LinearLayout =
         LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            background = glassPill()
             isClickable = true
             isFocusable = true
             addView(ImageView(this@MainActivity).apply {
-                setImageDrawable(entry.icon)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-            }, LinearLayout.LayoutParams(dp(22), dp(22)))
-            addView(TextView(this@MainActivity).apply {
-                text = entry.label
-                setTextColor(WHITE)
-                textSize = 8f
-                maxLines = 1
-                typeface = typefaceMono
-                gravity = Gravity.CENTER
-                setPadding(0, dp(3), 0, 0)
-            })
-            setOnClickListener { launch(entry) }
-            setOnLongClickListener { openInfo(entry); true }
+                setImageResource(icon)
+                alpha = 0.85f
+            }, LinearLayout.LayoutParams(dp(13), dp(13)))
+            addView(label(text, 8.5f, BLUSH, 0.12f), LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ).apply { marginStart = dp(7) })
+            setOnClickListener { onClick() }
         }
 
+    // ---- layout content -------------------------------------------------
+    private fun desktopShortcuts(): List<AppEntry> {
+        val preferred = listOf(
+            "com.android.chrome", "com.google.android.dialer", "com.google.android.apps.messaging",
+            "com.android.camera2", "com.android.settings", "com.google.android.apps.photos",
+        )
+        val found = preferred.mapNotNull { pkg -> apps.firstOrNull { it.packageName == pkg } }
+        return (found + apps).distinctBy { it.packageName }.take(if (resources.configuration.screenHeightDp < 420) 4 else 6)
+    }
+
+    private fun rebuildDesktop() {
+        desktop.removeAllViews()
+        for (entry in desktopShortcuts()) desktop.addView(desktopIcon(entry))
+    }
+
+    private fun desktopIcon(entry: AppEntry): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(4), dp(5), dp(4), dp(5))
+            isClickable = true
+            isFocusable = true
+            background = null
+            addView(ImageView(this@MainActivity).apply {
+                setImageDrawable(entry.icon)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(32), dp(32)))
+            addView(label(entry.label, 9.5f, BLUSH, 0.02f).apply {
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER
+                setShadowLayer(4f, 0f, 1f, OBSIDIAN)
+            }, LinearLayout.LayoutParams(dp(80), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(5)
+            })
+            setOnClickListener {
+                pressFeedback(this)
+                launch(entry)
+            }
+            setOnLongClickListener { openInfo(entry); true }
+            suppressPointer(this)
+        }
+
+    private fun pressFeedback(view: View) {
+        view.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90).withEndAction {
+            view.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+        }.start()
+    }
+
+    private fun rebuildPinned() {
+        pinnedRow.removeAllViews()
+        val limit = when {
+            resources.configuration.screenWidthDp >= 800 -> 6
+            resources.configuration.screenWidthDp >= 600 -> 5
+            else -> 3
+        }
+        val pinned = pinnedApps().take(limit)
+        for (entry in pinned) {
+            val item = FrameLayout(this).apply {
+                isClickable = true
+                isFocusable = true
+                addView(ImageView(this@MainActivity).apply {
+                    setImageDrawable(entry.icon)
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                }, FrameLayout.LayoutParams(dp(20), dp(20)).apply { gravity = Gravity.CENTER })
+                val dot = View(this@MainActivity).apply {
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(BLUSH)
+                    }
+                    visibility = if (launched.contains(entry.packageName)) View.VISIBLE else View.INVISIBLE
+                }
+                addView(dot, FrameLayout.LayoutParams(dp(3), dp(3)).apply {
+                    gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                    bottomMargin = dp(5)
+                })
+                setOnClickListener { pressFeedback(this); launch(entry) }
+                setOnLongClickListener { openInfo(entry); true }
+            }
+            pinnedRow.addView(item, LinearLayout.LayoutParams(dp(34), ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+    }
+
+    private fun pinnedApps(): List<AppEntry> {
+        val preferred = listOf(
+            "com.android.chrome", "com.google.android.dialer", "com.google.android.apps.messaging",
+            "com.android.camera2", "com.google.android.apps.photos", "com.android.settings",
+        )
+        val found = preferred.mapNotNull { pkg -> apps.firstOrNull { it.packageName == pkg } }
+        return (found + apps).distinctBy { it.packageName }
+    }
+
+    private fun startPinned(): List<AppEntry> = pinnedApps().take(5)
+
+    private fun rebuildStartPinned() {
+        if (!::pinnedBox.isInitialized) return
+        pinnedBox.removeAllViews()
+        for (entry in startPinned()) {
+            val item = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                addView(ImageView(this@MainActivity).apply { setImageDrawable(entry.icon) },
+                    LinearLayout.LayoutParams(dp(24), dp(24)))
+                addView(label(entry.label, 8f, blush(0.72f), 0.0f).apply {
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                }, LinearLayout.LayoutParams(dp(58), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
+                setOnClickListener { pressFeedback(this); launch(entry); closeStart() }
+            }
+            pinnedBox.addView(item, LinearLayout.LayoutParams(dp(62), dp(58)))
+        }
+    }
+
+    private fun gridColumns(): Int = if (resources.configuration.screenWidthDp >= 700) 5 else 4
+
+    private fun renderAll() {
+        allGrid.removeAllViews()
+        val query = search.text?.toString()?.trim()?.lowercase(Locale.getDefault()) ?: ""
+        val shown = if (query.isEmpty()) apps else apps.filter {
+            it.label.lowercase(Locale.getDefault()).contains(query)
+        }
+        allGrid.columnCount = gridColumns()
+        val columns = allGrid.columnCount
+        val width = dp(62)
+        shown.forEachIndexed { index, entry ->
+            val tile = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                isClickable = true
+                isFocusable = true
+                addView(ImageView(this@MainActivity).apply { setImageDrawable(entry.icon) },
+                    LinearLayout.LayoutParams(dp(24), dp(24)))
+                addView(label(entry.label, 8.5f, BLUSH, 0.0f).apply {
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    gravity = Gravity.CENTER
+                }, LinearLayout.LayoutParams(dp(58), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
+                setOnClickListener { pressFeedback(this); launch(entry); closeStart() }
+                setOnLongClickListener { openInfo(entry); true }
+            }
+            allGrid.addView(tile, GridLayout.LayoutParams().apply {
+                this.width = width
+                height = dp(58)
+                columnSpec = GridLayout.spec(index % columns)
+                setMargins(dp(2), dp(2), dp(2), dp(2))
+            })
+        }
+        empty.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
+        allCount?.text = if (query.isEmpty()) "${apps.size} INSTALLED" else "${shown.size} OF ${apps.size}"
+    }
+
+    // ---- data -----------------------------------------------------------
     private fun refreshApps() {
         val pm = packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -447,7 +624,11 @@ class MainActivity : Activity() {
                     AppEntry(
                         label = info.loadLabel(pm).toString(),
                         packageName = info.activityInfo.packageName,
-                        icon = info.loadIcon(pm),
+                        icon = try {
+                            info.loadIcon(pm)
+                        } catch (e: Exception) {
+                            getDrawable(R.drawable.ic_smth_fallback)!!
+                        },
                     )
                 } catch (e: Exception) {
                     null
@@ -456,90 +637,59 @@ class MainActivity : Activity() {
             .distinctBy { it.packageName }
             .sortedBy { it.label.lowercase(Locale.getDefault()) }
             .toList()
-        render()
-        rebuildDock()
+        rebuildDesktop()
+        rebuildPinned()
+        renderAll()
+        rebuildStartPinned()
     }
 
-    private fun rebuildDock() {
-        dock.removeAllViews()
-        var added = 0
-        for (pkg in DOCK_PACKAGES) {
-            val entry = apps.firstOrNull { it.packageName == pkg } ?: continue
-            dock.addView(dockButton(entry), LinearLayout.LayoutParams(0, dp(44), 1f))
-            added++
-        }
-        if (added == 0) {
-            dock.addView(TextView(this).apply {
-                text = "Open the app grid to begin"
-                setTextColor(GREY)
-                textSize = 10f
-                typeface = typefaceMono
-                gravity = Gravity.CENTER
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)))
-        }
-    }
-
-    private fun render() {
-        grid.removeAllViews()
+    private fun submitFirst() {
         val query = search.text?.toString()?.trim()?.lowercase(Locale.getDefault()) ?: ""
-        val shown = if (query.isEmpty()) apps else apps.filter { it.label.lowercase(Locale.getDefault()).contains(query) }
-        grid.columnCount = columnsForWidth()
-        // Fixed tile width instead of a column weight: with a weight, a single
-        // result stretches across the whole row because its column is the only
-        // one defined.
-        val tileWidth = tileWidthPx(grid.columnCount)
-        shown.forEachIndexed { index, entry ->
-            val params = GridLayout.LayoutParams().apply {
-                width = tileWidth
-                height = dp(94)
-                columnSpec = GridLayout.spec(index % grid.columnCount)
-                setMargins(dp(3), dp(3), dp(3), dp(3))
-            }
-            grid.addView(appTile(entry), params)
+        val first = apps.firstOrNull { it.label.lowercase(Locale.getDefault()).contains(query) }
+        if (first != null) {
+            launch(first)
+            closeStart()
         }
-        empty.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
-        appsHeading.text = if (query.isEmpty()) "${apps.size} INSTALLED" else "${shown.size} OF ${apps.size}"
-        appsValue.text = apps.size.toString()
     }
 
-    private fun appTile(entry: AppEntry): LinearLayout =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(6), dp(10), dp(6), dp(8))
-            background = RippleDrawable(
-                ColorStateList.valueOf(GREY),
-                panel(BLACK, GREY),
-                GradientDrawable().apply { setColor(WHITE); cornerRadius = dp(4).toFloat() },
-            )
-            isClickable = true
-            isFocusable = true
-            addView(ImageView(this@MainActivity).apply {
-                setImageDrawable(entry.icon)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-            }, LinearLayout.LayoutParams(dp(36), dp(36)))
-            addView(TextView(this@MainActivity).apply {
-                text = entry.label
-                setTextColor(WHITE)
-                textSize = 9.5f
-                maxLines = 2
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                gravity = Gravity.CENTER
-                setLineSpacing(0f, 0.95f)
-                setPadding(0, dp(5), 0, 0)
-                typeface = typefaceMono
-            })
-            setOnClickListener { launch(entry) }
-            setOnLongClickListener { openInfo(entry); true }
-            suppressPointer(this)
-        }
+    // ---- start menu motion ----------------------------------------------
+    private fun toggleStart() = if (panelOpen) closeStart() else openStart()
 
+    private fun openStart(focusSearch: Boolean = false) {
+        if (panelOpen) {
+            if (focusSearch) search.requestFocus()
+            return
+        }
+        panelOpen = true
+        val panel = startGlass as View
+        panel.visibility = View.VISIBLE
+        panel.animate().cancel()
+        panel.translationY = dpf(14f)
+        panel.alpha = 0f
+        panel.animate().translationY(0f).alpha(1f).setDuration(190).setInterpolator(EASE_OUT).start()
+        if (focusSearch) search.postDelayed({ search.requestFocus() }, 120)
+    }
+
+    private fun closeStart() {
+        if (!panelOpen) return
+        panelOpen = false
+        val panel = startGlass as View
+        panel.animate().cancel()
+        panel.animate().translationY(dpf(10f)).alpha(0f).setDuration(130)
+            .setInterpolator(DecelerateInterpolator(1.4f))
+            .withEndAction { panel.visibility = View.INVISIBLE }.start()
+        search.clearFocus()
+    }
+
+    // ---- launching ------------------------------------------------------
     private fun launch(entry: AppEntry) {
         val intent = packageManager.getLaunchIntentForPackage(entry.packageName)
         if (intent == null) {
             Toast.makeText(this, "${entry.label} cannot be launched", Toast.LENGTH_SHORT).show()
             return
         }
+        launched.add(entry.packageName)
+        rebuildPinned()
         startActivitySafely(intent)
     }
 
@@ -565,10 +715,9 @@ class MainActivity : Activity() {
             override fun run() {
                 val now = Date()
                 clock.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
-                dateBig.text = SimpleDateFormat("dd", Locale.getDefault()).format(now)
+                dateLabel.text = SimpleDateFormat("EEE dd MMM", Locale.getDefault()).format(now).uppercase(Locale.getDefault())
                 val level = readBattery()
                 battery.text = level
-                if (::batteryValue.isInitialized) batteryValue.text = level.ifEmpty { "—" }
                 clock.postDelayed(this, 15_000)
             }
         }
@@ -580,48 +729,137 @@ class MainActivity : Activity() {
         val level = status?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         return if (level >= 0) "$level%" else ""
     }
-
-    private companion object {
-        // Preferred dock entries; only installed apps are shown.
-        val DOCK_PACKAGES = listOf(
-            "com.google.android.dialer",
-            "com.google.android.apps.messaging",
-            "com.android.chrome",
-            "com.android.camera2",
-        )
-    }
 }
 
-/** Flat dot-grid background, drawn rather than shipped as an image. */
-private class DotField(context: android.content.Context) : FrameLayout(context) {
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+/**
+ * Full-bleed wallpaper. Centre-crops the bundled art, then lays a soft obsidian
+ * scrim over it so labels and glass panels stay readable at every screen size.
+ */
+private class WallpaperView(context: Context, val bitmap: Bitmap?) : View(context) {
+    private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+    private val scrim = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    override fun dispatchDraw(canvas: Canvas) {
-        val step = 22f * resources.displayMetrics.density
-        val radius = 1.1f * resources.displayMetrics.density
-        var y = step
-        var row = 0
-        while (y < height) {
-            var x = step
-            var col = 0
-            while (x < width) {
-                paint.color = if ((row + col) % 7 == 0) 0x33D71921 else 0x228C8C8C
-                canvas.drawCircle(x, y, radius, paint)
-                x += step
-                col++
-            }
-            y += step
-            row++
-        }
-        super.dispatchDraw(canvas)
+    init {
+        scrim.shader = LinearGradient(
+            0f, 0f, 0f, 1f,
+            intArrayOf(obsidian(0.55f), obsidian(0.15f), obsidian(0.62f)),
+            floatArrayOf(0f, 0.45f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        canvas.drawColor(OBSIDIAN)
+        val bmp = bitmap ?: return
+        val scale = maxOf(width.toFloat() / bmp.width, height.toFloat() / bmp.height)
+        val w = bmp.width * scale
+        val h = bmp.height * scale
+        val dst = RectF((width - w) / 2f, (height - h) / 2f, (width + w) / 2f, (height + h) / 2f)
+        canvas.drawBitmap(bmp, null, dst, paint)
+        scrim.shader = LinearGradient(
+            0f, 0f, 0f, height.toFloat(),
+            intArrayOf(obsidian(0.58f), obsidian(0.18f), obsidian(0.66f)),
+            floatArrayOf(0f, 0.45f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
     }
 }
 
 /**
- * Android adaptation of the SMTH construction intro.  It is a real animated
- * View over the already-built launcher: cursors, selection boxes and panels are
- * drawn each frame, then the overlay fades to reveal the live app grid.  Tapping
- * anywhere skips it.  It is also skipped when the system animator scale is zero.
+ * Simulated liquid glass: the wallpaper visible through a blurred, tinted pane
+ * with a thin blush edge and a top sheen. Real backdrop blur on API 31+, a
+ * translucent tint on older releases.
+ */
+private class GlassView(context: Context, private val wallpaper: View) : FrameLayout(context) {
+    var radius = 0f
+    private val pane = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = resources.displayMetrics.density * 1f
+        color = blush(0.16f)
+    }
+    private val sheen = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val path = Path()
+    private val rect = RectF()
+    private val src = Rect()
+    private val wallpaperPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+    private val location = IntArray(2)
+    private val rootLocation = IntArray(2)
+    private val frost: RenderNode? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        RenderNode("smth-glass").apply {
+            setRenderEffect(RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP))
+        }
+    } else null
+
+    init {
+        setWillNotDraw(false)
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        rect.set(0f, 0f, width.toFloat(), height.toFloat())
+        path.reset()
+        path.addRoundRect(rect, radius, radius, Path.Direction.CW)
+        canvas.save()
+        canvas.clipPath(path)
+
+        // Backdrop: sample the wallpaper behind this pane and blur it.
+        val bmp = (wallpaper as? WallpaperView)?.bitmap
+        if (bmp != null && wallpaper.width > 0) {
+            val scale = maxOf(wallpaper.width.toFloat() / bmp.width, wallpaper.height.toFloat() / bmp.height)
+            val drawnW = bmp.width * scale
+            val drawnH = bmp.height * scale
+            val offsetX = (wallpaper.width - drawnW) / 2f
+            val offsetY = (wallpaper.height - drawnH) / 2f
+            getLocationInWindow(location)
+            wallpaper.getLocationInWindow(rootLocation)
+            canvas.translate(-(location[0] - rootLocation[0]) - offsetX, -(location[1] - rootLocation[1]) - offsetY)
+            val dst = RectF(0f, 0f, drawnW, drawnH)
+            val node = frost
+            if (node != null) {
+                // Real backdrop blur: record the wallpaper slice into a render
+                // node carrying the blur effect, then draw that node.
+                node.setPosition(0, 0, drawnW.toInt(), drawnH.toInt())
+                val recording = node.beginRecording(drawnW.toInt(), drawnH.toInt())
+                recording.drawBitmap(bmp, null, dst, wallpaperPaint)
+                node.endRecording()
+                canvas.drawRenderNode(node)
+            } else {
+                // Pre-API-31 fallback: unblurred slice under a denser tint.
+                canvas.drawBitmap(bmp, null, dst, wallpaperPaint)
+            }
+        }
+
+        // Tinted obsidian and maroon wash, denser at the bottom edge.
+        pane.shader = LinearGradient(
+            0f, 0f, 0f, height.toFloat(),
+            intArrayOf(obsidian(0.72f), obsidian(0.60f), maroon(0.34f)),
+            floatArrayOf(0f, 0.55f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRect(rect, pane)
+
+        // Blush reflection along the top edge only.
+        sheen.shader = LinearGradient(
+            0f, 0f, 0f, height * 0.6f,
+            intArrayOf(blush(0.07f), blush(0.0f)),
+            floatArrayOf(0f, 1f),
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRect(rect, sheen)
+        canvas.restore()
+
+        canvas.drawPath(path, edge)
+    }
+}
+
+
+/**
+ * Android adaptation of the SMTH construction intro, recoloured to the three
+ * palette inks. It is a real drawn View over the live launcher and fades away
+ * to reveal it; tapping anywhere or a zero animator scale skips it.
  */
 private class ConstructionView(
     context: Context,
@@ -631,32 +869,23 @@ private class ConstructionView(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val logoBitmap: Bitmap? = try {
         BitmapFactory.decodeResource(resources, R.drawable.ic_launcher_smth)
-    } catch (_: Exception) { null }
-    private val colours = intArrayOf(
-        0xFFD71921.toInt(), 0xFF2F6BFF.toInt(), 0xFF00C2A8.toInt(),
-        0xFF7C4DFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFAD29.toInt(),
-    )
+    } catch (e: Exception) {
+        null
+    }
     private val animator = ValueAnimator.ofFloat(0f, 1f)
     private var progress = 0f
     private var closed = false
 
-    private data class Box(
-        val rect: RectF,
-        val start: Float,
-        val colour: Int,
-        val label: String,
-    )
-
     init {
-        setBackgroundColor(BLACK)
+        setBackgroundColor(OBSIDIAN)
         isClickable = true
         contentDescription = "SMTH startup construction; tap to skip"
         setOnClickListener { finishIntro() }
-        animator.duration = 5_600
+        animator.duration = 3_200
         animator.interpolator = DecelerateInterpolator()
         animator.addUpdateListener { animation ->
             progress = animation.animatedValue as Float
-            alpha = if (progress > 0.90f) (1f - progress) / 0.10f else 1f
+            alpha = if (progress > 0.88f) (1f - progress) / 0.12f else 1f
             invalidate()
         }
         animator.addListener(object : AnimatorListenerAdapter() {
@@ -680,14 +909,12 @@ private class ConstructionView(
         if (closed) return
         closed = true
         animator.cancel()
-        animate().alpha(0f).setDuration(300).withEndAction {
+        animate().alpha(0f).setDuration(240).withEndAction {
             (parent as? ViewGroup)?.removeView(this)
         }.start()
     }
 
-    private fun dp(value: Float): Float = value * resources.displayMetrics.density
-
-    private fun lerp(a: Float, b: Float, t: Float): Float = a + (b - a) * t
+    private fun dpf(value: Float): Float = value * resources.displayMetrics.density
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -695,192 +922,54 @@ private class ConstructionView(
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
         val p = progress.coerceIn(0f, 1f)
-        canvas.drawColor(BLACK)
-        drawDotField(canvas, w, h)
-        drawLogo(canvas, w, h, p)
-        if (p >= 0.14f) {
-            drawPanels(canvas, w, h, p)
-            drawBoxes(canvas, w, h, p)
+        canvas.drawColor(OBSIDIAN)
+        drawField(canvas, w, h)
+
+        val fade = when {
+            p < 0.18f -> p / 0.18f
+            p < 0.42f -> 1f
+            p < 0.52f -> 1f - (p - 0.42f) / 0.10f
+            else -> 0f
         }
-        if (p in 0.12f..0.88f) drawCursors(canvas, w, h, p)
-        paint.style = Paint.Style.FILL
-        paint.typeface = mono
-        paint.textSize = dp(8f)
-        paint.textAlign = Paint.Align.RIGHT
-        paint.color = GREY
-        canvas.drawText("TAP TO SKIP", w - dp(14f), h - dp(12f), paint)
+        if (fade > 0f) {
+            paint.style = Paint.Style.FILL
+            paint.alpha = (fade * 255).toInt()
+            val bmp = logoBitmap
+            if (bmp != null) {
+                val size = dpf(84f)
+                val dst = RectF(w / 2f - size / 2f, h / 2f - size / 2f, w / 2f + size / 2f, h / 2f + size / 2f)
+                canvas.drawBitmap(bmp, null, dst, paint)
+            }
+            paint.alpha = 255
+        }
+        if (p in 0.36f..0.92f) {
+            val q = ((p - 0.36f) / 0.34f).coerceIn(0f, 1f)
+            // A single blush hairline draws the desktop frame into place.
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = dpf(1f)
+            paint.color = blush(0.7f)
+            val inset = dpf(26f)
+            val bottom = h - dpf(70f)
+            canvas.drawLine(inset, bottom, inset + (w - inset * 2) * q, bottom, paint)
+        }
     }
 
-    private fun drawDotField(canvas: Canvas, w: Float, h: Float) {
+    private fun drawField(canvas: Canvas, w: Float, h: Float) {
         paint.style = Paint.Style.FILL
-        val step = dp(26f)
+        val step = dpf(24f)
         var y = step
         var row = 0
         while (y < h) {
             var x = step
             var col = 0
             while (x < w) {
-                paint.color = if ((row + col) % 11 == 0) 0x22D71921 else 0x188C8C8C
-                canvas.drawCircle(x, y, dp(1f), paint)
+                paint.color = if ((row + col) % 9 == 0) maroon(0.55f) else blush(0.05f)
+                canvas.drawCircle(x, y, dpf(1f), paint)
                 x += step
                 col++
             }
             y += step
             row++
-        }
-    }
-
-    private fun drawLogo(canvas: Canvas, w: Float, h: Float, p: Float) {
-        val fade = when {
-            p < 0.10f -> p / 0.10f
-            p < 0.16f -> 1f
-            p < 0.22f -> 1f - (p - 0.16f) / 0.06f
-            else -> 0f
-        }
-        if (fade <= 0f) return
-        val bmp = logoBitmap
-        if (bmp != null) {
-            val size = dp(96f)
-            val dst = RectF(w / 2f - size / 2f, h / 2f - size / 2f,
-                w / 2f + size / 2f, h / 2f + size / 2f)
-            paint.alpha = (fade * 255).toInt()
-            canvas.drawBitmap(bmp, null, dst, paint)
-        } else {
-            paint.style = Paint.Style.FILL
-            paint.typeface = dot ?: Typeface.DEFAULT
-            paint.textSize = dp(44f)
-            paint.textAlign = Paint.Align.CENTER
-            paint.color = Color.argb((fade * 255).toInt(), 255, 255, 255)
-            canvas.drawText("SMTH", w / 2f, h / 2f - dp(4f), paint)
-        }
-        // Logo only: no text or extra marks during the logo phase.
-    }
-
-    private fun panel(canvas: Canvas, rect: RectF, q: Float, accent: Int = GREY) {
-        if (q <= 0f) return
-        val visible = RectF(rect.left, rect.top, rect.left + rect.width() * q.coerceIn(0f, 1f), rect.bottom)
-        paint.style = Paint.Style.FILL
-        paint.color = BLACK
-        canvas.drawRect(visible, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = dp(1f)
-        paint.color = accent
-        canvas.drawRoundRect(visible, dp(3f), dp(3f), paint)
-    }
-
-    private fun drawPanels(canvas: Canvas, w: Float, h: Float, p: Float) {
-        panel(canvas, RectF(w * .05f, h * .03f, w * .95f, h * .095f),
-            (p - 0.18f) / 0.18f)
-        paint.style = Paint.Style.FILL
-        paint.typeface = dot ?: Typeface.DEFAULT
-        paint.textSize = dp(14f)
-        paint.textAlign = Paint.Align.LEFT
-        paint.color = WHITE
-        if (p > 0.24f) canvas.drawText("SMTH", w * .075f, h * .073f, paint)
-        paint.typeface = mono
-        paint.textSize = dp(10f)
-        paint.textAlign = Paint.Align.RIGHT
-        paint.color = RED
-        if (p > 0.24f) canvas.drawText("00:00", w * .925f, h * .073f, paint)
-        panel(canvas, RectF(w * .05f, h * .15f, w * .95f, h * .215f),
-            (p - 0.22f) / 0.18f)
-        panel(canvas, RectF(w * .05f, h * .26f, w * .95f, h * .73f),
-            (p - 0.28f) / 0.26f)
-        for (row in 0..1) {
-            for (col in 0..3) {
-                val start = 0.31f + (row * 4 + col) * 0.018f
-                panel(canvas, RectF(
-                    w * (0.075f + col * 0.215f), h * (0.285f + row * 0.21f),
-                    w * (0.255f + col * 0.215f), h * (0.445f + row * 0.21f),
-                ), (p - start) / 0.16f, 0xFF00C2A8.toInt())
-            }
-        }
-        panel(canvas, RectF(w * .30f, h * .82f, w * .70f, h * .895f),
-            (p - 0.38f) / 0.18f, RED)
-    }
-
-    private fun drawBoxes(canvas: Canvas, w: Float, h: Float, p: Float) {
-        if (p >= 0.86f) return
-        val boxes = arrayOf(
-            Box(RectF(w * .05f, h * .025f, w * .95f, h * .10f), 0.16f, 0xFF2F6BFF.toInt(), "TASKBAR"),
-            Box(RectF(w * .05f, h * .14f, w * .95f, h * .225f), 0.23f, 0xFF00C2A8.toInt(), "SEARCH"),
-            Box(RectF(w * .05f, h * .25f, w * .95f, h * .74f), 0.30f, 0xFF7C4DFF.toInt(), "APP GRID"),
-            Box(RectF(w * .26f, h * .815f, w * .74f, h * .91f), 0.38f, RED, "DOCK"),
-        )
-        for (box in boxes) {
-            drawSelection(canvas, box, p)
-        }
-    }
-
-    private fun drawSelection(canvas: Canvas, box: Box, p: Float) {
-        val q = ((p - box.start) / 0.16f).coerceIn(0f, 1f)
-        if (q <= 0f) return
-        val r = box.rect
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = dp(1.4f)
-        paint.color = box.colour
-        canvas.drawRect(r, paint)
-        val perimeter = 2f * (r.width() + r.height())
-        var drawn = perimeter * q
-        fun segment(x1: Float, y1: Float, x2: Float, y2: Float) {
-            if (drawn <= 0f) return
-            val length = kotlin.math.abs(x2 - x1) + kotlin.math.abs(y2 - y1)
-            val f = (drawn / length).coerceAtMost(1f)
-            canvas.drawLine(x1, y1, x1 + (x2 - x1) * f, y1 + (y2 - y1) * f, paint)
-            drawn -= length
-        }
-        segment(r.left, r.top, r.right, r.top)
-        segment(r.right, r.top, r.right, r.bottom)
-        segment(r.right, r.bottom, r.left, r.bottom)
-        segment(r.left, r.bottom, r.left, r.top)
-        paint.style = Paint.Style.FILL
-        paint.typeface = mono
-        paint.textSize = dp(8f)
-        paint.textAlign = Paint.Align.LEFT
-        paint.color = box.colour
-        canvas.drawText(box.label, r.left, (r.top - dp(4f)).coerceAtLeast(dp(9f)), paint)
-    }
-
-    private fun drawCursors(canvas: Canvas, w: Float, h: Float, p: Float) {
-        val paths = arrayOf(
-            floatArrayOf(0.08f, 0.02f, 0.24f, 0.06f, 0.44f, 0.16f, 0.62f, 0.30f),
-            floatArrayOf(0.55f, 0.00f, 0.40f, 0.12f, 0.55f, 0.34f, 0.78f, 0.26f),
-            floatArrayOf(1.00f, 0.18f, 0.78f, 0.24f, 0.62f, 0.44f, 0.38f, 0.36f),
-            floatArrayOf(0.02f, 0.58f, 0.20f, 0.52f, 0.34f, 0.68f, 0.58f, 0.60f),
-            floatArrayOf(0.88f, 0.90f, 0.68f, 0.76f, 0.46f, 0.86f, 0.24f, 0.78f),
-        )
-        val labels = arrayOf("ARCH", "UI", "LAYOUT", "TYPE", "SYNC")
-        for (i in paths.indices) {
-            val q = ((p - 0.12f - i * 0.025f) / 0.72f).coerceIn(0f, 1f)
-            val path = paths[i]
-            val seg = q * (path.size / 2 - 1)
-            val index = seg.toInt().coerceAtMost(path.size / 2 - 2)
-            val local = seg - index
-            val x = lerp(path[index * 2], path[(index + 1) * 2], local) * w
-            val y = lerp(path[index * 2 + 1], path[(index + 1) * 2 + 1], local) * h
-            paint.style = Paint.Style.FILL
-            paint.color = colours[i]
-            val arrow = Path().apply {
-                moveTo(x, y)
-                lineTo(x, y + dp(17f))
-                lineTo(x + dp(4.5f), y + dp(13f))
-                lineTo(x + dp(7.2f), y + dp(19f))
-                lineTo(x + dp(10f), y + dp(17.8f))
-                lineTo(x + dp(7.2f), y + dp(11.6f))
-                lineTo(x + dp(13f), y + dp(11.6f))
-                close()
-            }
-            canvas.drawPath(arrow, paint)
-            paint.strokeWidth = dp(1f)
-            paint.style = Paint.Style.STROKE
-            paint.color = BLACK
-            canvas.drawPath(arrow, paint)
-            paint.style = Paint.Style.FILL
-            paint.typeface = mono
-            paint.textSize = dp(7f)
-            paint.textAlign = Paint.Align.LEFT
-            paint.color = colours[i]
-            canvas.drawText(labels[i], x + dp(16f), y + dp(15f), paint)
         }
     }
 }
