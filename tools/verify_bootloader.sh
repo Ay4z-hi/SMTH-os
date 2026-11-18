@@ -41,6 +41,8 @@ fi
 # /live directory listing first, then the two files, so this check does not
 # unpack the squashfs.
 xorriso -indev "$ISO" -ls /live > "$WORK/live.txt"
+# xorriso -ls quotes file names; strip the quotes so the names are usable.
+sed -i "s/'//g" "$WORK/live.txt"
 K=$(sed -n 's/.*\(vmlinuz[^ ]*\).*/\1/p' "$WORK/live.txt" | head -n1)
 I=$(sed -n 's/.*\(initrd\.img[^ ]*\).*/\1/p' "$WORK/live.txt" | head -n1)
 test -n "$K" || { echo "no /live/vmlinuz* in ISO" >&2; exit 1; }
