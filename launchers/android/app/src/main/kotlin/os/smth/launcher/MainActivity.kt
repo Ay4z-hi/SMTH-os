@@ -18,15 +18,12 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
-import android.graphics.RenderEffect
-import android.graphics.RenderNode
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.BatteryManager
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.text.Editable
@@ -38,7 +35,6 @@ import android.view.MotionEvent
 import android.view.PointerIcon
 import android.view.View
 import android.view.ViewGroup
-import android.view.WindowInsets
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.EditText
@@ -144,7 +140,9 @@ class MainActivity : Activity() {
     private fun build() {
         root = FrameLayout(this)
 
-        val wallpaper = WallpaperView(this, BitmapFactory.decodeResource(resources, R.drawable.smth_wallpaper))
+        val art = BitmapFactory.decodeResource(resources, R.drawable.smth_wallpaper)
+        val frostedArt = BitmapFactory.decodeResource(resources, R.drawable.smth_wallpaper_blur)
+        val wallpaper = WallpaperView(this, art, frostedArt)
         root.addView(wallpaper, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
         ))
@@ -164,7 +162,7 @@ class MainActivity : Activity() {
         ).apply { gravity = Gravity.TOP or Gravity.START })
 
         // ---- taskbar -----------------------------------------------------
-        val taskbar = GlassView(this, wallpaper).apply {
+        val taskbar = GlassView(this, wallpaper, wallpaper.blurred).apply {
             setPadding(dp(8), 0, dp(8), 0)
             radius = dpf(13f)
         }
@@ -264,7 +262,7 @@ class MainActivity : Activity() {
         startPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
-        startGlass = GlassView(this, wallpaper).apply {
+        startGlass = GlassView(this, wallpaper, wallpaper.blurred).apply {
             radius = dpf(15f)
             visibility = View.INVISIBLE
             alpha = 0f
@@ -393,18 +391,11 @@ class MainActivity : Activity() {
         wallpaper.setOnClickListener { if (panelOpen) closeStart() }
         desktop.setOnClickListener { if (panelOpen) closeStart() }
 
+        // Padding only: mutating layout params here would request another
+        // layout, dispatch insets again and starve the first frame.
         root.setOnApplyWindowInsetsListener { _, insets ->
-            val top = insets.systemWindowInsetTop
-            val bottom = insets.systemWindowInsetBottom
-            desktop.setPadding(dp(20), dp(18) + top, dp(20), dp(8))
-            taskbar.layoutParams = (taskbar.layoutParams as FrameLayout.LayoutParams).apply {
-                bottomMargin = dp(10) + bottom
-            }
-            startGlass.layoutParams = (startGlass.layoutParams as FrameLayout.LayoutParams).apply {
-                bottomMargin = dp(64) + bottom
-                topMargin = top
-                height = minHeight(dp(430), insets)
-            }
+            surface.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
+            desktop.setPadding(dp(20), dp(18), dp(20), dp(8))
             insets
         }
         setContentView(root)
@@ -414,17 +405,11 @@ class MainActivity : Activity() {
 
     private var allCount: TextView? = null
 
-    private fun minHeight(requested: Int, insets: WindowInsets): Int {
-        val top = insets.systemWindowInsetTop
-        val bottom = insets.systemWindowInsetBottom
-        val available = resources.displayMetrics.heightPixels - top - bottom - dp(64) - dp(24)
-        return minOf(requested, maxOf(dp(260), available))
-    }
-
     private fun applyPanelGeometry(panel: View) {
         val screen = resources.displayMetrics
         val params = panel.layoutParams as FrameLayout.LayoutParams
         params.width = minOf(dp(380), (screen.widthPixels * 0.56f).toInt())
+        params.height = minOf(dp(430), (screen.heightPixels * 0.66f).toInt())
         panel.layoutParams = params
     }
 
@@ -735,7 +720,7 @@ class MainActivity : Activity() {
  * Full-bleed wallpaper. Centre-crops the bundled art, then lays a soft obsidian
  * scrim over it so labels and glass panels stay readable at every screen size.
  */
-private class WallpaperView(context: Context, val bitmap: Bitmap?) : View(context) {
+private class WallpaperView(context: Context, val bitmap: Bitmap?, val blurred: Bitmap?) : View(context) {
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
     private val scrim = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -772,7 +757,7 @@ private class WallpaperView(context: Context, val bitmap: Bitmap?) : View(contex
  * with a thin blush edge and a top sheen. Real backdrop blur on API 31+, a
  * translucent tint on older releases.
  */
-private class GlassView(context: Context, private val wallpaper: View) : FrameLayout(context) {
+private class GlassView(context: Context, private val wallpaper: View, private val frosted: Bitmap?) : FrameLayout(context) {
     var radius = 0f
     private val pane = Paint(Paint.ANTI_ALIAS_FLAG)
     private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -787,11 +772,6 @@ private class GlassView(context: Context, private val wallpaper: View) : FrameLa
     private val wallpaperPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
     private val location = IntArray(2)
     private val rootLocation = IntArray(2)
-    private val frost: RenderNode? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        RenderNode("smth-glass").apply {
-            setRenderEffect(RenderEffect.createBlurEffect(20f, 20f, Shader.TileMode.CLAMP))
-        }
-    } else null
 
     init {
         setWillNotDraw(false)
@@ -806,30 +786,22 @@ private class GlassView(context: Context, private val wallpaper: View) : FrameLa
         canvas.clipPath(path)
 
         // Backdrop: sample the wallpaper behind this pane and blur it.
-        val bmp = (wallpaper as? WallpaperView)?.bitmap
-        if (bmp != null && wallpaper.width > 0) {
-            val scale = maxOf(wallpaper.width.toFloat() / bmp.width, wallpaper.height.toFloat() / bmp.height)
-            val drawnW = bmp.width * scale
-            val drawnH = bmp.height * scale
+        val art = (wallpaper as? WallpaperView)?.bitmap
+        if (art != null && wallpaper.width > 0) {
+            // Same centre-crop geometry as the sharp wallpaper, sampled from the
+            // pre-blurred copy: real frosted glass at a fraction of the cost.
+            val scale = maxOf(wallpaper.width.toFloat() / art.width, wallpaper.height.toFloat() / art.height)
+            val drawnW = art.width * scale
+            val drawnH = art.height * scale
             val offsetX = (wallpaper.width - drawnW) / 2f
             val offsetY = (wallpaper.height - drawnH) / 2f
             getLocationInWindow(location)
             wallpaper.getLocationInWindow(rootLocation)
             canvas.translate(-(location[0] - rootLocation[0]) - offsetX, -(location[1] - rootLocation[1]) - offsetY)
             val dst = RectF(0f, 0f, drawnW, drawnH)
-            val node = frost
-            if (node != null) {
-                // Real backdrop blur: record the wallpaper slice into a render
-                // node carrying the blur effect, then draw that node.
-                node.setPosition(0, 0, drawnW.toInt(), drawnH.toInt())
-                val recording = node.beginRecording(drawnW.toInt(), drawnH.toInt())
-                recording.drawBitmap(bmp, null, dst, wallpaperPaint)
-                node.endRecording()
-                canvas.drawRenderNode(node)
-            } else {
-                // Pre-API-31 fallback: unblurred slice under a denser tint.
-                canvas.drawBitmap(bmp, null, dst, wallpaperPaint)
-            }
+            val source = frosted
+            if (source != null) canvas.drawBitmap(source, null, dst, wallpaperPaint)
+            else canvas.drawBitmap(art, null, dst, wallpaperPaint)
         }
 
         // Tinted obsidian and maroon wash, denser at the bottom edge.

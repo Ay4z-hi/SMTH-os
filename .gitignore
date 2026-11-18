@@ -17,3 +17,5 @@ __pycache__/
 /launchers/windows/build/
 /launchers/windows/dist/
 /launchers/android/SMTH-Android-Launcher.apk
+
+/launchers/android/smth-launcher-emulator.png
