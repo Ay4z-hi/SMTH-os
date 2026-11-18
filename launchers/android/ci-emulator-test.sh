@@ -94,4 +94,13 @@ adb shell dumpsys activity activities 2>&1 | grep -E 'ResumedActivity|mResumedAc
 done
 
 note "home activity: $(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>&1 | tr -d '\r' | tail -1)"
+
+# Keep a real screenshot of the running launcher with the build so the layout
+# can be reviewed without a local emulator.
+shot="$(dirname "$0")/smth-launcher-emulator.png"
+if adb exec-out screencap -p > "$shot" 2>/dev/null && [ -s "$shot" ]; then
+  note "screenshot: $shot ($(stat -c%s "$shot") bytes)"
+else
+  note "screenshot: not captured"
+fi
 note "SMTH launcher install check passed"
