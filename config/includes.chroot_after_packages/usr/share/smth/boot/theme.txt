@@ -10,7 +10,7 @@ terminal-font: "Unifont Regular 16"
   item_font = "Unifont Regular 16"
   selected_item_font = "Unifont Regular 16"
   item_color = "#ffffff"
-  selected_item_color = "#d71921"
+  selected_item_color = "#701b35"
   item_height = 34
   item_padding = 10
   item_spacing = 8
@@ -21,7 +21,7 @@ terminal-font: "Unifont Regular 16"
   top = 88%
   width = 420
   height = 6
-  fg_color = "#8c8c8c"
+  fg_color = "#f2c6d2"
   bg_color = "#000000"
   border_color = "#000000"
   text = ""

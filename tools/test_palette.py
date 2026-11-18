@@ -2,7 +2,7 @@
 """Palette contract, generated-art pixel and offline-font tests.
 
 Contract (see docs/architecture/phase-0.md):
-* core UI and core artwork use #000000, white text, grey #8c8c8c and the red accent A;
+* core UI and core artwork use #000000, white text, grey #f2c6d2 and the red accent A;
 * AHIAN artwork uses only black and the purple/teal pair, never the core pair;
 * the required fonts are bundled in the image (no network fetch at runtime).
 """

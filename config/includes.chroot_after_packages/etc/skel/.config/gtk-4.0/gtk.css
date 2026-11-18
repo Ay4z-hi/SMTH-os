@@ -1,19 +1,25 @@
-/* SMTH Ion: libadwaita overrides */
-@define-color accent_bg_color #d71921;
-@define-color accent_color #d71921;
-@define-color accent_fg_color #000000;
-@define-color window_bg_color #000000;
-@define-color window_fg_color #FFFFFF;
-@define-color view_bg_color #000000;
-@define-color view_fg_color #FFFFFF;
-@define-color headerbar_bg_color #000000;
-@define-color headerbar_fg_color #FFFFFF;
-@define-color card_bg_color #000000;
-@define-color popover_bg_color #000000;
-@define-color sidebar_bg_color #000000;
-window, .background { font-family: "Space Mono", "Doto", "DotGothic16", monospace; }
-headerbar { border-bottom: 1px solid #8c8c8c; }
-button { border-radius: 4px; }
-button:active { transform: scale(0.96); transition: transform 90ms ease-out; }
-.card, list.boxed-list { background: #000000; border: 1px solid #8c8c8c; border-radius: 8px; }
-switch:checked { background: #d71921; }
+/* SMTH: libadwaita overrides for the maroon, obsidian and blush palette. */
+@define-color accent_bg_color #701b35;
+@define-color accent_color #f2c6d2;
+@define-color accent_fg_color #f2c6d2;
+@define-color window_bg_color #09090b;
+@define-color window_fg_color #f2c6d2;
+@define-color view_bg_color #09090b;
+@define-color view_fg_color #f2c6d2;
+@define-color headerbar_bg_color #09090b;
+@define-color headerbar_fg_color #f2c6d2;
+@define-color card_bg_color #0d0d10;
+@define-color popover_bg_color #0d0d10;
+@define-color sidebar_bg_color #0d0d10;
+window, .background { background-color: #09090b; color: #f2c6d2; font-family: "Space Mono", "Doto", "DotGothic16", monospace; }
+headerbar { background: #09090b; border-bottom: 1px solid alpha(#f2c6d2, 0.12); }
+button { border-radius: 8px; background: alpha(#f2c6d2, 0.05); border: 1px solid alpha(#f2c6d2, 0.12); color: #f2c6d2; }
+button:hover { background: alpha(#701b35, 0.38); }
+button:active { background: alpha(#701b35, 0.60); }
+button.suggested-action { background: #701b35; color: #f2c6d2; border-color: alpha(#f2c6d2, 0.30); }
+entry, searchentry, spinbutton { background: alpha(#f2c6d2, 0.05); border: 1px solid alpha(#f2c6d2, 0.14); border-radius: 8px; color: #f2c6d2; }
+entry:focus-within, searchentry:focus-within { border-color: alpha(#f2c6d2, 0.55); }
+.card, list.boxed-list { background: #0d0d10; border: 1px solid alpha(#f2c6d2, 0.12); border-radius: 12px; }
+switch:checked { background: #701b35; }
+selection { background: alpha(#701b35, 0.55); color: #f2c6d2; }
+tooltip { background: #0d0d10; color: #f2c6d2; border: 1px solid alpha(#f2c6d2, 0.18); }

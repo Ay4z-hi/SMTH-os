@@ -21,8 +21,8 @@ BLOCK = ["doubleclick.net", "googlesyndication.com", "googleadservices.com", "go
          "facebook.net", "connect.facebook.net", "taboola.com", "outbrain.com", "criteo.com", "adnxs.com", "scorecardresearch.com", "hotjar.com",
          "quantserve.com", "amazon-adsystem.com", "adsrvr.org", "rubiconproject.com", "pubmatic.com", "moatads.com", "zedo.com", "mixpanel.com"]
 START = """<html><body style="margin:0;background:#000;color:#fff;font-family:'Space Mono',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh">
-<div style="font-size:64px;font-weight:700;letter-spacing:.3em;color:#d71921">SM<span style="color:#8c8c8c">TH</span></div>
-<form action="https://duckduckgo.com/" style="margin-top:36px"><input name="q" autofocus placeholder="Search or type an address" style="width:min(560px,80vw);padding:16px 22px;border-radius:999px;border:1px solid #8c8c8c;background:#000000;color:#fff;font-size:17px;outline:none"></form></body></html>"""
+<div style="font-size:64px;font-weight:700;letter-spacing:.3em;color:#701b35">SM<span style="color:#f2c6d2">TH</span></div>
+<form action="https://duckduckgo.com/" style="margin-top:36px"><input name="q" autofocus placeholder="Search or type an address" style="width:min(560px,80vw);padding:16px 22px;border-radius:999px;border:1px solid #f2c6d2;background:#000000;color:#fff;font-size:17px;outline:none"></form></body></html>"""
 
 def to_url(t):
     t = t.strip()

@@ -260,13 +260,13 @@ impl Drop for Supervisor {
 /// Palette access without a JSON dependency in callers.
 pub fn accent_from_palette(path: Option<&Path>) -> String {
     let Some(path) = path else {
-        return "#d71921".into();
+        return "#701b35".into();
     };
     std::fs::read_to_string(path)
         .ok()
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
         .and_then(|v| v.get("A").and_then(|a| a.as_str()).map(|s| s.to_string()))
-        .unwrap_or_else(|| "#d71921".into())
+        .unwrap_or_else(|| "#701b35".into())
 }
 
 /// Shared server state.
@@ -582,7 +582,7 @@ mod tests {
         let mut state = State {
             supervisor: Supervisor::new(),
             started: Instant::now(),
-            accent: "#d71921".into(),
+            accent: "#701b35".into(),
         };
         match handle(&mut state, Request::Ping) {
             Response::Pong { protocol, core } => {
@@ -656,16 +656,16 @@ mod tests {
 
     #[test]
     fn palette_accent_falls_back() {
-        assert_eq!(accent_from_palette(None), "#d71921");
+        assert_eq!(accent_from_palette(None), "#701b35");
         let path = std::env::temp_dir().join(format!("smthd-palette-{}.json", std::process::id()));
         std::fs::write(
             &path,
-            r##"{"A":"#ff0000","B":"#8c8c8c","AHIAN_A":"#7c4dff","AHIAN_B":"#00c2a8"}"##,
+            r##"{"A":"#ff0000","B":"#f2c6d2","AHIAN_A":"#7c4dff","AHIAN_B":"#00c2a8"}"##,
         )
         .unwrap();
         assert_eq!(accent_from_palette(Some(&path)), "#ff0000");
         std::fs::write(&path, "not json").unwrap();
-        assert_eq!(accent_from_palette(Some(&path)), "#d71921");
+        assert_eq!(accent_from_palette(Some(&path)), "#701b35");
         std::fs::remove_file(&path).ok();
     }
 }

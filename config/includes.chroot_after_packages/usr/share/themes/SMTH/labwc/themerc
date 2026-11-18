@@ -1,6 +1,6 @@
 border.width: 1
 padding.height: 6
-window.active.border.color: #d71921
+window.active.border.color: #701b35
 window.inactive.border.color: #000000
 window.active.title.bg.color: #000000
 window.inactive.title.bg.color: #000000
@@ -10,7 +10,7 @@ window.active.button.unpressed.image.color: #ffffff
 window.inactive.button.unpressed.image.color: #ffffff
 menu.items.bg.color: #000000
 menu.items.text.color: #ffffff
-menu.items.active.bg.color: #d71921
+menu.items.active.bg.color: #701b35
 menu.items.active.text.color: #000000
 osd.bg.color: #000000
 osd.label.text.color: #ffffff

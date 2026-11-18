@@ -1,9 +1,9 @@
 {
-  "name": "taskbar", "margin": "0 16 12 16", "layer": "top", "position": "bottom", "height": 48, "spacing": 8,
+  "name": "taskbar", "margin": "0 12 10 12", "layer": "top", "position": "bottom", "height": 44, "spacing": 6,
   "modules-left": ["custom/glance-cpu", "custom/glance-mem", "custom/glance-disk"],
   "modules-center": ["custom/start", "wlr/taskbar"],
   "modules-right": ["tray", "pulseaudio", "network", "bluetooth", "battery", "custom/notify", "clock"],
-  "custom/start": { "format": "◉", "tooltip": false, "on-click": "smth-launcher" },
+  "custom/start": { "format": "SMTH", "tooltip": false, "on-click": "smth-launcher" },
   "custom/glance-cpu":  { "exec": "smth-glance cpu",  "return-type": "json", "interval": 3 },
   "custom/glance-mem":  { "exec": "smth-glance mem",  "return-type": "json", "interval": 5 },
   "custom/glance-disk": { "exec": "smth-glance disk", "return-type": "json", "interval": 60 },

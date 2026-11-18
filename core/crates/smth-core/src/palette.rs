@@ -140,7 +140,7 @@ impl Palette {
             "/* Generated from tools/palette.json. Do not edit. */\n\
              @define-color smth_black #000000;\n\
              @define-color smth_white #ffffff;\n\
-             @define-color smth_grey #8c8c8c;\n\
+             @define-color smth_grey #f2c6d2;\n\
              @define-color smth_a {};\n\
              @define-color smth_b {};\n\
              @define-color smth_ahian_a {};\n\
@@ -154,7 +154,7 @@ impl Palette {
 mod tests {
     use super::*;
 
-    const JSON: &str = r##"{"A":"#d71921","B":"#8c8c8c","AHIAN_A":"#7c4dff","AHIAN_B":"#00c2a8"}"##;
+    const JSON: &str = r##"{"A":"#701b35","B":"#f2c6d2","AHIAN_A":"#701b35","AHIAN_B":"#f2c6d2"}"##;
 
     #[test]
     fn parses_the_contract() {
@@ -162,23 +162,23 @@ mod tests {
         assert_eq!(
             p.a,
             Rgb {
-                r: 0xd7,
-                g: 0x19,
-                b: 0x21
+                r: 0x70,
+                g: 0x1b,
+                b: 0x35
             }
         );
         assert_eq!(
             p.ahian_b,
             Rgb {
-                r: 0x00,
-                g: 0xc2,
-                b: 0xa8
+                r: 0xf2,
+                g: 0xc6,
+                b: 0xd2
             }
         );
         assert_eq!(p.core_pair(), [p.a, p.b]);
         assert!(p
             .tokens_css()
-            .contains("@define-color smth_ahian_b #00c2a8;"));
+            .contains("@define-color smth_ahian_b #f2c6d2;"));
     }
 
     #[test]
@@ -188,7 +188,7 @@ mod tests {
             Err(PaletteError::BadHex("A", _))
         ));
         assert!(matches!(
-            Palette::from_json(r##"{"A":"#d71921","B":"#8c8c8c","AHIAN_A":"#7c4dff"}"##),
+            Palette::from_json(r##"{"A":"#701b35","B":"#f2c6d2","AHIAN_A":"#7c4dff"}"##),
             Err(PaletteError::Missing("AHIAN_B"))
         ));
         assert!(matches!(
@@ -201,21 +201,21 @@ mod tests {
     #[test]
     fn normalises_case() {
         let p = Palette::from_json(
-            r##"{"A":"#D71921","B":"#8C8C8C","AHIAN_A":"#7C4DFF","AHIAN_B":"#00C2A8"}"##,
+            r##"{"A":"#701B35","B":"#F2C6D2","AHIAN_A":"#701B35","AHIAN_B":"#F2C6D2"}"##,
         )
         .unwrap();
-        assert_eq!(p.raw_a, "#d71921");
-        assert_eq!(p.raw_ahian_a, "#7c4dff");
+        assert_eq!(p.raw_a, "#701b35");
+        assert_eq!(p.raw_ahian_a, "#701b35");
     }
 
     #[test]
     fn contrast_rule() {
         assert!(Rgb::parse("#ffffff").unwrap().prefers_black_text());
         assert!(!Rgb::parse("#000000").unwrap().prefers_black_text());
-        assert!(!Rgb::parse("#d71921").unwrap().prefers_black_text());
-        assert!(Rgb::parse("#8c8c8c").unwrap().prefers_black_text());
+        assert!(!Rgb::parse("#701b35").unwrap().prefers_black_text());
+        assert!(Rgb::parse("#f2c6d2").unwrap().prefers_black_text());
         assert!(Rgb::parse("#d7192").is_none());
-        assert!(Rgb::parse("d71921").is_none());
+        assert!(Rgb::parse("701b35").is_none());
         assert!(Rgb::parse("#gggggg").is_none());
     }
 }

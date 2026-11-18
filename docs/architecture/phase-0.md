@@ -6,8 +6,8 @@ SMTH's black surfaces, grey neutrals, red accent and dot-matrix language.
 
 ## Palette contract
 - Canonical source: `tools/palette.json`. Exactly four keys:
-  - `A` = `#d71921` — the single accent (controls, focus, selected states),
-  - `B` = `#8c8c8c` — grey neutral for the dot rhythm and unlit states,
+  - `A` = `#701b35` — the single accent (controls, focus, selected states),
+  - `B` = `#f2c6d2` — grey neutral for the dot rhythm and unlit states,
   - `AHIAN_A` = `#7c4dff`, `AHIAN_B` = `#00c2a8` — AHIAN mode only.
 - Core wallpaper/logo pixels: black, A or B only. AHIAN artwork: black plus the
   AHIAN pair only (`tools/test_palette.py` enforces both).

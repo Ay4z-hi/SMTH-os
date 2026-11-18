@@ -33,7 +33,7 @@ in this environment.
 ## Design contract
 
 - Palette source: `tools/palette.json` only.
-  `A #D71921` (red accent), `B #8C8C8C` (grey neutral), `AHIAN_A #7C4DFF`,
+  `A #701b35` (red accent), `B #f2c6d2` (grey neutral), `AHIAN_A #7C4DFF`,
   `AHIAN_B #00C2A8`.
 - Black, white and grey foundation; no gradients, blur, glows, acrylic or
   translucent "liquid glass" surfaces.

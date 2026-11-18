@@ -10,7 +10,7 @@ tree) is retired. It mangled paths and left the shell's helper commands outside
 `tools/palette.json` is the only palette source. For a global accent swap:
 
 ```sh
-python3 tools/recolor.py "#D71921" "#8C8C8C"   # new A, new B
+python3 tools/recolor.py "#701b35" "#f2c6d2"   # new A, new B
 python3 tools/gen_tokens.py
 python3 tools/test_palette.py
 ```

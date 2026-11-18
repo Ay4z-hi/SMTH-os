@@ -29,7 +29,7 @@ FALLBACK_PLAN = {
     "seed": 2026, "fill_ms": 10000,
     "bsod": {"at_ms": 10000, "message": "wants to make your life beautiful",
              "stop_code": "AHIAN_BEAUTY_ATTEMPTED", "countdown_seconds": 9,
-             "heading": "SMTH OS", "accent": "#d71921"},
+             "heading": "SMTH OS", "accent": "#701b35"},
     "wallpaper": AHIAN_WALL,
     "errors": [{"at_ms": i * 150, "text": t} for i, t in enumerate([
         "smth-core: cannot resolve symbol `home`", "segmentation fault (core dumped)",
@@ -37,7 +37,7 @@ FALLBACK_PLAN = {
         "error: 0x0000A1A1 memory not found", "AHIAN: something wants to be beautiful"])],
     "dialogs": [],
 }
-FALLBACK_UNAHIAN = {"message": "looks like you dont like ahian", "accent": "#d71921",
+FALLBACK_UNAHIAN = {"message": "looks like you dont like ahian", "accent": "#701b35",
                     "heading": "AHIAN HAS BEEN DISABLED", "hold_ms": 2600,
                     "restore_wallpaper": NORMAL_WALL}
 BLUE = "#12245b"          # the joke blue screen, deliberately not a palette colour
@@ -130,7 +130,7 @@ def run_ui(plan, on_done):
     except (ImportError, ValueError):
         LS = None
 
-    accent = plan["bsod"].get("accent", "#d71921")
+    accent = plan["bsod"].get("accent", "#701b35")
     dialogs = plan.get("dialogs") or []
     bsod = plan["bsod"]
     countdown = int(bsod.get("countdown_seconds", 9))
@@ -179,7 +179,7 @@ def run_ui(plan, on_done):
         css.load_from_data(
             f"window {{ background: #000000; border: 1px solid {accent}; border-radius: 6px; }}"
             "label { color: #ffffff; font-family: 'Space Mono', monospace; font-size: 12px; }"
-            "button { color: #ffffff; background: #000000; border: 1px solid #8c8c8c; border-radius: 4px; }"
+            "button { color: #ffffff; background: #000000; border: 1px solid #f2c6d2; border-radius: 4px; }"
             .encode())
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css,
                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
@@ -293,7 +293,7 @@ def ahian(on, arg=""):
             app = Gtk.Application(application_id="os.smth.UnAhian")
             css = Gtk.CssProvider()
             css.load_from_data(
-                f"window {{ background: #000000; border: 6px solid {plan.get('accent', '#d71921')}; }}"
+                f"window {{ background: #000000; border: 6px solid {plan.get('accent', '#701b35')}; }}"
                 "label { color: #ffffff; font-family: 'Doto', 'Space Mono', monospace; }".encode())
 
             def activate(a):

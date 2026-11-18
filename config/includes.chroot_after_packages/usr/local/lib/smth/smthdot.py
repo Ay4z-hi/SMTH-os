@@ -21,10 +21,11 @@ try:
     ACCENT, VIOLET = _rgb(_P["A"]), _rgb(_P["B"])
     AHIAN_ACCENT, AHIAN_TEAL = _rgb(_P["AHIAN_A"]), _rgb(_P["AHIAN_B"])
 except Exception:
-    ACCENT, VIOLET = _rgb("#d71921"), _rgb("#8c8c8c")
+    ACCENT, VIOLET = _rgb("#701b35"), _rgb("#f2c6d2")
     AHIAN_ACCENT, AHIAN_TEAL = _rgb("#7c4dff"), _rgb("#00c2a8")
 RED = ACCENT                     # old name kept so older apps still work
 GREY = VIOLET
+BLUSH = VIOLET                    # readable ink for labels and readouts
 TAU = math.tau
 
 def lerp(a, b, t): return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
@@ -36,7 +37,7 @@ def draw_text(cr, text, x, y, dot, on=None, off=None):
         for r in range(7):
             for c in range(5):
                 lit = (rows[r] >> (4 - c)) & 1
-                col = ((ACCENT if (i * 6 + c) % 2 == 0 else VIOLET) if on is None else on) if lit else off
+                col = ((BLUSH if (i * 6 + c) % 2 == 0 else ACCENT) if on is None else on) if lit else off
                 if col is None: continue
                 cr.set_source_rgb(*col); cr.arc(x + (i * 6 + c) * dot + dot / 2, y + r * dot + dot / 2, dot * 0.38, 0, TAU); cr.fill()
 

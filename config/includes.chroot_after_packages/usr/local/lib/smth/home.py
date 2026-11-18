@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""SMTH Home: black surfaces, A/B dot art, desktop icons and glance rings. ahian enables the live black-hole scene."""
+"""SMTH Home: the SMTH desktop.
+
+Maroon, obsidian and blush only, with the official logo, real application
+launching and AHIAN's live dot scene kept intact. Shortcuts sit directly on the
+wallpaper (no tiles or boxes) and the system readouts stay quiet in the corners.
+"""
 import datetime, glob, math, os, random, signal, sys, time
 sys.path.insert(0, "/usr/local/lib/smth")
 import cairo
@@ -18,6 +23,7 @@ APPS = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery
 GOLD = math.pi * (3 - math.sqrt(5)); TAU = math.tau
 CY, VI = D.AHIAN_ACCENT, D.AHIAN_TEAL      # the live dot field is AHIAN art only
 
+
 def wall_path():
     try:
         w = open(os.path.expanduser("~/.config/smth/wallpaper")).read().strip()
@@ -25,50 +31,64 @@ def wall_path():
     except OSError: pass
     return AHIAN_WALL if os.path.exists(FLAG) else WALL
 
+
 class S:
     ahian = False; t0 = time.time(); mx = 0.5; my = 0.5; timer = 0; animated = []
+
+
 def T(): return time.time() - S.t0
 
+
 CSS = b"""
-window.home { background: #000000; color: #ffffff; }
+window.home { background: #09090b; color: #f2c6d2; }
 .home, .home label, .home button { font-family: "Space Mono", "Doto", "DotGothic16", monospace; }
-.home button.app { border-radius: 4px; padding: 8px 10px; background: #000000; border: 1px solid #000000; }
-.home button.app:hover { background: #000000; border-color: #d71921; }
-.home button.app:active { border-color: #8c8c8c; }
-.home label.cap { color: #ffffff; font-size: 11px; }
-.home .glance { background: #000000; border-radius: 8px; border: 1px solid #8c8c8c; padding: 10px 14px; }
-@keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-4px); } 100% { transform: translateY(0px); } }
-window.home.ahian button.app { animation: float 3.2s ease-in-out infinite; border: 1px solid #7c4dff; background: #000000; }
-window.home.ahian flowboxchild:nth-child(2n) button.app { animation-delay: 0.8s; }
-window.home.ahian flowboxchild:nth-child(3n) button.app { animation-delay: 1.6s; }
+/* Shortcuts are drawn straight on the wallpaper: no tile, no border. */
+.home button.app { background: transparent; border: none; box-shadow: none; padding: 4px 6px; border-radius: 8px; }
+.home button.app:hover { background: alpha(#f2c6d2, 0.08); }
+.home button.app:active { background: alpha(#701b35, 0.45); }
+.home label.cap { color: #f2c6d2; font-size: 10px; }
+.home .glance { background: alpha(#09090b, 0.62); border-radius: 12px; border: 1px solid alpha(#f2c6d2, 0.14); padding: 6px 10px; }
+.home .clockbox { background: transparent; }
+.home label.date { color: alpha(#f2c6d2, 0.62); font-size: 10px; letter-spacing: 1px; }
+@keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-3px); } 100% { transform: translateY(0px); } }
+window.home.ahian button.app { animation: float 3.4s ease-in-out infinite; }
+window.home.ahian flowboxchild:nth-child(2n) button.app { animation-delay: 0.9s; }
+window.home.ahian flowboxchild:nth-child(3n) button.app { animation-delay: 1.7s; }
 window.home.reduce-motion button.app { animation: none; }
-window.home.ahian .glance { border-color: #00c2a8; }
-window.home.ahian label.cap { color: #00c2a8; }
 """
+
 
 class Stats:
     def __init__(self): self.prev = self._raw()
+
     def _raw(self):
         v = list(map(int, open("/proc/stat").readline().split()[1:])); return sum(v), v[3] + v[4]
+
     def cpu(self):
-        t, i = self._raw(); pt, pi = self.prev; self.prev = (t, i); return 0.0 if t == pt else 1 - (i - pi) / (t - pt)
+        t, i = self._raw(); pt, pi = self.prev; self.prev = (t, i)
+        return 0.0 if t == pt else 1 - (i - pi) / (t - pt)
+
     def mem(self):
         m = {}
         for l in open("/proc/meminfo"): k, v = l.split(":"); m[k] = int(v.split()[0])
         return 1 - m["MemAvailable"] / m["MemTotal"]
+
     def disk(self): s = os.statvfs("/"); return 1 - s.f_bavail / s.f_blocks
+
     def bat(self):
         for p in glob.glob("/sys/class/power_supply/BAT*/capacity"): return int(open(p).read()) / 100
         return None
+
 
 class BlackHole:
     def __init__(self):
         rng = random.Random(5)
         self.disk = [(1.45 + 2.95 * math.sqrt((i + 0.5) / 700), i * GOLD) for i in range(700)]
         self.stars = [(rng.random(), rng.random(), rng.random()) for _ in range(150)]
+
     def draw(self, cr, w, h, t, mx, my):
         sc = h / 1080; cx, cy, R = w * 0.66, h * 0.5, h * 0.105
-        cr.set_source_rgb(0, 0, 0); cr.paint()
+        cr.set_source_rgb(0.035, 0.035, 0.043); cr.paint()
         buckets = [[], [], [], []]
         for sx, sy, sd in self.stars:
             x = (sx * w + (mx - 0.5) * 46 * sd) % w; y = (sy * h + (my - 0.5) * 26 * sd) % h
@@ -91,15 +111,10 @@ class BlackHole:
             cr.set_source_rgb(*(CY, VI)[i])
             for X, Y, r in lst: cr.new_sub_path(); cr.arc(X, Y, r, 0, TAU)
             cr.fill()
-        cr.set_source_rgb(0, 0, 0); cr.arc(cx, cy, R, 0, TAU); cr.fill()
+        cr.set_source_rgb(0.035, 0.035, 0.043); cr.arc(cx, cy, R, 0, TAU); cr.fill()
         pulse = 0.65 + 0.35 * math.sin(t * 2.2)
-        cr.set_source_rgb(*CY); cr.set_line_width((1.5 + 2.5 * pulse) * sc); cr.arc(cx, cy, R * 1.08, 0, TAU); cr.stroke()
-        ph = t % 8.0                                                  # shooting star
-        if ph < 0.9:
-            u = ph / 0.9
-            for k in range(16):
-                p = max(0, u - k * 0.014); cr.set_source_rgb(*(CY if k % 2 else VI))
-                cr.arc(w * 0.08 + p * w * 0.55, h * 0.1 + p * h * 0.22, (2.6 - k * 0.12) * sc, 0, TAU); cr.fill()
+        cr.set_source_rgb(*CY); cr.set_line_width((1.2 + 1.8 * pulse) * sc); cr.arc(cx, cy, R * 1.08, 0, TAU); cr.stroke()
+
 
 def neon_text(cr, text, x, y, dot, t):
     for i, ch in enumerate(text):
@@ -109,37 +124,53 @@ def neon_text(cr, text, x, y, dot, t):
                 px, py = x + (i * 6 + c) * dot + dot / 2, y + r * dot + dot / 2
                 if (rows[r] >> (4 - c)) & 1:
                     col = CY if (i * 6 + c + int(t * 3)) % 2 == 0 else VI
-                    cr.set_source_rgb(*col); cr.arc(px, py, dot * 0.4, 0, TAU); cr.fill()
-                else:
-                    pass
+                    cr.set_source_rgb(*col); cr.arc(px, py, dot * 0.38, 0, TAU); cr.fill()
+
 
 def clock_widget():
-    a = Gtk.DrawingArea(); dot = 11; a.set_content_width(int(D.text_width("00:00", dot)) + 4); a.set_content_height(dot * 7 + 4)
+    a = Gtk.DrawingArea(); dot = 7
+    a.set_content_width(int(D.text_width("00:00", dot)) + 4); a.set_content_height(dot * 7 + 4)
+
     def draw(_a, cr, w, h):
         txt = datetime.datetime.now().strftime("%H:%M")
-        neon_text(cr, txt, 0, 0, dot, T()) if S.ahian else D.draw_text(cr, txt, 0, 0, dot)
+        if S.ahian: neon_text(cr, txt, 0, 0, dot, T())
+        else: D.draw_text(cr, txt, 0, 0, dot, on=D.BLUSH, off=None)
     a.set_draw_func(draw); S.animated.append(a); GLib.timeout_add_seconds(1, lambda: (a.queue_draw(), True)[1]); return a
 
+
 def date_widget():
-    a = Gtk.DrawingArea(); dot = 3.6; a.set_content_width(int(D.text_width("WED 28 OCT", dot)) + 4); a.set_content_height(int(dot * 7) + 2)
-    a.set_draw_func(lambda _a, cr, w, h: D.draw_text(cr, datetime.datetime.now().strftime("%a %d %b"), 0, 0, dot, on=(1, 1, 1), off=None)); return a
+    lbl = Gtk.Label(label="", css_classes=["date"], xalign=0)
+    def tick():
+        lbl.set_label(datetime.datetime.now().strftime("%A, %d %B").upper()); return True
+    GLib.timeout_add_seconds(30, tick); tick(); return lbl
+
 
 def ring(label, getter):
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4); a = Gtk.DrawingArea(); a.set_content_width(110); a.set_content_height(110); st = {"v": 0.0}
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2); a = Gtk.DrawingArea()
+    a.set_content_width(74); a.set_content_height(74); st = {"v": 0.0}
+
     def draw(_a, cr, w, h):
-        D.dot_ring(cr, w / 2, h / 2, 44, st["v"], phase=(T() * 0.6 if S.ahian else 0.0), neon=S.ahian)
-        txt = "%d" % round(st["v"] * 100); D.draw_text(cr, txt, w / 2 - D.text_width(txt, 3) / 2, h / 2 - 10.5, 3, off=None)
+        D.dot_ring(cr, w / 2, h / 2, 28, st["v"], n=26, dot=2.4, phase=(T() * 0.6 if S.ahian else 0.0), neon=S.ahian)
+        txt = "%d" % round(st["v"] * 100); D.draw_text(cr, txt, w / 2 - D.text_width(txt, 2.1) / 2, h / 2 - 7.3, 2.1, on=D.BLUSH, off=None)
     a.set_draw_func(draw); S.animated.append(a)
-    def tick(): v = getter(); st["v"] = 0.0 if v is None else v; a.queue_draw(); return True
+
+    def tick():
+        v = getter(); st["v"] = 0.0 if v is None else v; a.queue_draw(); return True
     GLib.timeout_add_seconds(2, tick); tick()
     box.append(a); box.append(Gtk.Label(label=label, css_classes=["cap"])); return box
+
 
 def icon_button(name):
     info = Gio.DesktopAppInfo.new(name + ".desktop")
     if not info: return None
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6); img = Gtk.Image.new_from_gicon(info.get_icon()); img.set_pixel_size(56)
-    box.append(img); box.append(Gtk.Label(label=info.get_name().replace("SMTH ", ""), css_classes=["cap"]))
-    b = Gtk.Button(child=box); b.add_css_class("app"); b.add_css_class("flat"); b.connect("clicked", lambda *_: info.launch([], None)); return b
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    img = Gtk.Image.new_from_gicon(info.get_icon()); img.set_pixel_size(32)
+    box.append(img)
+    box.append(Gtk.Label(label=info.get_name().replace("SMTH ", ""), css_classes=["cap"], ellipsize=3, max_width_chars=12))
+    b = Gtk.Button(child=box); b.add_css_class("app"); b.add_css_class("flat")
+    b.set_tooltip_text(info.get_name())
+    b.connect("clicked", lambda *_: info.launch([], None)); return b
+
 
 def on_activate(app):
     win = Gtk.Window(application=app); win.add_css_class("home"); win.set_decorated(False)
@@ -150,24 +181,37 @@ def on_activate(app):
     pic.set_content_fit(Gtk.ContentFit.COVER); overlay.set_child(pic)
     bh = BlackHole(); live = Gtk.DrawingArea(); live.set_visible(False); live.set_can_target(False)
     live.set_draw_func(lambda _a, cr, w, h: bh.draw(cr, w, h, T(), S.mx, S.my)); overlay.add_overlay(live)
-    icons = Gtk.FlowBox(orientation=Gtk.Orientation.VERTICAL, selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=6, min_children_per_line=3,
-                        halign=Gtk.Align.START, valign=Gtk.Align.START, margin_start=44, margin_top=44, row_spacing=6, column_spacing=6)
+
+    # Desktop shortcuts: twelve entries, four rows, starting in the top-left.
+    icons = Gtk.FlowBox(orientation=Gtk.Orientation.VERTICAL, selection_mode=Gtk.SelectionMode.NONE,
+                        max_children_per_line=4, min_children_per_line=4, halign=Gtk.Align.START,
+                        valign=Gtk.Align.START, margin_start=26, margin_top=24, row_spacing=6, column_spacing=4)
     for n in APPS:
         b = icon_button(n)
         if b: icons.append(b)
     overlay.add_overlay(icons)
-    col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20, halign=Gtk.Align.START, valign=Gtk.Align.END, margin_start=70, margin_bottom=140)
-    col.append(clock_widget()); col.append(date_widget()); st = Stats()
-    gl = Gtk.Box(spacing=8, css_classes=["glance"], halign=Gtk.Align.START)
+
+    # System readouts: clock and date bottom-left, glance rings bottom-right.
+    col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, halign=Gtk.Align.START,
+                  valign=Gtk.Align.END, margin_start=30, margin_bottom=84)
+    col.append(clock_widget()); col.append(date_widget()); overlay.add_overlay(col)
+
+    st = Stats()
+    gl = Gtk.Box(spacing=4, css_classes=["glance"], halign=Gtk.Align.END, valign=Gtk.Align.END, margin_end=30, margin_bottom=84)
     gl.append(ring("CPU", st.cpu)); gl.append(ring("RAM", st.mem))
-    gl.append(ring("BAT" if st.bat() is not None else "DISK", lambda: st.bat() if st.bat() is not None else st.disk())); col.append(gl)
-    overlay.add_overlay(col); win.set_child(overlay)
-    mc = Gtk.EventControllerMotion(); mc.connect("motion", lambda c, x, y: (setattr(S, "mx", x / max(1, win.get_width())), setattr(S, "my", y / max(1, win.get_height())))); overlay.add_controller(mc)
-    prov = Gtk.CssProvider(); prov.load_from_data(CSS); Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    gl.append(ring("BAT" if st.bat() is not None else "SSD", lambda: st.bat() if st.bat() is not None else st.disk()))
+    overlay.add_overlay(gl)
+    win.set_child(overlay)
+    mc = Gtk.EventControllerMotion()
+    mc.connect("motion", lambda c, x, y: (setattr(S, "mx", x / max(1, win.get_width())), setattr(S, "my", y / max(1, win.get_height()))))
+    overlay.add_controller(mc)
+    prov = Gtk.CssProvider(); prov.load_from_data(CSS)
+    Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     def motion_reduced():
         try: return open(REDUCE_MOTION, encoding="utf-8").read().strip().lower() in ("1", "true", "yes", "on")
         except OSError: return False
+
     def frame():
         live.queue_draw()
         for a in S.animated: a.queue_draw()
@@ -177,6 +221,7 @@ def on_activate(app):
         else:
             S.timer = 0
         return False
+
     def apply():
         S.ahian = os.path.exists(FLAG)
         reduced = motion_reduced()
@@ -192,5 +237,6 @@ def on_activate(app):
             for a in S.animated: a.queue_draw()
         return True
     GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, apply); apply(); win.present()
+
 
 app = Gtk.Application(application_id="os.smth.Home"); app.connect("activate", on_activate); sys.exit(app.run(sys.argv))

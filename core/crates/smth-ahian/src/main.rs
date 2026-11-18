@@ -24,7 +24,7 @@ fn palette() -> Palette {
             }
         }
     }
-    Palette::from_json(r##"{"A":"#d71921","B":"#8c8c8c","AHIAN_A":"#7c4dff","AHIAN_B":"#00c2a8"}"##)
+    Palette::from_json(r##"{"A":"#701b35","B":"#f2c6d2","AHIAN_A":"#7c4dff","AHIAN_B":"#00c2a8"}"##)
         .expect("built-in palette is valid")
 }
 

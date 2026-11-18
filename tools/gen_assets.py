@@ -137,6 +137,53 @@ def wallpaper(kind, W, H):
     im.paste(wm,(110,H-170),wm)
     return flat(im,[(0,0,0),A,B])
 
+def veil(W, H):
+    """The SMTH desktop wallpaper: maroon currents over obsidian with blush crests.
+
+    Two long silk ribbons and one quiet arc, dithered from flat palette dots so
+    the image stays exactly two inks on black. The upper left stays dark for
+    desktop shortcuts and the taskbar sits over the calm lower band.
+    """
+    S = 2; im = Image.new("RGB", (W * S, H * S), (0, 0, 0)); d = ImageDraw.Draw(im)
+
+    def dot(x, y, r, c):
+        d.ellipse((x - r, y - r, x + r, y + r), fill=c)
+
+    def smooth(a, b, x):
+        t = max(0.0, min(1.0, (x - a) / (b - a)))
+        return t * t * (3 - 2 * t)
+
+    step = 6 * S
+    for y in range(0, H * S, step):
+        for x in range(0, W * S, step):
+            u, v = x / (W * S), y / (H * S)
+            # Ribbon one: a long diagonal current across the lower half.
+            c1 = 0.74 - 0.30 * math.sin(u * 2.35 + 0.35) - 0.06 * math.sin(u * 6.1)
+            b1 = max(0.0, 1.0 - abs(v - c1) / 0.16)
+            # Ribbon two: a thinner counter-current in the upper right.
+            c2 = 0.30 + 0.13 * math.sin(u * 3.6 + 2.1)
+            b2 = max(0.0, 1.0 - abs(v - c2) / 0.075)
+            # Quiet architectural arc behind the ribbons.
+            arc = max(0.0, 1.0 - abs(math.hypot((u - 0.72) * 1.0, (v - 1.02) * 0.78) - 0.52) / 0.010)
+            body = b1 ** 1.6 * 0.95 + b2 ** 1.4 * 0.55 + arc * 0.30
+            # Keep the shortcut corner and the taskbar band calm.
+            body *= 0.28 + 0.72 * smooth(0.30, 0.64, u + 0.16 * v)
+            body *= 0.35 + 0.65 * smooth(0.06, 0.20, v)
+            if body < 0.035: continue
+            rng = random.Random(int(x * 73856093) ^ int(y * 19349663))
+            if rng.random() > min(0.90, body * 0.78): continue
+            crest = max(0.0, body - 0.86)
+            radius = (0.9 + 2.0 * body + 1.4 * crest) * S
+            dot(x, y, radius, B if (crest > 0.02 and rng.random() < 0.5) else A)
+    # One blush highlight line on the crest of ribbon one.
+    for x in range(0, W * S, 2 * S):
+        u = x / (W * S)
+        c1 = 0.74 - 0.30 * math.sin(u * 2.35 + 0.35) - 0.06 * math.sin(u * 6.1)
+        if u < 0.34: continue
+        dot(x, (c1 - 0.135) * H * S, 1.1 * S, B)
+    return flat(im.resize((W, H), Image.LANCZOS), [(0, 0, 0), A, B])
+
+
 def ahian_wallpaper(W, H):
     """AHIAN mode wallpaper: purple/teal dot field on black. No gradients."""
     S = 2; im = Image.new("RGB", (W * S, H * S), (0, 0, 0)); d = ImageDraw.Draw(im)
@@ -169,7 +216,7 @@ for p in (bg, pl, sh, bt): os.makedirs(p, exist_ok=True)
 W, H = 2560, 1440; wm = wordmark(46)
 for name in ("black-hole", "spiral-galaxy", "orbit-rings", "dot-topography", "horizon-grid", "eclipse", "double-helix", "plain-black"):
     wallpaper(name, W, H).save(os.path.join(bg, name + ".png"), optimize=True)
-shutil.copyfile(os.path.join(bg, "black-hole.png"), os.path.join(bg, "wallpaper.png"))
+veil(W, H).save(os.path.join(bg, "wallpaper.png"), optimize=True)
 ahian_wallpaper(W, H).save(os.path.join(bg, "ahian-teal.png"), optimize=True)
 l = scene(W, H, W * 0.5, H * 0.36, H * 0.07); l.paste(wm, ((W - wm.width) // 2, H - 190), wm); l.save(os.path.join(bg, "lock.png"), optimize=True)
 mark(256).save(os.path.join(sh, "mark.png")); logo_full(240).save(os.path.join(sh, "logo.png")); logo_full(240).save(os.path.join(pl, "logo.png"))

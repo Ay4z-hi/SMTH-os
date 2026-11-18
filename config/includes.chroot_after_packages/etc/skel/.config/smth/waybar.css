@@ -1,12 +1,15 @@
-* { font-family: "Space Mono", "Doto", "DotGothic16", monospace; font-size: 13px; border: none; min-height: 0; }
-window#waybar { background: #000000; color: #ffffff; }
-.modules-left, .modules-center, .modules-right { background: #000000; border: 1px solid #8c8c8c; border-radius: 4px; padding: 0 10px; margin: 0 4px; }
-#custom-start, #custom-apps, #custom-term, #custom-kbd, #custom-files, #custom-settings { font-size: 20px; padding: 0 12px; margin: 4px 2px; border-radius: 4px; background: #000000; }
-#custom-start:hover, #custom-apps:hover, #custom-term:hover, #custom-kbd:hover, #custom-files:hover, #custom-settings:hover { background: #d71921; color: #000000; }
-#taskbar button { padding: 0 10px; margin: 4px 2px; border-radius: 4px; background: #000000; }
-#taskbar button.active { border: 1px solid #d71921; background: #000000; }
-#custom-glance-cpu, #custom-glance-mem, #custom-glance-disk { font-family: "Doto", "Space Mono", monospace; padding: 0 10px; letter-spacing: 1px; color: #ffffff; }
-#custom-glance-cpu.hot, #custom-glance-mem.hot, #battery.critical { color: #8c8c8c; }
-#clock, #network, #battery, #pulseaudio, #bluetooth, #mpris { padding: 0 10px; }
-#tray, #custom-notify { padding: 0 10px; }
-#custom-notify:hover { background: #d71921; color: #000000; border-radius: 4px; }
+* { font-family: "Space Mono", "Doto", "DotGothic16", monospace; font-size: 11px; border: none; min-height: 0; }
+window#waybar { background: alpha(#09090b, 0.86); color: #f2c6d2; border: 1px solid alpha(#f2c6d2, 0.14); border-radius: 12px; }
+.modules-left, .modules-center, .modules-right { background: transparent; padding: 0 6px; margin: 0 2px; }
+#custom-start, #custom-apps, #custom-term, #custom-kbd, #custom-files, #custom-settings { font-size: 15px; padding: 0 9px; margin: 3px 1px; border-radius: 8px; background: transparent; }
+#custom-start:hover, #custom-apps:hover, #custom-term:hover, #custom-kbd:hover, #custom-files:hover, #custom-settings:hover { background: alpha(#701b35, 0.55); color: #f2c6d2; }
+#taskbar button { padding: 0 7px; margin: 3px 1px; border-radius: 8px; background: transparent; }
+#taskbar button:hover { background: alpha(#f2c6d2, 0.07); }
+#taskbar button.active { background: alpha(#701b35, 0.45); border-bottom: 2px solid #f2c6d2; }
+#custom-glance-cpu, #custom-glance-mem, #custom-glance-disk { font-family: "Doto", "Space Mono", monospace; padding: 0 8px; letter-spacing: 1px; color: alpha(#f2c6d2, 0.75); }
+#custom-glance-cpu.hot, #custom-glance-mem.hot, #battery.critical { color: #f2c6d2; background: alpha(#701b35, 0.60); border-radius: 6px; }
+#clock, #network, #battery, #pulseaudio, #bluetooth, #mpris { padding: 0 8px; }
+#clock { color: #f2c6d2; font-weight: bold; }
+#battery { color: alpha(#f2c6d2, 0.80); }
+#tray, #custom-notify { padding: 0 8px; }
+#custom-notify:hover { background: alpha(#701b35, 0.55); color: #f2c6d2; border-radius: 8px; }

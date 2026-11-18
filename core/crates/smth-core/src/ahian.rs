@@ -222,7 +222,7 @@ mod tests {
     use super::*;
 
     fn plan() -> AhianPlan {
-        ahian_plan(42, 1920, 1080, "#d71921")
+        ahian_plan(42, 1920, 1080, "#701b35")
     }
 
     #[test]
@@ -288,13 +288,13 @@ mod tests {
         assert_eq!(plan(), plan());
         assert_ne!(
             plan().dialogs,
-            ahian_plan(43, 1920, 1080, "#d71921").dialogs
+            ahian_plan(43, 1920, 1080, "#701b35").dialogs
         );
     }
 
     #[test]
     fn works_on_small_screens() {
-        let p = ahian_plan(1, 320, 240, "#d71921");
+        let p = ahian_plan(1, 320, 240, "#701b35");
         for d in &p.dialogs {
             assert!(
                 p.screen.contains(&d.rect),
@@ -307,9 +307,9 @@ mod tests {
 
     #[test]
     fn unahian_matches_the_required_copy() {
-        let u = unahian_plan("#d71921");
+        let u = unahian_plan("#701b35");
         assert_eq!(u.message, "looks like you dont like ahian");
-        assert_eq!(u.accent, "#d71921");
+        assert_eq!(u.accent, "#701b35");
         assert_eq!(u.restore_wallpaper, NORMAL_WALLPAPER);
         assert!(u.hold_ms > 0);
     }

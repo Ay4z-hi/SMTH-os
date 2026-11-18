@@ -1,10 +1,10 @@
 /* Generated from tools/palette.json. Do not edit. */
 @define-color smth_black #000000;
 @define-color smth_white #ffffff;
-@define-color smth_grey #8c8c8c;
-@define-color smth_a #d71921;
-@define-color smth_b #8c8c8c;
-@define-color smth_ahian_a #7c4dff;
-@define-color smth_ahian_b #00c2a8;
+@define-color smth_grey #f2c6d2;
+@define-color smth_a #701b35;
+@define-color smth_b #f2c6d2;
+@define-color smth_ahian_a #701b35;
+@define-color smth_ahian_b #f2c6d2;
 @define-color accent_bg_color @smth_a;
 @define-color accent_color @smth_a;

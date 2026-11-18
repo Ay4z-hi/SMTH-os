@@ -35,7 +35,7 @@ gtk.mkdir(parents=True, exist_ok=True)
     "/* Generated from tools/palette.json. Do not edit. */\n"
     "@define-color smth_black #000000;\n"
     "@define-color smth_white #ffffff;\n"
-    "@define-color smth_grey #8c8c8c;\n"
+    "@define-color smth_grey #f2c6d2;\n"
     f"@define-color smth_a {a};\n"
     f"@define-color smth_b {b};\n"
     f"@define-color smth_ahian_a {aa};\n"
