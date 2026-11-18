@@ -65,6 +65,12 @@ class SMTHLauncher:
         root.geometry("780x700")
         root.minsize(520, 560)
         root.configure(bg=BLACK)
+        try:
+            icon = os.path.join(ASSETS, "smth.ico")
+            if os.path.isfile(icon):
+                root.iconbitmap(icon)
+        except (OSError, tk.TclError):
+            pass
         root.bind("<Escape>", lambda *_: root.destroy())
         root.bind("<Control-f>", lambda *_: self.search.focus_set())
 
@@ -294,6 +300,13 @@ class ConstructionIntro:
         self.started = time.monotonic()
         self.after_id = None
         self.closed = False
+        self.logo_photo = None
+        try:
+            _logo = os.path.join(ASSETS, "logo.png")
+            if os.path.isfile(_logo):
+                self.logo_photo = tk.PhotoImage(file=_logo)
+        except tk.TclError:
+            self.logo_photo = None
         self.win.bind("<Button-1>", lambda *_: self.close())
         self.canvas.bind("<Button-1>", lambda *_: self.close())
         self.win.bind("<Escape>", lambda *_: self.close())
@@ -376,15 +389,11 @@ class ConstructionIntro:
                 c.create_oval(x - 1, y - 1, x + 1, y + 1,
                               fill="#221d1d" if hot else "#0d0d0d", outline="")
 
-        # 1. logo reveal
+        # 1. logo reveal (official logo only, no text)
         if p < 0.22:
             fade = min(1.0, p / 0.10) if p < 0.10 else max(0.0, 1 - (p - 0.14) / 0.08)
-            shade = int(255 * fade)
-            colour = f"#{shade:02x}{shade:02x}{shade:02x}" if fade > 0.02 else BLACK
-            c.create_text(w / 2, h / 2 - 12, text="SMTH", fill=colour,
-                          font=(self.display, 36, "bold"))
-            c.create_line(w / 2 - 34, h / 2 + 26, w / 2 + 34, h / 2 + 26,
-                          fill=RED if fade > 0.3 else BLACK, width=2)
+            if self.logo_photo is not None and fade > 0.02:
+                c.create_image(w / 2, h / 2 - 12, image=self.logo_photo)
 
         # 2/3. panels and selection boxes
         if p >= 0.14:

@@ -58,17 +58,24 @@ def wordmark(px, text="SMTH", tracking=None):
         im.paste(A if i % 2 == 0 else B, (0, 0), m.point(lambda v: 255 if v > 127 else 0)); x += wc + tracking
     return im
 
+def _official_logo_master():
+    """Load the official SMTH logo (transparent PNG) from the repo. No redesign."""
+    candidates = [
+        os.path.join(HERE, "..", "assets", "branding", "smth-logo-square.png"),
+        os.path.join(HERE, "..", "assets", "branding", "smth-logo.png"),
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return Image.open(p).convert("RGBA")
+    raise SystemExit("official SMTH logo missing: assets/branding/smth-logo-square.png")
+
 def mark(size=512):
-    S = 4; N = size * S; c = N / 2; R = N * 0.40; th = N * 0.085
-    def mk(fn): m = Image.new("L", (N, N), 0); fn(ImageDraw.Draw(m)); return m.resize((size, size), Image.LANCZOS).point(lambda v: 255 if v > 127 else 0)
-    ring = mk(lambda d: (d.ellipse([c - R, c - R, c + R, c + R], fill=255), d.ellipse([c - R + th, c - R + th, c + R - th, c + R - th], fill=0), d.pieslice([c - R - 8, c - R - 8, c + R + 8, c + R + 8], -66, -24, fill=0)))
-    k = N * 0.15; a = math.radians(-45); sx, sy, sr = c + (R - th / 2) * math.cos(a), c + (R - th / 2) * math.sin(a), N * 0.05
-    core = mk(lambda d: (d.ellipse([c - k, c - k, c + k, c + k], fill=255), d.ellipse([sx - sr, sy - sr, sx + sr, sy + sr], fill=255)))
-    im = Image.new("RGBA", (size, size), (0, 0, 0, 0)); im.paste(A, (0, 0), ring); im.paste(B, (0, 0), core); return im
+    """Official SMTH mark, scaled. No generated placeholder."""
+    return _official_logo_master().resize((size, size), Image.LANCZOS)
 
 def logo_full(mark_px=240, word_px=58):
-    mk, wm = mark(mark_px), wordmark(word_px); W = max(mk.width, wm.width); im = Image.new("RGBA", (W, mk.height + wm.height + 18), (0, 0, 0, 0))
-    im.alpha_composite(mk, ((W - mk.width) // 2, 0)); im.alpha_composite(wm, ((W - wm.width) // 2, mk.height + 18)); return im
+    """Official SMTH logo (symbol only, no text inside the symbol)."""
+    return _official_logo_master().resize((mark_px, mark_px), Image.LANCZOS)
 
 def sprite(color, diam):                              # spinner trail = dot SIZE, not transparency
     S = 8; im = Image.new("L", (16 * S, 16 * S), 0); o = (16 - diam) / 2 * S; ImageDraw.Draw(im).ellipse([o, o, o + diam * S, o + diam * S], fill=255)
@@ -165,6 +172,10 @@ for name in ("black-hole", "spiral-galaxy", "orbit-rings", "dot-topography", "ho
 shutil.copyfile(os.path.join(bg, "black-hole.png"), os.path.join(bg, "wallpaper.png"))
 ahian_wallpaper(W, H).save(os.path.join(bg, "ahian-teal.png"), optimize=True)
 l = scene(W, H, W * 0.5, H * 0.36, H * 0.07); l.paste(wm, ((W - wm.width) // 2, H - 190), wm); l.save(os.path.join(bg, "lock.png"), optimize=True)
-mark(256).save(os.path.join(sh, "mark.png")); logo_full().save(os.path.join(sh, "logo.png")); logo_full().save(os.path.join(pl, "logo.png"))
+mark(256).save(os.path.join(sh, "mark.png")); logo_full(240).save(os.path.join(sh, "logo.png")); logo_full(240).save(os.path.join(pl, "logo.png"))
+# Ensure the startup renderer's preferred path exists.
+startup_logo = os.path.join(sh, "startup-logo.png")
+if not os.path.exists(startup_logo):
+    logo_full(240).save(startup_logo)
 for i, dm in enumerate((14, 11, 8, 6, 4)): sprite(A, dm).save(os.path.join(pl, f"dot-c{i}.png")); sprite(B, dm).save(os.path.join(pl, f"dot-v{i}.png"))
 boot_bg(1280, 720).save(os.path.join(bt, "background.png")); boot_bg(640, 480).save(os.path.join(bt, "splash.png")); print("assets ok", P)

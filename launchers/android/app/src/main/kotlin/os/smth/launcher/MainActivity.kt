@@ -9,6 +9,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -466,6 +468,9 @@ private class ConstructionView(
     private val mono: Typeface?,
 ) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val logoBitmap: Bitmap? = try {
+        BitmapFactory.decodeResource(resources, R.drawable.ic_launcher_smth)
+    } catch (_: Exception) { null }
     private val colours = intArrayOf(
         0xFFD71921.toInt(), 0xFF2F6BFF.toInt(), 0xFF00C2A8.toInt(),
         0xFF7C4DFF.toInt(), 0xFFFFFFFF.toInt(), 0xFFFFAD29.toInt(),
@@ -572,18 +577,22 @@ private class ConstructionView(
             else -> 0f
         }
         if (fade <= 0f) return
-        paint.style = Paint.Style.FILL
-        paint.typeface = dot ?: Typeface.DEFAULT
-        paint.textSize = dp(44f)
-        paint.textAlign = Paint.Align.CENTER
-        paint.color = Color.argb((fade * 255).toInt(), 255, 255, 255)
-        canvas.drawText("SMTH", w / 2f, h / 2f - dp(4f), paint)
-        if (fade > 0.3f) {
-            paint.color = Color.argb((fade * 255).toInt(), 215, 25, 33)
-            paint.strokeWidth = dp(2f)
-            canvas.drawLine(w / 2f - dp(36f), h / 2f + dp(26f),
-                w / 2f + dp(36f), h / 2f + dp(26f), paint)
+        val bmp = logoBitmap
+        if (bmp != null) {
+            val size = dp(96f)
+            val dst = RectF(w / 2f - size / 2f, h / 2f - size / 2f,
+                w / 2f + size / 2f, h / 2f + size / 2f)
+            paint.alpha = (fade * 255).toInt()
+            canvas.drawBitmap(bmp, null, dst, paint)
+        } else {
+            paint.style = Paint.Style.FILL
+            paint.typeface = dot ?: Typeface.DEFAULT
+            paint.textSize = dp(44f)
+            paint.textAlign = Paint.Align.CENTER
+            paint.color = Color.argb((fade * 255).toInt(), 255, 255, 255)
+            canvas.drawText("SMTH", w / 2f, h / 2f - dp(4f), paint)
         }
+        // Logo only: no text or extra marks during the logo phase.
     }
 
     private fun panel(canvas: Canvas, rect: RectF, q: Float, accent: Int = GREY) {

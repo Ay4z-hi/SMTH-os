@@ -147,15 +147,7 @@ class Renderer:
                         -D.text_width("SMTH", dot) / 2,
                         -3.5 * dot, dot, M.WHITE, frame.logo_alpha)
         cr.restore()
-        # A single red registration tick keeps the identity legible even with a
-        # light or dark replacement logo.
-        if frame.logo_reveal > 0.55:
-            alpha = min(1.0, (frame.logo_reveal - 0.55) / 0.45) * frame.logo_alpha
-            cr.set_line_width(2.0)
-            rgba(cr, M.RED, alpha)
-            cr.move_to(cx - 14, cy + target_h / 2 + 18)
-            cr.line_to(cx + 14, cy + target_h / 2 + 18)
-            cr.stroke()
+        # Logo only: no text or extra marks are drawn during the logo phase.
 
     def _draw_dot_field(self, cr, frame, w, h):
         if frame.phase in ("logo", "done"):

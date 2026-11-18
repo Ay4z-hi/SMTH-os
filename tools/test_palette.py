@@ -31,7 +31,18 @@ missing = [str(x.relative_to(ROOT)) for x in targets if not x.exists()]
 if missing:
     raise SystemExit("missing generated artwork: " + ", ".join(missing))
 
+# The official SMTH logo is a shaded 3D brand asset (transparent PNG) and is
+# exempt from the flat palette contract; only its existence is checked.
+logo_exemptions = {
+    base / "usr/share/smth/mark.png",
+    base / "usr/share/smth/logo.png",
+    base / "usr/share/smth/startup-logo.png",
+    base / "usr/share/plymouth/themes/smth/logo.png",
+}
 for path in targets:
+    if path in logo_exemptions:
+        print(f"PASS official logo asset present: {path.relative_to(ROOT)}")
+        continue
     allowed = ahian_allowed if path in ahian_files else core_allowed
     colours = set(Image.open(path).convert("RGB").getdata())
     extra = colours - allowed
