@@ -9,7 +9,7 @@ smthd --config /etc/smth/services.json --palette /usr/local/lib/smth/palette.jso
 # The real desktop starts first.  The construction overlay runs above these
 # surfaces and fades out to reveal them; it is disabled by Settings or by
 # SMTH_NO_STARTUP_ANIMATION=1, and reduces to a short reveal under Reduce Motion.
-smth-mode auto >/dev/null 2>&1
+smth-mode auto >/dev/null 2>&1 &
 ( smth-home || swaybg -m fill -i /usr/share/backgrounds/smth/wallpaper.png ) >/dev/null 2>&1 &
 timeout 15 smth-startup >/dev/null 2>&1 &
 swayidle -w timeout 300 'smth-lock' before-sleep 'smth-lock' >/dev/null 2>&1 &
