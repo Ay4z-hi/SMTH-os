@@ -1,10 +1,12 @@
 #!/bin/sh
 # Rebuilds the boot menus (UEFI/ARM GRUB and BIOS isolinux) with SMTH branding. Runs on the host in the build directory.
 set -e
-K=$(ls binary/live/vmlinuz* 2>/dev/null | head -n1 | sed 's|^binary||')
-I=$(ls binary/live/initrd.img* 2>/dev/null | head -n1 | sed 's|^binary||')
+K=$(ls live/vmlinuz* 2>/dev/null | head -n1)
+I=$(ls live/initrd.img* 2>/dev/null | head -n1)
+K=/$K
+I=/$I
 if [ -z "$K" ] || [ -z "$I" ]; then echo "SMTH: kernel not found, keeping default boot menu"; exit 0; fi
-SRC=config/includes.chroot_after_packages/usr/share/smth/boot
+SRC=../config/includes.chroot_after_packages/usr/share/smth/boot
 OPTS="boot=live components quiet splash loglevel=3 username=smth hostname=smth console=tty0"
 if [ "${SMTH_ARCH:-amd64}" = "arm64" ]; then
   OPTS="$OPTS console=ttyAMA0,115200"
@@ -13,11 +15,11 @@ else
 fi
 
 # ---- GRUB ----
-if [ -d binary/boot/grub ]; then
-  mkdir -p binary/boot/grub/themes/smth
-  cp $SRC/theme.txt $SRC/background.png binary/boot/grub/themes/smth/
-  cp /usr/share/grub/unicode.pf2 binary/boot/grub/ 2>/dev/null || true
-  cat > binary/boot/grub/grub.cfg <<EOT
+if [ -d boot/grub ]; then
+  mkdir -p boot/grub/themes/smth
+  cp $SRC/theme.txt $SRC/background.png boot/grub/themes/smth/
+  cp /usr/share/grub/unicode.pf2 boot/grub/ 2>/dev/null || true
+  cat > boot/grub/grub.cfg <<EOT
 set default=0
 set timeout=4
 insmod all_video
@@ -51,9 +53,9 @@ EOT
 fi
 
 # ---- isolinux (BIOS) ----
-if [ -d binary/isolinux ]; then
-  cp $SRC/splash.png binary/isolinux/splash.png
-  cat > binary/isolinux/isolinux.cfg <<EOT
+if [ -d isolinux ]; then
+  cp $SRC/splash.png isolinux/splash.png
+  cat > isolinux/isolinux.cfg <<EOT
 UI vesamenu.c32
 DEFAULT smth
 TIMEOUT 80
