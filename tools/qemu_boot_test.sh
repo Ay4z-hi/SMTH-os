@@ -58,11 +58,12 @@ command -v "$QEMU" >/dev/null || { echo "$QEMU is not installed" >&2; exit 1; }
     -kernel "$K" -initrd "$I" -append "$APPEND" \
     "${MEDIA[@]}" &
 PID=$!
-echo "QEMU pid=$PID; waiting for SMTH_BOOT: OK (up to 8 minutes)"
+echo "QEMU pid=$PID; waiting for SMTH_BOOT: OK (up to $((WAIT_ITERS*2/60)) minutes)"
 
+if [ "$ARCH" = amd64 ]; then WAIT_ITERS=240; else WAIT_ITERS=900; fi
 ok=0
 failed=0
-for _ in $(seq 1 240); do
+for _ in $(seq 1 "$WAIT_ITERS"); do
     if grep -q 'SMTH_BOOT: OK' "$LOG" 2>/dev/null; then ok=1; break; fi
     if grep -q 'SMTH_BOOT: FAIL' "$LOG" 2>/dev/null; then failed=1; break; fi
     if ! kill -0 "$PID" 2>/dev/null; then break; fi
