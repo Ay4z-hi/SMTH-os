@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.view.WindowInsets
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -62,6 +63,10 @@ class MainActivity : Activity() {
     private lateinit var empty: TextView
     private lateinit var search: EditText
     private lateinit var dock: LinearLayout
+    private lateinit var dateBig: TextView
+    private lateinit var appsValue: TextView
+    private lateinit var appsHeading: TextView
+    private lateinit var batteryValue: TextView
     private var apps: List<AppEntry> = emptyList()
     private var typefaceMono: Typeface? = null
     private var typefaceDot: Typeface? = null
@@ -112,53 +117,126 @@ class MainActivity : Activity() {
         val root = DotField(this).apply { setBackgroundColor(BLACK) }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(10))
+            setPadding(dp(18), dp(12), dp(18), dp(8))
         }
 
-        // ---- header: brand, battery, live clock ----
+        // ---- top bar: official mark, wordmark, identity, status ----
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
+        header.addView(ImageView(this).apply {
+            setImageResource(R.drawable.ic_launcher_smth)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }, LinearLayout.LayoutParams(dp(26), dp(26)))
         header.addView(TextView(this).apply {
             text = "SMTH"
             setTextColor(WHITE)
-            textSize = 22f
+            textSize = 18f
             typeface = Typeface.create(typefaceDot ?: Typeface.DEFAULT, Typeface.BOLD)
             letterSpacing = 0.22f
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            marginStart = dp(10)
+        })
+        header.addView(TextView(this).apply {
+            text = "DESKTOP ENVIRONMENT"
+            setTextColor(GREY)
+            textSize = 8f
+            typeface = typefaceMono
+            letterSpacing = 0.24f
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = dp(14)
+        })
         battery = TextView(this).apply {
             setTextColor(GREY)
-            textSize = 11f
+            textSize = 10f
             typeface = typefaceMono
-            setPadding(0, 0, dp(12), 0)
+            letterSpacing = 0.10f
+            setPadding(0, 0, dp(14), 0)
         }
         clock = TextView(this).apply {
             setTextColor(RED)
             textSize = 15f
             typeface = typefaceMono
+            letterSpacing = 0.06f
         }
         header.addView(battery)
         header.addView(clock)
         column.addView(header)
+        column.addView(rule(horizontal = true), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(1),
+        ).apply { topMargin = dp(10) })
 
-        column.addView(TextView(this).apply {
-            text = SimpleDateFormat("EEEE, d MMMM", Locale.getDefault()).format(Date())
+        // ---- body: information rail on the left, applications on the right ----
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(12), 0, dp(10))
+        }
+
+        val rail = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, dp(16), 0)
+        }
+        rail.addView(TextView(this).apply {
+            text = SimpleDateFormat("EEEE", Locale.getDefault()).format(Date()).uppercase(Locale.getDefault())
             setTextColor(GREY)
-            textSize = 11f
+            textSize = 9f
             typeface = typefaceMono
-            setPadding(0, dp(4), 0, dp(18))
+            letterSpacing = 0.22f
         })
+        dateBig = TextView(this).apply {
+            text = SimpleDateFormat("dd", Locale.getDefault()).format(Date())
+            setTextColor(WHITE)
+            textSize = 46f
+            typeface = Typeface.create(typefaceDot ?: Typeface.DEFAULT, Typeface.NORMAL)
+            includeFontPadding = false
+        }
+        rail.addView(dateBig)
+        rail.addView(TextView(this).apply {
+            text = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date()).uppercase(Locale.getDefault())
+            setTextColor(RED)
+            textSize = 9f
+            typeface = typefaceMono
+            letterSpacing = 0.14f
+        })
+        rail.addView(sectionLabel("SYSTEM"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = dp(16) })
+        appsValue = TextView(this).apply { text = "0" }
+        rail.addView(statusRow("APPS", appsValue))
+        batteryValue = TextView(this).apply { text = "—" }
+        rail.addView(statusRow("BATTERY", batteryValue))
+        val displayValue = TextView(this).apply {
+            text = "LANDSCAPE"
+            setTextColor(WHITE)
+            textSize = 9f
+            typeface = typefaceMono
+            letterSpacing = 0.10f
+        }
+        rail.addView(statusRow("DISPLAY", displayValue))
+        rail.addView(View(this), LinearLayout.LayoutParams(0, 0, 1f))
+        rail.addView(TextView(this).apply {
+            text = "SMTH OS 1.0"
+            setTextColor(GREY)
+            textSize = 8f
+            typeface = typefaceMono
+            letterSpacing = 0.16f
+        })
+        body.addView(rail, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.30f))
+        body.addView(rule(horizontal = false), LinearLayout.LayoutParams(dp(1), ViewGroup.LayoutParams.MATCH_PARENT))
 
-        // ---- search ----
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), 0, 0, 0)
+        }
         search = EditText(this).apply {
-            hint = "Search apps"
+            hint = "Search applications"
             setHintTextColor(GREY)
             setTextColor(WHITE)
-            textSize = 14f
+            textSize = 13f
             typeface = typefaceMono
             setSingleLine(true)
-            setPadding(dp(14), dp(10), dp(14), dp(10))
+            setPadding(dp(12), dp(8), dp(12), dp(8))
             background = panel(BLACK, GREY)
             setOnFocusChangeListener { v, focused ->
                 v.background = panel(BLACK, if (focused) RED else GREY)
@@ -171,56 +249,73 @@ class MainActivity : Activity() {
                 override fun afterTextChanged(s: Editable?) {}
             })
         }
-        column.addView(search, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(46)))
+        content.addView(search, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(40)))
         suppressPointer(search)
 
-        column.addView(TextView(this).apply {
-            text = "YOUR APPS"
-            setTextColor(RED)
-            textSize = 10f
+        val section = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(14), 0, dp(8))
+        }
+        section.addView(sectionLabel("APPLICATIONS"), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+        ))
+        appsHeading = TextView(this).apply {
+            text = ""
+            setTextColor(GREY)
+            textSize = 8f
             typeface = typefaceMono
-            letterSpacing = 0.18f
-            setPadding(0, dp(18), 0, dp(10))
-        })
+            letterSpacing = 0.12f
+            gravity = Gravity.END
+        }
+        section.addView(appsHeading, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        content.addView(section)
 
         // ---- app grid: rebuilt on every filter change, so no invisible gaps ----
         grid = GridLayout(this).apply { columnCount = columnsForWidth() }
-        val scroll = ScrollView(this).apply { isFillViewport = true }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+        }
         scroll.addView(grid, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        column.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        content.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         empty = TextView(this).apply {
-            text = "No apps match"
+            text = "No applications match"
             setTextColor(GREY)
-            textSize = 12f
+            textSize = 11f
             typeface = typefaceMono
             gravity = Gravity.CENTER
             visibility = View.GONE
         }
-        column.addView(empty)
+        content.addView(empty)
+        body.addView(content, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 0.70f))
+        column.addView(body, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
-        // ---- dock: four real shortcuts, resolved at runtime ----
+        // ---- bottom controls: dock plus settings/wallpaper, above the nav inset ----
+        val bottom = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
         dock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            background = panel(BLACK, GREY, 18)
-            setPadding(dp(10), dp(8), dp(10), dp(8))
+            gravity = Gravity.CENTER_VERTICAL
+            background = panel(BLACK, GREY)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
         }
-        column.addView(dock, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = dp(8)
-        })
+        bottom.addView(dock, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginEnd = dp(8) })
+        bottom.addView(actionButton("SETTINGS") { startActivitySafely(Intent(Settings.ACTION_SETTINGS)) },
+            LinearLayout.LayoutParams(dp(88), dp(56)).apply { marginEnd = dp(8) })
+        bottom.addView(actionButton("WALLPAPER") { startActivitySafely(Intent(Intent.ACTION_SET_WALLPAPER)) },
+            LinearLayout.LayoutParams(dp(88), dp(56)))
+        column.addView(bottom)
 
-        // ---- quick actions ----
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(8), 0, 0)
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val topInset = insets.systemWindowInsetTop
+            val bottomInset = insets.systemWindowInsetBottom
+            column.setPadding(dp(18), dp(12) + topInset, dp(18), dp(8) + bottomInset)
+            insets
         }
-        actions.addView(actionButton("SETTINGS") { startActivitySafely(Intent(Settings.ACTION_SETTINGS)) },
-            LinearLayout.LayoutParams(0, dp(42), 1f))
-        actions.addView(actionButton("WALLPAPER") { startActivitySafely(Intent(Intent.ACTION_SET_WALLPAPER)) },
-            LinearLayout.LayoutParams(0, dp(42), 1f))
-        column.addView(actions)
-
         root.addView(column)
         if (animationsEnabled()) {
             root.addView(
@@ -233,7 +328,49 @@ class MainActivity : Activity() {
         }
         suppressPointer(root)
         setContentView(root)
+        root.requestApplyInsets()
     }
+
+    /** 1 dp hairline used to divide the rail from the applications area. */
+    private fun rule(horizontal: Boolean): View = View(this).apply {
+        setBackgroundColor(0x338C8C8C)
+        layoutParams = if (horizontal) {
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
+        } else {
+            LinearLayout.LayoutParams(dp(1), ViewGroup.LayoutParams.MATCH_PARENT)
+        }
+    }
+
+    private fun sectionLabel(text: String): TextView = TextView(this).apply {
+        this.text = text
+        setTextColor(RED)
+        textSize = 9f
+        typeface = typefaceMono
+        letterSpacing = 0.20f
+    }
+
+    /** Label/value row in the rail; the value TextView is caller-owned for updates. */
+    private fun statusRow(label: String, value: TextView): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(5), 0, 0)
+            addView(TextView(this@MainActivity).apply {
+                text = label
+                setTextColor(GREY)
+                textSize = 9f
+                typeface = typefaceMono
+                letterSpacing = 0.12f
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            value.setTextColor(WHITE)
+            value.textSize = 9f
+            value.typeface = typefaceMono
+            value.letterSpacing = 0.10f
+            value.gravity = Gravity.END
+            addView(value, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ))
+        }
 
     private fun animationsEnabled(): Boolean = try {
         Settings.Global.getFloat(
@@ -245,10 +382,21 @@ class MainActivity : Activity() {
         true
     }
 
-    private fun columnsForWidth(): Int = when {
-        resources.configuration.screenWidthDp >= 900 -> 6
-        resources.configuration.screenWidthDp >= 600 -> 5
-        else -> 4
+    /** Tile width in pixels for the applications grid (content area / columns). */
+    private fun tileWidthPx(columns: Int): Int {
+        val contentDp = resources.configuration.screenWidthDp * 0.70f - 34f
+        return ((contentDp / columns - 6f) * resources.displayMetrics.density).toInt()
+    }
+
+    /** Column count from the width the grid actually gets (70% of the window). */
+    private fun columnsForWidth(): Int {
+        val gridWidth = resources.configuration.screenWidthDp * 0.70f
+        return when {
+            gridWidth >= 720f -> 6
+            gridWidth >= 560f -> 5
+            gridWidth >= 420f -> 4
+            else -> 3
+        }
     }
 
     private fun actionButton(label: String, onClick: () -> Unit): TextView =
@@ -274,14 +422,15 @@ class MainActivity : Activity() {
             addView(ImageView(this@MainActivity).apply {
                 setImageDrawable(entry.icon)
                 scaleType = ImageView.ScaleType.FIT_CENTER
-            }, LinearLayout.LayoutParams(dp(24), dp(24)))
+            }, LinearLayout.LayoutParams(dp(22), dp(22)))
             addView(TextView(this@MainActivity).apply {
                 text = entry.label
                 setTextColor(WHITE)
-                textSize = 9f
+                textSize = 8f
                 maxLines = 1
                 typeface = typefaceMono
                 gravity = Gravity.CENTER
+                setPadding(0, dp(3), 0, 0)
             })
             setOnClickListener { launch(entry) }
             setOnLongClickListener { openInfo(entry); true }
@@ -316,7 +465,7 @@ class MainActivity : Activity() {
         var added = 0
         for (pkg in DOCK_PACKAGES) {
             val entry = apps.firstOrNull { it.packageName == pkg } ?: continue
-            dock.addView(dockButton(entry), LinearLayout.LayoutParams(0, dp(52), 1f))
+            dock.addView(dockButton(entry), LinearLayout.LayoutParams(0, dp(44), 1f))
             added++
         }
         if (added == 0) {
@@ -326,7 +475,7 @@ class MainActivity : Activity() {
                 textSize = 10f
                 typeface = typefaceMono
                 gravity = Gravity.CENTER
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(52)))
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)))
         }
     }
 
@@ -335,16 +484,22 @@ class MainActivity : Activity() {
         val query = search.text?.toString()?.trim()?.lowercase(Locale.getDefault()) ?: ""
         val shown = if (query.isEmpty()) apps else apps.filter { it.label.lowercase(Locale.getDefault()).contains(query) }
         grid.columnCount = columnsForWidth()
+        // Fixed tile width instead of a column weight: with a weight, a single
+        // result stretches across the whole row because its column is the only
+        // one defined.
+        val tileWidth = tileWidthPx(grid.columnCount)
         shown.forEachIndexed { index, entry ->
             val params = GridLayout.LayoutParams().apply {
-                width = 0
-                height = dp(88)
-                columnSpec = GridLayout.spec(index % grid.columnCount, 1f)
-                setMargins(dp(4), dp(4), dp(4), dp(4))
+                width = tileWidth
+                height = dp(94)
+                columnSpec = GridLayout.spec(index % grid.columnCount)
+                setMargins(dp(3), dp(3), dp(3), dp(3))
             }
             grid.addView(appTile(entry), params)
         }
         empty.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
+        appsHeading.text = if (query.isEmpty()) "${apps.size} INSTALLED" else "${shown.size} OF ${apps.size}"
+        appsValue.text = apps.size.toString()
     }
 
     private fun appTile(entry: AppEntry): LinearLayout =
@@ -362,14 +517,16 @@ class MainActivity : Activity() {
             addView(ImageView(this@MainActivity).apply {
                 setImageDrawable(entry.icon)
                 scaleType = ImageView.ScaleType.FIT_CENTER
-            }, LinearLayout.LayoutParams(dp(30), dp(30)))
+            }, LinearLayout.LayoutParams(dp(36), dp(36)))
             addView(TextView(this@MainActivity).apply {
                 text = entry.label
                 setTextColor(WHITE)
-                textSize = 10f
+                textSize = 9.5f
                 maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
                 gravity = Gravity.CENTER
-                setPadding(0, dp(6), 0, 0)
+                setLineSpacing(0f, 0.95f)
+                setPadding(0, dp(5), 0, 0)
                 typeface = typefaceMono
             })
             setOnClickListener { launch(entry) }
@@ -406,8 +563,12 @@ class MainActivity : Activity() {
     private fun startClock() {
         val tick = object : Runnable {
             override fun run() {
-                clock.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-                battery.text = readBattery()
+                val now = Date()
+                clock.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+                dateBig.text = SimpleDateFormat("dd", Locale.getDefault()).format(now)
+                val level = readBattery()
+                battery.text = level
+                if (::batteryValue.isInitialized) batteryValue.text = level.ifEmpty { "—" }
                 clock.postDelayed(this, 15_000)
             }
         }
