@@ -81,7 +81,16 @@ if ! step "launch" adb shell am start -W -n "$ACTIVITY"; then
   fail "am start failed" "$LAST_OUT"
 fi
 
-sleep 8
+# Wait for the first real frame: the starting window shows only the icon, so a
+# screenshot taken too early would prove nothing about the layout.
+drawn=0
+for _ in $(seq 1 60); do
+  if adb shell dumpsys activity activities 2>/dev/null | grep -q 'reportedDrawn=true'; then
+    drawn=1; break
+  fi
+  sleep 1
+done
+note "window reported drawn: $drawn"
 
 pids=$(adb shell pidof "$PKG" 2>&1 | tr -d '\r')
 if [ -z "$pids" ]; then

@@ -140,8 +140,11 @@ class MainActivity : Activity() {
     private fun build() {
         root = FrameLayout(this)
 
+        android.util.Log.d("SMTH", "build start")
         val art = BitmapFactory.decodeResource(resources, R.drawable.smth_wallpaper)
+        android.util.Log.d("SMTH", "sharp decoded")
         val frostedArt = BitmapFactory.decodeResource(resources, R.drawable.smth_wallpaper_blur)
+        android.util.Log.d("SMTH", "blur decoded")
         val wallpaper = WallpaperView(this, art, frostedArt)
         root.addView(wallpaper, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
@@ -161,6 +164,7 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
         ).apply { gravity = Gravity.TOP or Gravity.START })
 
+        android.util.Log.d("SMTH", "desktop ready")
         // ---- taskbar -----------------------------------------------------
         val taskbar = GlassView(this, wallpaper, wallpaper.blurred).apply {
             setPadding(dp(8), 0, dp(8), 0)
@@ -258,6 +262,7 @@ class MainActivity : Activity() {
             bottomMargin = dp(10)
         })
 
+        android.util.Log.d("SMTH", "taskbar ready")
         // ---- start menu --------------------------------------------------
         startPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -398,9 +403,11 @@ class MainActivity : Activity() {
             desktop.setPadding(dp(20), dp(18), dp(20), dp(8))
             insets
         }
+        android.util.Log.d("SMTH", "panel ready")
         setContentView(root)
         root.requestApplyInsets()
         applyPanelGeometry(startGlass)
+        android.util.Log.d("SMTH", "content set")
     }
 
     private var allCount: TextView? = null
@@ -451,7 +458,11 @@ class MainActivity : Activity() {
             "com.android.camera2", "com.android.settings", "com.google.android.apps.photos",
         )
         val found = preferred.mapNotNull { pkg -> apps.firstOrNull { it.packageName == pkg } }
-        return (found + apps).distinctBy { it.packageName }.take(if (resources.configuration.screenHeightDp < 420) 4 else 6)
+        // Only fill the column with shortcuts that actually fit above the
+        // taskbar on this display; the rest live in the Start menu.
+        val available = resources.configuration.screenHeightDp - 46 - 40
+        val fits = (available / 66).coerceIn(3, 6)
+        return (found + apps).distinctBy { it.packageName }.take(fits)
     }
 
     private fun rebuildDesktop() {
@@ -626,6 +637,7 @@ class MainActivity : Activity() {
         rebuildPinned()
         renderAll()
         rebuildStartPinned()
+        android.util.Log.d("SMTH", "apps rendered ${apps.size}")
     }
 
     private fun submitFirst() {
