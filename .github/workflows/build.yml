@@ -122,7 +122,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xorriso qemu-system-x86 qemu-system-arm
       - name: Verify El Torito, menu entries and kernel/initrd paths
-        run: bash tools/verify_bootloader.sh "dist/smth-os-${{ matrix.arch }}.iso" "${{ matrix.arch }}"
+        run: |
+          set +e
+          bash tools/verify_bootloader.sh "dist/smth-os-${{ matrix.arch }}.iso" "${{ matrix.arch }}" 2>&1 | tee /tmp/verify.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            echo "::error title=verify_bootloader failed::$(tr '\n' ' ' < /tmp/verify.log | tail -c 1800)"
+          fi
+          exit $status
       - name: Boot the live image and verify the desktop session
         env:
           SMTH_QEMU_LOG: ${{ github.workspace }}/qemu-${{ matrix.arch }}.log
