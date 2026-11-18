@@ -24,6 +24,21 @@ if ! id smth >/dev/null 2>&1; then
     echo 'smth:live' | chpasswd
 fi
 
+# The graphical session is started by the tty1 login shell, so that login must
+# exist on every architecture.  Relying on live-config to create the autologin
+# override is fragile: its user-setup step is skipped when the user already
+# exists (we create smth above), and without the override the image stops at a
+# login prompt with no compositor and no way for smth-bootcheck to pass.  Install
+# the drop-in explicitly and idempotently; it only affects tty1 on this live
+# image and keeps logind/PAM session registration intact.
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf <<'EOF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin smth --noclear %I $TERM
+EOF
+systemctl enable getty@tty1.service 2>/dev/null || true
+
 # desktop defaults (dark, SMTH icons, Inter)
 dconf update
 

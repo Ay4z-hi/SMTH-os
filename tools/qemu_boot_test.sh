@@ -30,6 +30,7 @@ echo "kernel: $(basename "$K")  initrd: $(basename "$I")"
 
 ACCEL=tcg
 CPU=max
+RNG=()
 if [ -w /dev/kvm ] && [ -r /dev/kvm ]; then
     ACCEL=kvm
     CPU=host
@@ -41,6 +42,7 @@ if [ "$ARCH" = amd64 ]; then
     APPEND="boot=live components console=tty0 console=ttyS0,115200 smth.bootcheck=1 username=smth hostname=smth loglevel=4"
     MACHINE=(-machine q35)
     MEDIA=(-cdrom "$ISO")
+    RNG=(-device virtio-rng-pci)
 else
     QEMU=qemu-system-aarch64
     APPEND="boot=live components console=ttyAMA0,115200 smth.bootcheck=1 username=smth hostname=smth loglevel=4"
@@ -48,6 +50,7 @@ else
     # virt has no IDE bus; attach the ISO as a readable virtio disk.  live-boot
     # scans block devices for /live/filesystem.squashfs, not only sr0.
     MEDIA=(-drive "file=$ISO,format=raw,if=virtio,readonly=on")
+    RNG=(-device virtio-rng-device)
 fi
 command -v "$QEMU" >/dev/null || { echo "$QEMU is not installed" >&2; exit 1; }
 
@@ -56,7 +59,7 @@ command -v "$QEMU" >/dev/null || { echo "$QEMU is not installed" >&2; exit 1; }
     -m 2048 -smp 2 -no-reboot -display none \
     -serial "file:$LOG" -monitor none \
     -kernel "$K" -initrd "$I" -append "$APPEND" \
-    "${MEDIA[@]}" &
+    "${MEDIA[@]}" "${RNG[@]}" &
 PID=$!
 echo "QEMU pid=$PID; waiting for SMTH_BOOT: OK (up to $((WAIT_ITERS*2/60)) minutes)"
 
