@@ -16,6 +16,14 @@ ln -sf /etc/systemd/system/smth-extensions.service /etc/systemd/system/multi-use
 ln -sf /etc/systemd/system/smth-bootcheck.service /etc/systemd/system/multi-user.target.wants/smth-bootcheck.service
 systemctl set-default multi-user.target   # labwc is started from the tty1 autologin shell
 
+# Pre-create the live user so agetty autologin on tty1 works before live-config runs.
+# live-config's user-setup skips when the user already exists, so this does not
+# conflict with username=smth on the kernel command line.
+if ! id smth >/dev/null 2>&1; then
+    useradd -m -s /bin/bash -G audio,cdrom,dip,floppy,video,plugdev,netdev,bluetooth,sudo smth
+    echo 'smth:live' | chpasswd
+fi
+
 # desktop defaults (dark, SMTH icons, Inter)
 dconf update
 
