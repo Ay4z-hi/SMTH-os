@@ -2,10 +2,7 @@
 # smthd supervises the long-lived shell helpers (notifications, layout watcher)
 # and restarts them with backoff if they die. If it cannot start, fall back to
 # launching them directly so the desktop still comes up.
-smthd --config /etc/smth/services.json --palette /usr/local/lib/smth/palette.json >/dev/null 2>&1 || {
-  smth-notifd >/dev/null 2>&1 &
-  smth-moded >/dev/null 2>&1 &
-}
+( smthd --config /etc/smth/services.json --palette /usr/local/lib/smth/palette.json || { smth-notifd & smth-moded & } ) >/dev/null 2>&1 &
 # The real desktop starts first.  The construction overlay runs above these
 # surfaces and fades out to reveal them; it is disabled by Settings or by
 # SMTH_NO_STARTUP_ANIMATION=1, and reduces to a short reveal under Reduce Motion.
