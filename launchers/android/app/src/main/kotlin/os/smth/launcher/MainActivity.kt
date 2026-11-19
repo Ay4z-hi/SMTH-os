@@ -60,14 +60,31 @@ private fun obsidian(alpha: Float) = (OBSIDIAN and 0x00FFFFFF) or ((alpha * 255)
 
 private val EASE_OUT: TimeInterpolator = DecelerateInterpolator(1.9f)
 
-/** A launchable app discovered on the device (never a hard-coded package list). */
-private data class AppEntry(
-    val label: String,
-    val packageName: String,
-    val icon: Drawable,
-)
+    /** A launchable app discovered on the device (never a hard-coded package list). */
+    private data class AppEntry(
+        val label: String,
+        val packageName: String,
+        val icon: Drawable,
+    )
 
 class MainActivity : Activity() {
+    /**
+     * Built-in SMTH apps that live inside this launcher package. They are
+     * distinct from externally installed apps and always available.
+     */
+    private val builtInApps: List<Pair<String, Int>> get() = listOf(
+        "Terminal" to R.drawable.ic_smth_terminal,
+    )
+
+    private fun builtInAppEntries(): List<AppEntry> {
+        return builtInApps.map { (label, iconRes) ->
+            AppEntry(
+                label = label,
+                packageName = packageName,
+                icon = getDrawable(iconRes)!!,
+            )
+        }
+    }
     private lateinit var root: FrameLayout
     private lateinit var desktop: LinearLayout
     private lateinit var pinnedRow: LinearLayout
@@ -455,7 +472,9 @@ class MainActivity : Activity() {
         // taskbar on this display; the rest live in the Start menu.
         val available = resources.configuration.screenHeightDp - 46 - 40
         val fits = (available / 66).coerceIn(3, 6)
-        return (found + apps).distinctBy { it.packageName }.take(fits)
+        // Put the Terminal on the desktop when there's room for it.
+        val terminalEntry = apps.firstOrNull { it.label == "Terminal" }
+        return (listOfNotNull(terminalEntry) + found + apps).distinctBy { it.packageName }.take(fits)
     }
 
     private fun rebuildDesktop() {
@@ -605,7 +624,7 @@ class MainActivity : Activity() {
     private fun refreshApps() {
         val pm = packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        apps = pm.queryIntentActivities(intent, 0)
+        val installed = pm.queryIntentActivities(intent, 0)
             .asSequence()
             .filter { it.activityInfo.packageName != packageName }
             .mapNotNull { info ->
@@ -626,6 +645,9 @@ class MainActivity : Activity() {
             .distinctBy { it.packageName }
             .sortedBy { it.label.lowercase(Locale.getDefault()) }
             .toList()
+        // Merge built-in apps with installed apps; built-ins first so they
+        // always appear even when no other terminal is installed.
+        apps = builtInAppEntries() + installed
         rebuildDesktop()
         rebuildPinned()
         renderAll()
@@ -672,6 +694,12 @@ class MainActivity : Activity() {
 
     // ---- launching ------------------------------------------------------
     private fun launch(entry: AppEntry) {
+        // Built-in apps are launched by explicit Intent; external apps via
+        // launch intent so their real entry point is honoured.
+        if (entry.packageName == packageName && entry.label == "Terminal") {
+            startActivitySafely(Intent(this, TerminalActivity::class.java))
+            return
+        }
         val intent = packageManager.getLaunchIntentForPackage(entry.packageName)
         if (intent == null) {
             Toast.makeText(this, "${entry.label} cannot be launched", Toast.LENGTH_SHORT).show()

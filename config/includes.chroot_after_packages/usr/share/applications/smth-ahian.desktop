@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SMTH Ahian
+Exec=smth-ahian
+Icon=smth-terminal
+Comment=Ahian Easter Egg
+Categories=Game;Utility;
+Terminal=true

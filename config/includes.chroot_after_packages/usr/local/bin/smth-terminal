@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+"""SMTH Terminal: built-in terminal for SMTH OS.
+
+A simple terminal that accepts SMTH commands including the Ahian easter egg.
+It does not expose the system shell.
+
+Commands:
+  help       show this message
+  clear      clear the terminal
+  date       show current date and time
+  version    show SMTH OS version
+  about      about this terminal
+  ahian      activate AHIAN mode (easter egg)
+  unahian    exit AHIAN mode
+"""
+
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+# Try to use readline for better keyboard handling
+try:
+    import readline
+    HAS_READLINE = True
+except ImportError:
+    HAS_READLINE = False
+
+OBSIDIAN = "\033[38;2;9;9;11m"
+MAROON = "\033[38;2;112;27;53m"
+BLUSH = "\033[38;2;242;198;210m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
+CFG = Path.home() / ".config" / "smth"
+FLAG = CFG / "ahian"
+AHIAN_WALL = "/usr/share/backgrounds/smth/ahian-teal.png"
+NORMAL_WALL = "/usr/share/backgrounds/smth/wallpaper.png"
+
+
+def print_color(text, color):
+    """Print text with color."""
+    print(f"{color}{text}{RESET}", end="")
+
+
+def show_help():
+    """Display help message."""
+    print()
+    print_color("SMTH Terminal — built-in commands", BLUSH)
+    print()
+    print_color("  help       show this message", BLUSH)
+    print_color("  clear      clear the terminal", BLUSH)
+    print_color("  date       show current date and time", BLUSH)
+    print_color("  version    show SMTH OS version", BLUSH)
+    print_color("  about      about this terminal", BLUSH)
+    print_color("  ahian      activate AHIAN mode (easter egg)", BLUSH)
+    print_color("  unahian    exit AHIAN mode", BLUSH)
+    print()
+    print_color("AHIAN is a hidden experience. Type 'ahian' and press Enter.", f"{BLUSH}\033[2m")
+    print()
+
+
+def show_date():
+    """Display current date and time."""
+    from datetime import datetime
+    print(datetime.now().strftime("%A, %d %B %Y | %H:%M:%S"))
+
+
+def show_version():
+    """Display version information."""
+    print("SMTH OS Launcher v1.0.0")
+    print("Terminal v1.0.0 | Linux")
+    print("Ahian mode v1.0.0")
+    print()
+    print_color("Approximate build: 2026-11", f"{BLUSH}\033[2m")
+
+
+def show_about():
+    """Display about information."""
+    print_color("SMTH Terminal", BLUSH)
+    print()
+    print("A built-in terminal for SMTH OS.")
+    print()
+    print("This terminal runs on Android, Linux (ISO) and Windows.")
+    print("It understands a small set of SMTH commands including the")
+    print("AHIAN easter egg. It does not expose the system shell.")
+    print()
+    print_color("Type 'help' for available commands.", f"{BLUSH}\033[2m")
+
+
+def write_state(ahian):
+    """Write or remove the Ahian flag."""
+    CFG.mkdir(parents=True, exist_ok=True)
+    if ahian:
+        FLAG.touch()
+        (CFG / "wallpaper").write_text(AHIAN_WALL + "\n")
+    else:
+        try:
+            FLAG.unlink()
+        except FileNotFoundError:
+            pass
+        try:
+            (CFG / "wallpaper").unlink()
+        except FileNotFoundError:
+            pass
+
+
+def enter_ahian_mode():
+    """Activate Ahian mode."""
+    if FLAG.exists():
+        print_color("AHIAN mode already active. Type 'unahian' to exit.", MAROON)
+        return False
+
+    print()
+    print_color("KERNEL PANIC: terminal subsystem failure", MAROON)
+    print_color("stack trace: 0x701B35 -> 0xF2C6D2 -> 0x09090B", f"{MAROON}\033[2m")
+    print_color("memory: corrupted", f"{MAROON}\033[2m")
+    print_color("last command: ahian", f"{MAROON}\033[2m")
+    print()
+
+    # Stage 2: Error cascade (simulated in terminal for non-GTK environments)
+    errors = [
+        "[01] smth-core: cannot resolve symbol `home`",
+        "[02] segmentation fault (core dumped)",
+        "[03] wayland: compositor rejected surface",
+        "[04] ahian.so: undefined reference to `beauty`",
+        "[05] error: 0x0000A1A1 memory not found",
+        "[06] warn: dot grid desynchronised",
+        "[07] error: palette overflow in column 7",
+        "[08] fatal: the void looked back",
+        "[09] error: 42 unnecessary pixels",
+        "[10] AHIAN: something wants to be beautiful",
+    ]
+
+    for error in errors:
+        time.sleep(0.15)
+        print_color(error, MAROON)
+        sys.stdout.flush()
+
+    time.sleep(0.5)
+
+    # Stage 3: Blue screen
+    print()
+    print("_" * 60)
+    print()
+    print_color("        SMTH OS", BLUSH)
+    print()
+    print_color("        wants to make your life beautiful", BLUSH)
+    print()
+    print_color("        Stop code: AHIAN_BEAUTY_ATTEMPTED", MAROON)
+    print()
+
+    # Stage 4: Countdown
+    for i in range(9, 0, -1):
+        time.sleep(1)
+        print_color(f"        making your life beautiful in {i}...", BLUSH)
+        sys.stdout.flush()
+
+    print()
+    print_color("_" * 60, MAROON)
+    print()
+
+    # Stage 5: Improved mode
+    write_state(True)
+
+    print_color("AHIAN mode activated", BLUSH)
+    print_color("Welcome to the beautiful experience", BLUSH)
+    print()
+    print_color("Run 'unahian' to return to normal mode.", f"{BLUSH}\033[2m")
+    print()
+
+    try:
+        subprocess.run(["notify-send", "-a", "SMTH", "AHIAN", "Something wants to make your life beautiful."],
+                      check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+    return True
+
+
+def exit_ahian_mode():
+    """Exit Ahian mode."""
+    if not FLAG.exists():
+        print_color("Not in AHIAN mode. Type 'ahian' to enter.", f"{BLUSH}\033[2m")
+        return False
+
+    print()
+    print_color("  AHIAN HAS BEEN DISABLED", MAROON)
+    print()
+    print_color("  looks like you dont like ahian", MAROON)
+    print()
+
+    time.sleep(2.6)
+
+    write_state(False)
+
+    print_color("ahian mode off — normal experience restored", BLUSH)
+    print()
+
+    try:
+        subprocess.run(["notify-send", "-a", "SMTH", "AHIAN", "looks like you dont like ahian"],
+                      check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+    return True
+
+
+def main():
+    """Main terminal loop."""
+    print()
+    print_color("SMTH Terminal v1.0.0", BLUSH)
+    print_color("Type 'help' for commands, 'exit' to quit.", f"{BLUSH}\033[2m")
+    print()
+    print("❯ ", end="")
+    sys.stdout.flush()
+
+    while True:
+        try:
+            if HAS_READLINE:
+                cmd = input()
+            else:
+                cmd = input()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+
+        cmd = cmd.strip()
+        if not cmd:
+            print("❯ ", end="")
+            sys.stdout.flush()
+            continue
+
+        # Display the command
+        print(f"\n{RESET}❯ {cmd}\n")
+
+        # Process command
+        cmd_lower = cmd.lower()
+
+        if cmd_lower == "help":
+            show_help()
+        elif cmd_lower == "clear":
+            os.system("clear" if os.name != "nt" else "cls")
+            print_color("SMTH Terminal v1.0.0", BLUSH)
+            print_color("Type 'help' for commands, 'exit' to quit.", f"{BLUSH}\033[2m")
+            print()
+        elif cmd_lower == "date":
+            show_date()
+        elif cmd_lower == "version":
+            show_version()
+        elif cmd_lower == "about":
+            show_about()
+        elif cmd_lower == "ahian":
+            if enter_ahian_mode():
+                # Stay in terminal but indicate Ahian mode
+                print_color("❯ ", BLUSH)
+                sys.stdout.flush()
+                continue
+            else:
+                break
+        elif cmd_lower == "unahian":
+            if exit_ahian_mode():
+                print_color("❯ ", BLUSH)
+                sys.stdout.flush()
+                continue
+            else:
+                break
+        elif cmd_lower in ("exit", "quit"):
+            print_color("Type 'ahian' for the SMTH easter egg, or close the terminal.", f"{BLUSH}\033[2m")
+            break
+        else:
+            print_color(f"command not found: {cmd}", MAROON)
+            print()
+
+        print("❯ ", end="")
+        sys.stdout.flush()
+
+    print()
+    print_color("Goodbye!", BLUSH)
+
+
+if __name__ == "__main__":
+    main()

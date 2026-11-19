@@ -7,6 +7,46 @@ applications and settings targets; it does not replace Explorer.
 
 Every action reports its failure in the status line instead of failing silently.
 """
+
+# Terminal command support
+TERMINAL_COMMANDS = {
+    "help": """SMTH Terminal - built-in commands
+  help       show this message
+  clear      clear the terminal
+  date       show current date and time
+  version    show SMTH OS version
+  about      about this terminal
+  ahian      activate AHIAN mode (easter egg)
+  unahian    exit AHIAN mode
+
+AHIAN is a hidden experience. Type 'ahian' and press Enter.""",
+    "about": """SMTH Terminal
+A built-in terminal for SMTH OS.
+
+This terminal runs on Android, Linux (ISO) and Windows.
+It understands a small set of SMTH commands including the
+AHIAN easter egg. It does not expose the system shell.""",
+}
+
+
+def get_terminal_response(command):
+    """Process a terminal command and return (output, is_ahian_action)."""
+    cmd = command.strip().lower()
+    if cmd == "help":
+        return TERMINAL_COMMANDS["help"], False
+    elif cmd == "clear":
+        return "terminal cleared", False
+    elif cmd == "date":
+        import datetime
+        return datetime.datetime.now().strftime("%A, %d %B %Y | %H:%M:%S"), False
+    elif cmd == "version":
+        return "SMTH OS Launcher v1.0.0\nTerminal v1.0.0 | Windows\nAHIAN mode v1.0.0", False
+    elif cmd == "about":
+        return TERMINAL_COMMANDS["about"], False
+    elif cmd == "exit" or cmd == "quit":
+        return "Type 'ahian' for the SMTH easter egg, or close the terminal.", False
+    return None, False  # Unknown command - caller should handle
+
 import ctypes
 import datetime
 import os
@@ -57,9 +97,13 @@ APPS = [
     ("Task Manager", "taskmgr.exe", [], "exe", "gauge"),
     ("Display settings", "ms-settings:display", [], "scheme", "display"),
     ("Sound settings", "ms-settings:sound", [], "scheme", "speaker"),
+    ("SMTH Terminal", None, [], "smth_terminal", "terminal"),
 ]
 
 PINNED = ("Files", "Browser", "Terminal", "Settings", "Calculator", "Photos")
+
+# Track built-in terminal window
+smth_terminal_window = None
 
 
 def draw_glyph(canvas, kind, cx, cy, size, colour=BLUSH, width=1.6, tags=()):
@@ -271,9 +315,14 @@ class SMTHLauncher:
                                highlightthickness=0, bd=0, cursor="hand2")
             button.smth_name = name
             button.pack(side="left", padx=1)
-            draw_glyph(button, app[4], 15, 14, 18, BLUSH, 1.5)
+            if app[3] == "smth_terminal":
+                # Draw terminal glyph for built-in terminal
+                draw_glyph(button, "terminal", 15, 14, 18, BLUSH, 1.5)
+                button.bind("<Button-1>", lambda _e, a=app: self.launch(a[0], a[3]))
+            else:
+                draw_glyph(button, app[4], 15, 14, 18, BLUSH, 1.5)
+                button.bind("<Button-1>", lambda _e, a=app: self.launch(a[1], a[3], a[2]))
             self.pinned_dot(button, name)
-            button.bind("<Button-1>", lambda _e, a=app: self.launch(a[1], a[3], a[2]))
 
         tray = tk.Frame(bar, bg=SURFACE)
         tray.pack(side="right", padx=(4, 12))
@@ -326,11 +375,18 @@ class SMTHLauncher:
             cell.pack(side="left", padx=(0, 4))
             icon = tk.Canvas(cell, width=28, height=28, bg=OBSIDIAN, highlightthickness=0, bd=0)
             icon.pack()
-            draw_glyph(icon, app[4], 14, 14, 20, BLUSH, 1.5)
+            if app[3] == "smth_terminal":
+                # Draw terminal glyph for built-in terminal
+                draw_glyph(icon, "terminal", 14, 14, 20, BLUSH, 1.5)
+                cell.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
+                icon.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
+                label.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
+            else:
+                draw_glyph(icon, app[4], 14, 14, 20, BLUSH, 1.5)
+                for widget in (cell, icon, label):
+                    widget.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
             label = tk.Label(cell, text=name, fg=BLUSH, bg=OBSIDIAN, font=(self.mono, 7))
             label.pack()
-            for widget in (cell, icon, label):
-                widget.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
 
         tk.Label(body, text="ALL APPLICATIONS", fg=BLUSH_DIM, bg=OBSIDIAN,
                  font=(self.mono, 7)).pack(anchor="w", pady=(12, 2))
@@ -366,8 +422,11 @@ class SMTHLauncher:
         self.listbox.pack(side="left", fill="both", expand=True)
         for app in APPS:
             self.listbox.insert("end", f"  {app[0]}")
+        # Bind double-click and Enter to launch
         self.listbox.bind("<Double-Button-1>", lambda *_: self.launch_selected())
         self.listbox.bind("<Return>", lambda *_: self.launch_selected())
+        # Also launch on double-click via listbox binding
+        self.listbox.bind("<Double-1>", lambda e: self.launch_selected())
 
     def filter_start(self):
         q = self.query.get().strip().lower()
@@ -452,6 +511,15 @@ class SMTHLauncher:
             self.launch_start(app)
 
     def launch_start(self, app):
+        # Handle built-in terminal specially
+        if app[3] == "smth_terminal":
+            global smth_terminal_window
+            if smth_terminal_window is None or not smth_terminal_window.win.winfo_exists():
+                smth_terminal_window = TerminalWindow(self)
+            else:
+                smth_terminal_window.win.focus_force()
+            self.close_start()
+            return
         self.launch(app[1], app[3], app[2])
         self.close_start()
 
@@ -466,7 +534,16 @@ class SMTHLauncher:
     def launch(self, target, kind="exe", fallbacks=()):
         name = next((a[0] for a in APPS if a[1] == target), target)
         try:
-            if kind == "url":
+            if kind == "smth_terminal":
+                # Built-in SMTH Terminal
+                global smth_terminal_window
+                if smth_terminal_window is None or not smth_terminal_window.win.winfo_exists():
+                    smth_terminal_window = TerminalWindow(self)
+                else:
+                    smth_terminal_window.win.focus_force()
+                self.status.config(text="Opened SMTH Terminal", fg=BLUSH_DIM)
+                return
+            elif kind == "url":
                 import webbrowser
                 webbrowser.open(target)
             elif kind == "scheme":
@@ -682,3 +759,353 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ---- Terminal Window ----
+
+class TerminalWindow:
+    """Built-in SMTH Terminal with command support and Ahian mode."""
+
+    def __init__(self, parent):
+        self.parent = parent
+        self.win = tk.Toplevel(parent.root)
+        self.win.title("Terminal")
+        self.win.geometry("600x400")
+        self.win.minsize(400, 300)
+        self.win.configure(bg=OBSIDIAN)
+        self.win.transient(parent.root)
+        self.win.protocol("WM_DELETE_WINDOW", self.close)
+
+        # Terminal state
+        self.output = tk.Text(
+            self.win, bg=OBSIDIAN, fg=BLUSH, insertbackground=BLUSH,
+            font=(parent.mono, 11), relief="flat", bd=0, wrap=tk.WORD,
+            highlightthickness=0, state=tk.NORMAL
+        )
+        self.output.pack(fill=tk.BOTH, expand=True, padx=12, pady=(12, 4))
+        self.output.insert("1.0", "SMTH Terminal\nType 'help' for commands.\n\n")
+        self.output.config(state=tk.DISABLED)
+        self.output.bind("<Configure>", lambda e: self.output.yview_moveto(1))
+
+        # Input frame
+        input_frame = tk.Frame(self.win, bg=OBSIDIAN)
+        input_frame.pack(fill=tk.X, padx=12, pady=(0, 12))
+
+        self.input = tk.Entry(
+            input_frame, bg=MAROON_DEEP, fg=BLUSH, insertbackground=BLUSH,
+            font=(parent.mono, 11), relief="flat", bd=0,
+            highlightthickness=1, highlightbackground=BLUSH_DIM,
+            highlightcolor=BLUSH
+        )
+        self.input.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 8))
+        self.input.bind("<Return>", lambda e: self.submit())
+        self.input.focus_set()
+
+        submit_btn = tk.Button(
+            input_frame, text="Enter", command=self.submit,
+            bg=OBSIDIAN, fg=BLUSH, activebackground=MAROON,
+            activeforeground=BLUSH, relief="flat", bd=0,
+            font=(parent.mono, 9), padx=12, cursor="hand2"
+        )
+        submit_btn.pack(side=tk.RIGHT)
+
+        # Ahian state
+        self.ahian_active = False
+        self.ahian_dialogs = []
+        self.ahian_bsod = None
+        self.ahian_overlay = None
+        self.ahian_handler = None
+
+    def close(self):
+        if self.ahian_active:
+            self.exit_ahian()
+        self.win.destroy()
+
+    def submit(self):
+        cmd = self.input.get().strip()
+        self.input.delete(0, "end")
+        if not cmd:
+            return
+
+        # Display the command
+        self._append(f"❯ {cmd}\n")
+
+        # Process command
+        response, is_ahian = get_terminal_response(cmd)
+        if response is not None:
+            self._append(f"{response}\n")
+        elif cmd.lower() == "ahian":
+            self.enter_ahian()
+        elif cmd.lower() == "unahian":
+            self.exit_ahian()
+        else:
+            self._append(f"command not found: {cmd}\n")
+
+        self.output.yview_moveto(1)
+
+    def _append(self, text):
+        self.output.config(state=tk.NORMAL)
+        self.output.insert("end", text)
+        self.output.config(state=tk.DISABLED)
+
+    def enter_ahian(self):
+        if self.ahian_active:
+            self._append("AHIAN mode already active. Type 'unahian' to exit.\n")
+            return
+
+        self.ahian_active = True
+        self.input.config(state=tk.DISABLED, fg=BLUSH_DIM)
+
+        # Stage 1: Terminal failure
+        self._append("KERNEL PANIC: terminal subsystem failure\n")
+        self._append("stack trace: 0x701B35 -> 0xF2C6D2 -> 0x09090B\n")
+        self._append("memory: corrupted\n")
+        self._append("last command: ahian\n")
+
+        # Visually corrupt the terminal
+        self.output.config(fg=maroon(0.9))
+        self.win.after(1500, self._start_error_cascade)
+
+    def _start_error_cascade(self):
+        # Stage 2: Error dialog cascade
+        screen_width = self.win.winfo_screenwidth()
+        screen_height = self.win.winfo_screenheight()
+
+        dialog_messages = [
+            ("smth-core has stopped working", "A problem caused the program to stop working correctly. Reboot recommended."),
+            ("AHIAN subsystem error", "The dot engine could not keep up with the current state."),
+            ("Kernel panic: dot mismatch", "0x000000A1: attempted to divide beauty by zero."),
+            ("System alert: memory corruption", "The window manager would like to apologise for this error."),
+            ("Critical process terminated", "Something is trying to make your life beautiful."),
+            ("SMTH OS fatal error", "This dialog will close itself. Probably."),
+            ("Window manager failure", "FatalError: the void looked back."),
+            ("Surface composer crash", "Error 0x701B35: invalid aesthetic operation."),
+        ]
+
+        for i in range(24):
+            delay = 400 + (i % 5) * 100  # Stagger
+            x = int(screen_width * 0.1 + screen_width * 0.8 * (i % 6) / 5)
+            y = int(screen_height * 0.1 + screen_height * 0.8 * (i // 6))
+            width = min(max(int(screen_width * 0.25 + Math.random() * screen_width * 0.2), 200), 400)
+            height = min(max(int(screen_height * 0.15 + Math.random() * screen_height * 0.1), 100), 200)
+
+            title, msg = dialog_messages[i % len(dialog_messages)]
+
+            self.win.after(delay, lambda x=x, y=y, w=width, h=height, t=title, m=msg: self._show_error_dialog(x, y, w, h, t, m))
+
+        # Stage 3: BSOD after dialog storm
+        self.win.after(10000 + 500, self._show_bsod)
+
+    def _show_error_dialog(self, x, y, width, height, title, message):
+        if not self.ahian_active:
+            return
+
+        dialog = tk.Toplevel(self.win)
+        dialog.title("Error")
+        dialog.geometry(f"{width}x{height}+{x}+{y}")
+        dialog.configure(bg=OBSIDIAN)
+        dialog.transient(self.win)
+        dialog.attributes("-topmost", True)
+
+        frame = tk.Frame(dialog, bg=OBSIDIAN)
+        frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=14)
+
+        icon_label = tk.Label(
+            frame, text="⚠", fg=BLUSH, bg=OBSIDIAN,
+            font=("Doto", 24), anchor="w"
+        )
+        icon_label.pack(fill=tk.X)
+
+        title_label = tk.Label(
+            frame, text=title, fg=BLUSH, bg=OBSIDIAN,
+            font=(self.parent.mono, 11, "bold"), anchor="w", wraplength=width-32
+        )
+        title_label.pack(fill=tk.X, pady=(4, 4))
+
+        msg_label = tk.Label(
+            frame, text=message, fg=blush(0.6), bg=OBSIDIAN,
+            font=(self.parent.mono, 10), anchor="w", wraplength=width-32, justify=tk.LEFT
+        )
+        msg_label.pack(fill=tk.X, pady=(0, 8))
+
+        ok_btn = tk.Button(
+            frame, text="OK", command=dialog.destroy,
+            bg=blush(0.1), fg=maroon(0.9), activebackground=MAROON,
+            activeforeground=BLUSH, relief="flat", bd=0,
+            font=(self.parent.mono, 9), padx=12, cursor="hand2"
+        )
+        ok_btn.pack(side=tk.RIGHT, anchor="e", padx=8, pady=8)
+
+        self.ahian_dialogs.append(dialog)
+
+    def _show_bsod(self):
+        # Close all error dialogs
+        for d in self.ahian_dialogs:
+            try:
+                d.destroy()
+            except:
+                pass
+        self.ahian_dialogs.clear()
+
+        # BSOD window
+        self.ahian_bsod = tk.Toplevel(self.win)
+        self.ahian_bsod.title("BSOD")
+        self.ahian_bsod.geometry(f"{self.win.winfo_screenwidth()}x{self.win.winfo_screenheight()}+0+0")
+        self.ahian_bsod.configure(bg="#12245b")
+        self.ahian_bsod.transient(self.win)
+        self.ahian_bsod.attributes("-topmost", True)
+        self.ahian_bsod.protocol("WM_DELETE_WINDOW", lambda: None)  # Prevent closing
+
+        # Draw BSOD content
+        canvas = tk.Canvas(
+            self.ahian_bsod, bg="#12245b", highlightthickness=0, bd=0
+        )
+        canvas.pack(fill=tk.BOTH, expand=True)
+
+        # Accent line at top
+        canvas.create_rectangle(0, 0, self.ahian_bsod.winfo_screenwidth(), 4, fill=MAROON)
+
+        # SMTH OS heading
+        canvas.create_text(
+            self.ahian_bsod.winfo_screenwidth() / 2, 120,
+            text="SMTH OS", fill=BLUSH, font=("Doto", 48, "bold")
+        )
+
+        # Main message
+        canvas.create_text(
+            self.ahian_bsod.winfo_screenwidth() / 2, 180,
+            text="wants to make your life beautiful",
+            fill=BLUSH, font=("Doto", 32)
+        )
+
+        # Stop code
+        canvas.create_text(
+            self.ahian_bsod.winfo_screenwidth() / 2, 220,
+            text="Stop code: AHIAN_BEAUTY_ATTEMPTED",
+            fill=MAROON, font=(self.parent.mono, 14)
+        )
+
+        # Countdown
+        self.bsod_countdown = 9
+        self.bsod_count_label = canvas.create_text(
+            self.ahian_bsod.winfo_screenwidth() / 2, 280,
+            text=f"making your life beautiful in {self.bsod_countdown}...",
+            fill=blush(0.9), font=("Doto", 24, "bold")
+        )
+
+        # Start countdown
+        self._start_countdown()
+
+    def _start_countdown(self):
+        if not self.ahian_active:
+            return
+
+        self.bsod_countdown -= 1
+        if self.bsod_countdown > 0:
+            self.ahian_bsod.after(1000, self._update_countdown)
+        else:
+            self.ahian_bsod.after(1000, self._enter_improved_mode)
+
+        self.ahian_bsod.after(0, lambda: self.ahian_bsod.itemconfig(
+            self.bsod_count_label,
+            text=f"making your life beautiful in {self.bsod_countdown}..."
+        ))
+
+    def _update_countdown(self):
+        self._start_countdown()
+
+    def _enter_improved_mode(self):
+        # Close BSOD
+        try:
+            self.ahian_bsod.destroy()
+        except:
+            pass
+        self.ahian_bsod = None
+
+        # Show improved mode overlay
+        self._show_improved_overlay()
+
+        self._append("AHIAN mode activated\n")
+        self._append("Welcome to the beautiful experience\n")
+
+        # Re-enable input
+        self.input.config(state=tk.NORMAL, fg=BLUSH)
+        self.input.delete(0, "end")
+        self.input.insert(0, "unahian")
+        self.input.focus_set()
+        self.input.select_range(0, "end")
+
+        self.ahian_active = False
+
+    def _show_improved_overlay(self):
+        overlay = tk.Toplevel(self.win)
+        overlay.title("AHIAN")
+        overlay.geometry(f"{self.win.winfo_screenwidth()}x{self.win.winfo_screenheight()}+0+0")
+        overlay.configure(bg=MAROON)
+        overlay.transient(self.win)
+        overlay.attributes("-topmost", True)
+
+        frame = tk.Frame(overlay, bg=MAROON)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        msg_label = tk.Label(
+            frame, text="AHIAN mode activated",
+            fg=BLUSH, bg=MAROON,
+            font=("Doto", 28, "bold"),
+            justify=tk.CENTER
+        )
+        msg_label.pack(expand=True)
+
+        sub_label = tk.Label(
+            frame, text="Welcome to the beautiful experience",
+            fg=blush(0.8), bg=MAROON,
+            font=(self.parent.mono, 14),
+            justify=tk.CENTER
+        )
+        sub_label.pack(expand=True)
+
+        self.ahian_overlay = overlay
+
+    def exit_ahian(self):
+        if not self.ahian_active:
+            self._append("Not in AHIAN mode. Type 'ahian' to enter.\n")
+            return
+
+        self.ahian_active = False
+
+        # Close all dialogs
+        for d in self.ahian_dialogs:
+            try:
+                d.destroy()
+            except:
+                pass
+        self.ahian_dialogs.clear()
+
+        # Close BSOD
+        if self.ahian_bsod:
+            try:
+                self.ahian_bsod.destroy()
+            except:
+                pass
+            self.ahian_bsod = None
+
+        # Close improved overlay
+        if self.ahian_overlay:
+            try:
+                self.ahian_overlay.destroy()
+            except:
+                pass
+            self.ahian_overlay = None
+
+        # Restore terminal
+        self.input.config(state=tk.NORMAL, fg=BLUSH)
+        self.output.config(fg=BLUSH)
+        self.input.delete(0, "end")
+        self.input.focus_set()
+
+        self._append("AHIAN mode exited. Normal terminal restored.\n")
+
+
+# Need Math for random
+import math as _math
+Math = type('Math', (), {'random': staticmethod(_math.random)})()

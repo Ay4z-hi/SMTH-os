@@ -19,7 +19,7 @@ REDUCE_MOTION = os.path.expanduser("~/.config/smth/reduce-motion")
 WALL = "/usr/share/backgrounds/smth/wallpaper.png"
 AHIAN_WALL = "/usr/share/backgrounds/smth/ahian-teal.png"
 APPS = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint", "smth-notes",
-        "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings"]
+        "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings", "smth-ahian"]
 GOLD = math.pi * (3 - math.sqrt(5)); TAU = math.tau
 CY, VI = D.AHIAN_ACCENT, D.AHIAN_TEAL      # the live dot field is AHIAN art only
 

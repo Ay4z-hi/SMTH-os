@@ -13,7 +13,7 @@ from gi.repository import Gtk4LayerShell as LS
 import smthdot as D
 
 PINNED = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint",
-          "smth-notes", "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings"]
+          "smth-notes", "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings", "smth-ahian"]
 
 CSS = b"""
 window.launcher { background: alpha(#09090b, 0.90); border: 1px solid alpha(#f2c6d2, 0.18); border-radius: 14px; color: #f2c6d2; }
