@@ -1,0 +1,131 @@
+SMTH OS — Android runtime evidence (emulator-5554, android-35 google_apis x86_64, TCG/no KVM)
+Captured 2026-11-19 during this session. Times are emulator local time.
+
+1. Terminal command handling (logcat, tag SMTHTerminal)
+-------------------------------------------------------
+11-19 16:09:02.235 17790 17790 I SMTHTerminal: submit: 'help'
+11-19 16:09:02.236 17790 17790 I SMTHTerminal: command: help
+
+2. UI hierarchy after help / date / version / about (uiautomator dump, text nodes)
+----------------------------------------------------------------------------------
+❯ help
+SMTH Terminal — built-in commands
+  help       show this message
+  clear      clear the terminal
+  date       show current date and time
+  version    show SMTH OS version
+  about      about this terminal
+  ahian      activate AHIAN mode (easter egg)
+  unahian    exit AHIAN mode
+
+AHIAN is a hidden experience. Type 'ahian' and press Enter.
+❯ date
+Thursday, 19 November 2026 | 16:09:36
+❯ version
+SMTH OS Launcher v1.0.0
+Terminal v1.0.0 | Android
+Ahian mode v1.0.0
+
+Approximate build: 2026-11
+❯ about
+SMTH Terminal
+A built-in terminal for SMTH OS.
+
+This terminal runs on Android, Linux (ISO) and Windows.
+It understands a small set of SMTH commands including the
+AHIAN easter egg. It does not expose the Android shell.
+
+Type 'help' for available commands.
+
+3. clear (uiautomator dump after clear)
+---------------------------------------
+terminal cleared
+❯
+
+4. ahian — full activation sequence (logcat)
+--------------------------------------------
+11-19 16:12:29.851 17790 17790 I SMTHTerminal: submit: 'ahian'
+11-19 16:12:29.852 17790 17790 I SMTHTerminal: command: ahian
+11-19 16:12:30.167 17790 17790 I SMTHTerminal: ahian stage 1: terminal failure
+11-19 16:12:33.155 17790 17790 I SMTHTerminal: ahian stage 2: error cascade (24 dialogs over 10s)
+11-19 16:13:02.826 17790 17790 I SMTHTerminal: ahian stage 3: bsod
+11-19 16:13:13.824 17790 17790 I SMTHTerminal: ahian stage 4: countdown 8
+11-19 16:13:14.834 17790 17790 I SMTHTerminal: ahian stage 4: countdown 7
+11-19 16:13:15.926 17790 17790 I SMTHTerminal: ahian stage 4: countdown 6
+11-19 16:13:16.959 17790 17790 I SMTHTerminal: ahian stage 4: countdown 5
+11-19 16:13:17.970 17790 17790 I SMTHTerminal: ahian stage 4: countdown 4
+11-19 16:13:18.983 17790 17790 I SMTHTerminal: ahian stage 4: countdown 3
+11-19 16:13:19.990 17790 17790 I SMTHTerminal: ahian stage 4: countdown 2
+11-19 16:13:21.006 17790 17790 I SMTHTerminal: ahian stage 4: countdown 1
+11-19 16:13:22.030 17790 17790 I SMTHTerminal: ahian stage 5: improved mode
+
+Note: wall-clock expansion (stage 2 took ~29 s on the emulator) is CPU
+starvation under TCG; the app schedules dialogs 400 ms apart
+(i * 400L) and the countdown ticks are 1000 ms apart as logged.
+
+5. Improved mode — terminal text after stage 5 (uiautomator dump)
+-----------------------------------------------------------------
+❯ ahian
+KERNEL PANIC: terminal subsystem failure
+stack trace: 0x701B35 -> 0xF2C6D2 -> 0x09090B
+memory: corrupted
+last command: ahian
+AHIAN mode activated
+Welcome to the beautiful experience
+Type 'unahian' to exit.
+❯
+
+6. Improved mode — pixel check of artifacts/android_ahian_improved.png
+---------------------------------------------------------------------
+1280x720 screenshot, dominant colour (124, 77, 255) = #7C4DFF on 59.2% of
+pixels, obsidian terminal area 12.3%. Confirms the purple improved theme.
+
+7. Launcher surface (uiautomator dumps)
+---------------------------------------
+Desktop  : text nodes Terminal, Chrome, Phone, SMTH, Search, clock, date.
+Start menu: SMTH / START / "Search applications" / PINNED row:
+            Terminal, Chrome, Phone, Messages (after fix that puts the
+            built-in Terminal first).
+Process  : os.smth.launcher pid 19544 alive after the full Ahian run.
+
+8. Not captured at runtime (environment blocker)
+------------------------------------------------
+`unahian` red screen and the restored desktop were NOT observed at runtime.
+The emulator has no KVM (`-accel off`), and after the first successful run
+its system_server was repeatedly killed by its watchdog during package
+installs (`service list` collapsing to ~70 services, "Can't find service:
+activity/package/window"), so the APK could not be relaunched afterwards.
+The exit path exists in code (AhianExitOverlay, 3 s hold, theme restore)
+and compiles; it is not runtime-verified.
+
+Build provenance: the runtime evidence above came from intermediate debug
+builds of this session that already contained the cascade, BSOD, countdown,
+improved mode, Start-menu entry and search fixes. The final artifact adds the
+launcher purple-teal desktop hook and the taller Start panel and was NOT yet
+run on the device because the emulator could not relaunch it.
+
+Windows EXE: not built or run (no Wine, PyInstaller cannot cross-build a
+Windows EXE here, no tkinter/Xvfb for a headless Tk run). Only
+`python3 -m py_compile launchers/windows/smth_launcher.py` was run.
+
+Linux ISOs: not built or booted (no live-build, xorriso, qemu-system-*,
+and no root for debootstrap/live-build). No ISO artifacts exist.
+
+9. Linux scripts — real runtime run (headless, this machine)
+------------------------------------------------------------
+`ahian on` : prints cascade, "wants to make your life beautiful",
+             countdown 9…1, writes ~/.config/smth/ahian and
+             wallpaper=/usr/share/backgrounds/smth/ahian-teal.png,
+             settings.json {"ahian": true}; exit 0.
+`ahian unahian`: prints "looks like you dont like ahian", removes the flag
+             and wallpaper preference, settings.json {"ahian": false};
+             exit 0.
+`smth-terminal` fed help/date/version/about/clear/ahian/unahian/exit:
+             all commands answer, the Ahian sequence runs with the exact
+             BSOD and exit copy, terminal returns to normal; exit 0.
+This is script-level runtime, not ISO integration: nothing was booted.
+
+10. Artifact
+------------
+launchers/android/SMTH-Android-Launcher.apk
+sha256 a7d203eb0c8b82afe6326225cac06ca1d129f87002df2bc78e83f3bf06bb3d32

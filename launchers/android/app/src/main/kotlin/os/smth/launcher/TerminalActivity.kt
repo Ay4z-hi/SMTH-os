@@ -750,7 +750,7 @@ class AhianExitOverlay(
     private fun dpf(v: Float) = v * density
 
     init {
-        setBackgroundColor(0xFFFF0000.toInt())
+        setBackgroundColor(Color.parseColor("#D71921"))
 
         val message = TextView(context).apply {
             text = "looks like you dont like ahian"

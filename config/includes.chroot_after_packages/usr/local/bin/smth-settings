@@ -237,7 +237,7 @@ def security(win):
 PAGES = [("accessibility", "Accessibility", "preferences-desktop-accessibility-symbolic", accessibility), ("security", "Security", "security-high-symbolic", security), ("display", "Display", "video-display-symbolic", display), ("network", "Network", "network-wireless-symbolic", network), ("bluetooth", "Bluetooth", "bluetooth-symbolic", bluetooth),
          ("sound", "Sound", "audio-volume-high-symbolic", sound), ("power", "Power", "battery-symbolic", power), ("vms", "VMs", "computer-symbolic", vms)]
 def on_activate(app, start):
-    win = Adw.ApplicationWindow(application=app, default_width=460, default_height=780); stack = Adw.ViewStack()
+    win = Adw.ApplicationWindow(application=app, default_width=520, default_height=860); stack = Adw.ViewStack()
     for n, t, i, f in PAGES: stack.add_titled_with_icon(f(win), n, t, i)
     if start in [x[0] for x in PAGES]: stack.set_visible_child_name(start)
     tv = Adw.ToolbarView(content=stack); hb = Adw.HeaderBar(title_widget=D.dot_label("SETTINGS", 3)); hb.add_css_class("flat"); tv.add_top_bar(hb)

@@ -50,7 +50,11 @@ class App(Gtk.Application):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
                        margin_top=16, margin_bottom=14, margin_start=18, margin_end=18)
         head = Gtk.Box(spacing=8)
-        head.append(D.dot_label("SMTH", 3, on=D.BLUSH))
+        logo = D.dot_label("SMTH", 4, on=D.BLUSH)
+        head.append(logo)
+        click = Gtk.GestureClick()
+        click.connect("pressed", lambda *_: self.entry.grab_focus())
+        logo.add_controller(click)
         spacer = Gtk.Box(hexpand=True); head.append(spacer)
         head.append(Gtk.Label(label="START", css_classes=["head"]))
         root.append(head)

@@ -214,41 +214,19 @@ class MainActivity : Activity() {
         val startButton = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), 0, dp(10), 0)
+            setPadding(dp(10), 0, dp(12), 0)
             isClickable = true
             isFocusable = true
-            setOnClickListener { toggleStart() }
+            // The logo is the search entry point: no separate Search button.
+            setOnClickListener { openStart(focusSearch = true) }
             addView(ImageView(this@MainActivity).apply {
                 setImageResource(R.drawable.ic_launcher_smth)
                 scaleType = ImageView.ScaleType.FIT_CENTER
-            }, LinearLayout.LayoutParams(dp(20), dp(20)))
-            addView(label("SMTH", 10.5f, BLUSH, 0.18f), LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply { marginStart = dp(7) })
+            }, LinearLayout.LayoutParams(dp(28), dp(28)))
         }
         barRow.addView(startButton, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT,
         ))
-
-        val searchPill = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = glassPill()
-            setPadding(dp(9), 0, dp(9), 0)
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { openStart(focusSearch = true) }
-            addView(ImageView(this@MainActivity).apply {
-                setImageResource(R.drawable.ic_smth_search)
-                alpha = 0.72f
-            }, LinearLayout.LayoutParams(dp(14), dp(14)))
-            addView(label("Search", 10f, blush(0.55f), 0.06f), LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-            ).apply { marginStart = dp(6) })
-        }
-        barRow.addView(searchPill, LinearLayout.LayoutParams(dp(150), dp(30)).apply {
-            marginStart = dp(4)
-        })
 
         pinnedRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -456,7 +434,7 @@ class MainActivity : Activity() {
         params.width = minOf(dp(380), (screen.widthPixels * 0.56f).toInt())
         // Use the space above the taskbar rather than a fixed fraction, so the
         // all-applications list and search results are never clipped away.
-        params.height = minOf(dp(430), screen.heightPixels - dp(78))
+        params.height = minOf(dp(560), screen.heightPixels - dp(96))
         panel.layoutParams = params
     }
 

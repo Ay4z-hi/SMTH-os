@@ -282,8 +282,6 @@ class SMTHLauncher:
             c.create_text(64, y + 46, text=name, fill=BLUSH, anchor="w",
                           font=(self.mono, 9), tags=("desktop", tag))
             c.tag_bind(tag, "<Button-1>", lambda _e, t=target, k=kind, f=fallbacks: self.launch(t, k, f))
-        c.create_text(26, h - 78, text="SMTH OS", fill=BLUSH_DIM, anchor="sw",
-                      font=(self.mono, 8), tags="desktop")
 
     def build_taskbar(self):
         bar = tk.Frame(self.root, bg=SURFACE, height=48)
@@ -293,20 +291,11 @@ class SMTHLauncher:
 
         start = tk.Frame(bar, bg=SURFACE, cursor="hand2")
         start.pack(side="left", padx=(10, 4), pady=7)
-        logo = tk.Canvas(start, width=22, height=22, bg=SURFACE, highlightthickness=0, bd=0)
+        logo = tk.Canvas(start, width=30, height=30, bg=SURFACE, highlightthickness=0, bd=0)
         logo.pack(side="left")
-        draw_glyph(logo, "fallback", 11, 11, 18, BLUSH, 1.4)
-        tk.Label(start, text="SMTH", fg=BLUSH, bg=SURFACE,
-                 font=(self.display, 10, "bold")).pack(side="left", padx=(6, 8))
+        draw_glyph(logo, "fallback", 15, 15, 24, BLUSH, 1.6)
+        # The logo opens search; there is no separate Search button.
         for widget in (start, logo):
-            widget.bind("<Button-1>", lambda _e: self.toggle_start())
-
-        search = tk.Frame(bar, bg=MAROON_DEEP, cursor="hand2",
-                          highlightthickness=1, highlightbackground=BLUSH_DIM)
-        search.pack(side="left", padx=4, pady=9, ipady=4)
-        tk.Label(search, text="Search", fg=BLUSH_DIM, bg=MAROON_DEEP,
-                 font=(self.mono, 9)).pack(side="left", padx=10)
-        for widget in (search, *search.winfo_children()):
             widget.bind("<Button-1>", lambda _e: self.open_start(focus=True))
 
         self.pinned_bar = tk.Frame(bar, bg=SURFACE)
@@ -378,17 +367,16 @@ class SMTHLauncher:
             cell.pack(side="left", padx=(0, 4))
             icon = tk.Canvas(cell, width=28, height=28, bg=OBSIDIAN, highlightthickness=0, bd=0)
             icon.pack()
+            label = tk.Label(cell, text=name, fg=BLUSH, bg=OBSIDIAN, font=(self.mono, 7))
             if app[3] == "smth_terminal":
                 # Draw terminal glyph for built-in terminal
                 draw_glyph(icon, "terminal", 14, 14, 20, BLUSH, 1.5)
-                cell.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
-                icon.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
-                label.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
+                for widget in (cell, icon, label):
+                    widget.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
             else:
                 draw_glyph(icon, app[4], 14, 14, 20, BLUSH, 1.5)
                 for widget in (cell, icon, label):
                     widget.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
-            label = tk.Label(cell, text=name, fg=BLUSH, bg=OBSIDIAN, font=(self.mono, 7))
             label.pack()
 
         tk.Label(body, text="ALL APPLICATIONS", fg=BLUSH_DIM, bg=OBSIDIAN,
