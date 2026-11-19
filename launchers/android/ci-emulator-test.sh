@@ -104,12 +104,35 @@ done
 
 note "home activity: $(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME 2>&1 | tr -d '\r' | tail -1)"
 
-# Keep a real screenshot of the running launcher with the build so the layout
-# can be reviewed without a local emulator.
-shot="$(dirname "$0")/smth-launcher-emulator.png"
-if adb exec-out screencap -p > "$shot" 2>/dev/null && [ -s "$shot" ]; then
-  note "screenshot: $shot ($(stat -c%s "$shot") bytes)"
-else
-  note "screenshot: not captured"
-fi
+# Keep real screenshots of the running launcher with the build so the layout
+# can be reviewed without a local emulator.  Taskbar coordinates follow the
+# launcher's own layout: Start sits at 11.7% of the width, the bar is anchored
+# 60 px above the bottom edge.
+dir="$(dirname "$0")"
+size=$(adb shell wm size 2>/dev/null | tr -d '\r' | awk -F'[ :x]+' '/Override|Physical/ {w=$(NF-1); h=$NF} END {print w" "h}')
+if [ -z "${size% *}" ] || [ "${size% *}" -lt 100 ] 2>/dev/null; then size="1280 720"; fi
+w=${size% *}; h=${size#* }
+note "display: ${w}x${h}"
+
+shot() {
+  local name="$1"
+  if adb exec-out screencap -p > "$dir/$name" 2>/dev/null && [ -s "$dir/$name" ]; then
+    note "screenshot: $name ($(stat -c%s "$dir/$name") bytes)"
+  else
+    note "screenshot: $name not captured"
+  fi
+}
+
+shot smth-launcher-emulator.png
+
+adb shell input tap $((w * 117 / 1000)) $((h - 60)) || true
+sleep 2
+shot smth-launcher-start.png
+
+adb shell input tap $((w * 360 / 1000)) $((h - 60)) || true
+sleep 1
+adb shell input text 'ch' || true
+sleep 2
+shot smth-launcher-search.png
+
 note "SMTH launcher install check passed"

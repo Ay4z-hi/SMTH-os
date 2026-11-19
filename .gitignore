@@ -19,3 +19,7 @@ __pycache__/
 /launchers/android/SMTH-Android-Launcher.apk
 
 /launchers/android/smth-launcher-emulator.png
+
+/launchers/android/smth-launcher-*.png
+
+/artifacts/SMTH-Android-Launcher.apk

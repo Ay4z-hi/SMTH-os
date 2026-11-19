@@ -1,8 +1,11 @@
 # Boot verification
 
-Status: **`amd64` and `arm64` boot verified in CI for `b70bc09`** (Build SMTH OS
-run #164, both `Boot ISO` jobs green, each gated on `SMTH_BOOT: OK` in the
-serial log).
+Status: **`amd64` boots in CI**; `arm64` boots to the boot check but the check
+has not completed since `b70bc09`. In run #169 (`f998f0e`) the `arm64` serial
+log ends at `SMTH_BOOT: start arch=aarch64` (170 s in) and the guest stops
+emitting output entirely under TCG, so no `SMTH_BOOT: OK` was recorded. The
+`amd64` job passed in the same run. Treat the current `arm64` image as
+unverified rather than broken: nothing in the log reports a failed check.
 
 ## Local / CI commands
 
@@ -23,7 +26,8 @@ uses KVM only when the device is readable/writable; otherwise it uses TCG. The
 kernel command line adds `smth.bootcheck=1`, which enables the `smth-bootcheck`
 systemd unit. The script waits up to eight minutes on `amd64` and thirty minutes
 on `arm64` (TCG) for `SMTH_BOOT: OK` on the serial console, and fails on
-`SMTH_BOOT: FAIL` or QEMU exit.
+`SMTH_BOOT: FAIL` or QEMU exit. The boot job's wall clock limit is 60 minutes
+because `arm64` TCG needs most of the wait window.
 
 The graphical session is started from tty1 autologin, not a display manager:
 `.bash_profile` runs `smth-session`, which starts `dbus-run-session -- labwc`;
@@ -36,7 +40,8 @@ processes and the Wayland/smthd sockets, then checks that `smth-extensions` and
 
 `.github/workflows/build.yml` has a `boot` matrix (`amd64` on `ubuntu-latest`,
 `arm64` on `ubuntu-24.04-arm`) that downloads each ISO, installs `xorriso` and
-QEMU, runs both checks, and uploads the serial log when the job fails.
+QEMU, runs both checks, and always uploads the serial log so a timed-out run
+still has evidence.
 
 ## What this does not prove
 
