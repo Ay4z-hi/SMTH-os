@@ -62,6 +62,9 @@ BLUSH = "#F2C6D2"
 SURFACE = "#0D0B0F"          # obsidian lifted one step for the taskbar
 BLUSH_DIM = "#8A7078"        # blush at low emphasis, still within the palette
 MAROON_DEEP = "#3A0F1D"
+AHIAN_PURPLE = "#7C4DFF"      # improved mode, deliberately outside the palette
+AHIAN_DEEP = "#1B1430"
+AHIAN_TEAL = "#2BD9C4"
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 if not os.path.isdir(ASSETS):
@@ -811,6 +814,7 @@ class TerminalWindow:
 
         # Ahian state
         self.ahian_active = False
+        self.ahian_exiting = False
         self.ahian_dialogs = []
         self.ahian_bsod = None
         self.ahian_overlay = None
@@ -849,7 +853,7 @@ class TerminalWindow:
         self.output.config(state=tk.DISABLED)
 
     def enter_ahian(self):
-        if self.ahian_active:
+        if self.ahian_active or self.ahian_exiting:
             self._append("AHIAN mode already active. Type 'unahian' to exit.\n")
             return
 
@@ -883,7 +887,8 @@ class TerminalWindow:
         ]
 
         for i in range(24):
-            delay = 400 + (i % 5) * 100  # Stagger
+            # One dialog every 400 ms, so the storm builds over ~10 s.
+            delay = 400 + i * 400
             x = int(screen_width * 0.1 + screen_width * 0.8 * (i % 6) / 5)
             y = int(screen_height * 0.1 + screen_height * 0.8 * (i // 6))
             width = min(max(int(screen_width * 0.25 + Math.random() * screen_width * 0.2), 200), 400)
@@ -893,8 +898,8 @@ class TerminalWindow:
 
             self.win.after(delay, lambda x=x, y=y, w=width, h=height, t=title, m=msg: self._show_error_dialog(x, y, w, h, t, m))
 
-        # Stage 3: BSOD after dialog storm
-        self.win.after(10000 + 500, self._show_bsod)
+        # Stage 3: BSOD after the full dialog storm
+        self.win.after(400 + 24 * 400 + 600, self._show_bsod)
 
     def _show_error_dialog(self, x, y, width, height, title, message):
         if not self.ahian_active:
@@ -1028,29 +1033,29 @@ class TerminalWindow:
         self._append("AHIAN mode activated\n")
         self._append("Welcome to the beautiful experience\n")
 
-        # Re-enable input
+        # Stay in AHIAN mode until `unahian`, but let the user type again.
         self.input.config(state=tk.NORMAL, fg=BLUSH)
         self.input.delete(0, "end")
         self.input.insert(0, "unahian")
         self.input.focus_set()
         self.input.select_range(0, "end")
 
-        self.ahian_active = False
-
     def _show_improved_overlay(self):
         overlay = tk.Toplevel(self.win)
         overlay.title("AHIAN")
         overlay.geometry(f"{self.win.winfo_screenwidth()}x{self.win.winfo_screenheight()}+0+0")
-        overlay.configure(bg=MAROON)
+        overlay.configure(bg=AHIAN_PURPLE)
         overlay.transient(self.win)
         overlay.attributes("-topmost", True)
+        overlay.protocol("WM_DELETE_WINDOW", lambda: None)
 
-        frame = tk.Frame(overlay, bg=MAROON)
+        frame = tk.Frame(overlay, bg=AHIAN_PURPLE)
         frame.pack(fill=tk.BOTH, expand=True)
+        tk.Frame(frame, bg=AHIAN_TEAL, height=4).pack(fill=tk.X)
 
         msg_label = tk.Label(
             frame, text="AHIAN mode activated",
-            fg=BLUSH, bg=MAROON,
+            fg="#FFFFFF", bg=AHIAN_PURPLE,
             font=("Doto", 28, "bold"),
             justify=tk.CENTER
         )
@@ -1058,13 +1063,39 @@ class TerminalWindow:
 
         sub_label = tk.Label(
             frame, text="Welcome to the beautiful experience",
-            fg=blush(0.8), bg=MAROON,
+            fg=AHIAN_TEAL, bg=AHIAN_PURPLE,
             font=(self.parent.mono, 14),
             justify=tk.CENTER
         )
         sub_label.pack(expand=True)
 
         self.ahian_overlay = overlay
+        # Brief reveal, then hand the purple-teal theme to the terminal.
+        self.win.after(2500, self._apply_improved_theme)
+
+    def _apply_improved_theme(self):
+        if self.ahian_overlay:
+            try:
+                self.ahian_overlay.destroy()
+            except tk.TclError:
+                pass
+            self.ahian_overlay = None
+        try:
+            self.win.configure(bg=AHIAN_DEEP)
+            self.output.configure(bg=AHIAN_DEEP, fg="#EDE7FF")
+            self.input.configure(bg="#241A3D", fg="#EDE7FF")
+            self.output.tag_configure("ahian", foreground=AHIAN_TEAL)
+            self.input.focus_set()
+        except tk.TclError:
+            pass
+
+    def _restore_terminal_theme(self):
+        try:
+            self.win.configure(bg=OBSIDIAN)
+            self.output.configure(bg=OBSIDIAN, fg=BLUSH)
+            self.input.configure(bg=MAROON_DEEP, fg=BLUSH)
+        except tk.TclError:
+            pass
 
     def exit_ahian(self):
         if not self.ahian_active:
@@ -1072,12 +1103,13 @@ class TerminalWindow:
             return
 
         self.ahian_active = False
+        self.ahian_exiting = True
 
         # Close all dialogs
         for d in self.ahian_dialogs:
             try:
                 d.destroy()
-            except:
+            except tk.TclError:
                 pass
         self.ahian_dialogs.clear()
 
@@ -1085,7 +1117,7 @@ class TerminalWindow:
         if self.ahian_bsod:
             try:
                 self.ahian_bsod.destroy()
-            except:
+            except tk.TclError:
                 pass
             self.ahian_bsod = None
 
@@ -1093,16 +1125,46 @@ class TerminalWindow:
         if self.ahian_overlay:
             try:
                 self.ahian_overlay.destroy()
-            except:
+            except tk.TclError:
                 pass
             self.ahian_overlay = None
 
-        # Restore terminal
+        self.input.config(state=tk.DISABLED, fg=BLUSH_DIM)
+        self._show_exit_overlay()
+
+    def _show_exit_overlay(self):
+        """The angry red screen shown by `unahian` before the restore."""
+        overlay = tk.Toplevel(self.win)
+        overlay.title("AHIAN")
+        overlay.geometry(f"{self.win.winfo_screenwidth()}x{self.win.winfo_screenheight()}+0+0")
+        overlay.configure(bg="#D71921")
+        overlay.transient(self.win)
+        overlay.attributes("-topmost", True)
+        overlay.protocol("WM_DELETE_WINDOW", lambda: None)
+
+        frame = tk.Frame(overlay, bg="#D71921")
+        frame.pack(fill=tk.BOTH, expand=True)
+        tk.Label(
+            frame, text="looks like you dont like ahian",
+            fg="#FFFFFF", bg="#D71921",
+            font=("Doto", 30, "bold"), justify=tk.CENTER
+        ).pack(expand=True)
+
+        self.ahian_overlay = overlay
+        self.win.after(3000, self._finish_exit)
+
+    def _finish_exit(self):
+        if self.ahian_overlay:
+            try:
+                self.ahian_overlay.destroy()
+            except tk.TclError:
+                pass
+            self.ahian_overlay = None
+        self.ahian_exiting = False
+        self._restore_terminal_theme()
         self.input.config(state=tk.NORMAL, fg=BLUSH)
-        self.output.config(fg=BLUSH)
         self.input.delete(0, "end")
         self.input.focus_set()
-
         self._append("AHIAN mode exited. Normal terminal restored.\n")
 
 

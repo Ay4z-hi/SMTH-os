@@ -86,6 +86,7 @@ class MainActivity : Activity() {
         }
     }
     private lateinit var root: FrameLayout
+    private lateinit var ahianTint: View
     private lateinit var desktop: LinearLayout
     private lateinit var pinnedRow: LinearLayout
     private lateinit var startPanel: LinearLayout
@@ -114,12 +115,21 @@ class MainActivity : Activity() {
         build()
         refreshApps()
         startClock()
+        applyAhianTheme()
     }
 
     override fun onResume() {
         super.onResume()
         // Installed or removed apps must show up without restarting the launcher.
         refreshApps()
+        applyAhianTheme()
+    }
+
+    /** AHIAN mode repaints the desktop purple-teal; `unahian` restores it. */
+    private fun applyAhianTheme() {
+        if (!::ahianTint.isInitialized) return
+        val on = getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false)
+        ahianTint.visibility = if (on) View.VISIBLE else View.GONE
     }
 
     override fun onBackPressed() {
@@ -161,6 +171,20 @@ class MainActivity : Activity() {
         val frostedArt = BitmapFactory.decodeResource(resources, R.drawable.smth_wallpaper_blur)
         val wallpaper = WallpaperView(this, art, frostedArt)
         root.addView(wallpaper, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
+
+        // AHIAN improved-mode wallpaper. Sits above the artwork and below the
+        // desktop so shortcuts, taskbar and the Start menu keep working.
+        ahianTint = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(Color.parseColor("#7C4DFF"), Color.parseColor("#2BD9C4")),
+            )
+            alpha = 0.86f
+            visibility = View.GONE
+        }
+        root.addView(ahianTint, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
         ))
 
@@ -288,7 +312,10 @@ class MainActivity : Activity() {
         startGlass.addView(startPanel, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
         ))
-        val startParams = FrameLayout.LayoutParams(dp(360), dp(430)).apply {
+        // Tall enough for the pinned row, the all-applications list and the
+        // footer, but never taller than the space above the taskbar.
+        val panelHeight = minOf(dp(560), resources.displayMetrics.heightPixels - dp(150))
+        val startParams = FrameLayout.LayoutParams(dp(360), panelHeight).apply {
             gravity = Gravity.BOTTOM or Gravity.START
             marginStart = dp(12)
             bottomMargin = dp(64)
@@ -339,7 +366,7 @@ class MainActivity : Activity() {
         ).apply { topMargin = dp(12) })
         suppressPointer(search)
 
-        val pinnedLabel = LinearLayout(this).apply {
+        pinnedLabel = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(14), 0, dp(6))
@@ -421,12 +448,15 @@ class MainActivity : Activity() {
     }
 
     private var allCount: TextView? = null
+    private var pinnedLabel: LinearLayout? = null
 
     private fun applyPanelGeometry(panel: View) {
         val screen = resources.displayMetrics
         val params = panel.layoutParams as FrameLayout.LayoutParams
         params.width = minOf(dp(380), (screen.widthPixels * 0.56f).toInt())
-        params.height = minOf(dp(430), (screen.heightPixels * 0.66f).toInt())
+        // Use the space above the taskbar rather than a fixed fraction, so the
+        // all-applications list and search results are never clipped away.
+        params.height = minOf(dp(430), screen.heightPixels - dp(78))
         panel.layoutParams = params
     }
 
@@ -559,7 +589,12 @@ class MainActivity : Activity() {
         return (found + apps).distinctBy { it.packageName }
     }
 
-    private fun startPinned(): List<AppEntry> = pinnedApps().take(5)
+    private fun startPinned(): List<AppEntry> {
+        // Built-in apps (the Terminal) always lead the Start menu pinned row.
+        val base = pinnedApps()
+        val builtIns = base.filter { it.packageName == packageName }
+        return (builtIns + base).distinctBy { it.packageName }.take(5)
+    }
 
     private fun rebuildStartPinned() {
         if (!::pinnedBox.isInitialized) return
@@ -590,6 +625,12 @@ class MainActivity : Activity() {
         val shown = if (query.isEmpty()) apps else apps.filter {
             it.label.lowercase(Locale.getDefault()).contains(query)
         }
+        // While searching, hide the pinned row so results sit at the top of
+        // the panel and are visible without scrolling.
+        val startInner = pinnedBox.parent as? View
+        pinnedLabel?.visibility = if (query.isEmpty()) View.VISIBLE else View.GONE
+        pinnedBox.visibility = if (query.isEmpty()) View.VISIBLE else View.GONE
+        startInner?.requestLayout()
         allGrid.columnCount = gridColumns()
         val columns = allGrid.columnCount
         val width = dp(62)
@@ -646,8 +687,13 @@ class MainActivity : Activity() {
             .sortedBy { it.label.lowercase(Locale.getDefault()) }
             .toList()
         // Merge built-in apps with installed apps; built-ins first so they
-        // always appear even when no other terminal is installed.
-        apps = builtInAppEntries() + installed
+        // always appear even when no other terminal is installed. Installed
+        // apps that duplicate a built-in label are dropped so the Terminal is
+        // not listed twice when a third-party terminal is present.
+        val builtIns = builtInAppEntries()
+        apps = builtIns + installed.filterNot { inst ->
+            builtIns.any { it.label.equals(inst.label, ignoreCase = true) }
+        }
         rebuildDesktop()
         rebuildPinned()
         renderAll()

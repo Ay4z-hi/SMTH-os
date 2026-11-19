@@ -1,6 +1,5 @@
 package os.smth.launcher
 
-import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
@@ -12,7 +11,6 @@ import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -32,8 +30,6 @@ private const val BLUSH = 0xFFF2C6D2.toInt()
 private fun blush(alpha: Float) = (BLUSH and 0x00FFFFFF) or ((alpha * 255).toInt().coerceIn(0, 255) shl 24)
 private fun maroon(alpha: Float) = (MAROON and 0x00FFFFFF) or ((alpha * 255).toInt().coerceIn(0, 255) shl 24)
 private fun obsidian(alpha: Float) = (OBSIDIAN and 0x00FFFFFF) or ((alpha * 255).toInt().coerceIn(0, 255) shl 24)
-
-private val EASE_OUT: android.animation.TimeInterpolator = DecelerateInterpolator(1.9f)
 
 // ---- Terminal Activity ----
 
@@ -115,16 +111,24 @@ class TerminalActivity : android.app.Activity() {
         // Keyboard handling
         val editText = terminalView.commandInput
         editText.setOnKeyListener { _, keyCode, event ->
-            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (event.action == KeyEvent.ACTION_DOWN &&
+                (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
+            ) {
                 submitCommand()
                 true
             } else false
         }
+        editText.setOnEditorActionListener { _, _, _ ->
+            submitCommand()
+            true
+        }
+        editText.requestFocus()
     }
 
     private fun submitCommand() {
         val input = terminalView.commandInput
         val text = input.text.toString().trim()
+        android.util.Log.i("SMTHTerminal", "submit: '$text'")
         if (text.isNotEmpty()) {
             terminalView.executeCommand(text)
             input.text.clear()
@@ -134,7 +138,7 @@ class TerminalActivity : android.app.Activity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK && ahianActive) {
+        if (keyCode == KeyEvent.KEYCODE_BACK && terminalView.ahianMode) {
             // In ahian mode, back should exit ahian via unahian
             terminalView.executeCommand("unahian")
             return true
@@ -150,18 +154,9 @@ class TerminalView(
     private val density: Float,
     private val dotFont: Typeface?,
     private val monoFont: Typeface?
-) : ScrollView(context) {
+) : LinearLayout(context) {
     private fun dp(v: Int) = (v * density).toInt()
     private fun dpf(v: Float) = v * density
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.LEFT
-        typeface = monoFont ?: Typeface.MONOSPACE
-    }
-    private val cursorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = BLUSH
-        textAlign = Paint.Align.LEFT
-        typeface = monoFont ?: Typeface.MONOSPACE
-    }
     private val commandColor = blush(0.9f)
     private val outputColor = blush(0.8f)
     private val errorColor = maroon(0.9f)
@@ -191,15 +186,21 @@ class TerminalView(
 
     private var commandHistory = mutableListOf<String>()
     private var historyIndex = -1
-    private var cursorBlink: ValueAnimator? = null
-    private var cursorVisible = true
     private var ahianState: AhianState? = null
+    var ahianMode = false
 
-    init {
+    private val outputScroll = ScrollView(context).apply {
         isFillViewport = true
         addView(output, LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+    }
+
+    init {
+        orientation = LinearLayout.VERTICAL
+        addView(outputScroll, LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
         ))
 
         val inputRow = LinearLayout(context).apply {
@@ -234,53 +235,12 @@ class TerminalView(
             ViewGroup.LayoutParams.WRAP_CONTENT
         ))
 
-        startCursorBlink()
-        commandInput.setOnFocusChangeListener { _, focused ->
-            if (focused) startCursorBlink() else stopCursorBlink()
-        }
-    }
-
-    private fun startCursorBlink() {
-        cursorBlink?.cancel()
-        cursorBlink = ValueAnimator.ofFloat(1f, 0f).apply {
-            duration = 530
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.REVERSE
-            interpolator = DecelerateInterpolator()
-            addUpdateListener { anim ->
-                cursorVisible = anim.animatedValue as Float > 0.3f
-                invalidate()
-            }
-            start()
-        }
-    }
-
-    private fun stopCursorBlink() {
-        cursorBlink?.cancel()
-        cursorBlink = null
-        cursorVisible = false
-    }
-
-    override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
-        stopCursorBlink()
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        if (cursorVisible && commandInput.hasFocus()) {
-            val text = commandInput.text.toString()
-            paint.textAlign = Paint.Align.LEFT
-            val measured = paint.measureText(text)
-            val x = dpf(12f) + dpf(4f) + dpf(16f) + measured + dpf(2f)
-            val y = height - dpf(28f) - dpf(8f) / 2f + (paint.descent() + paint.ascent()) / 2f
-            canvas.drawLine(x, y - dpf(8f), x, y + dpf(8f), cursorPaint)
-        }
     }
 
     fun executeCommand(cmd: String) {
         val trimmed = cmd.trim()
         if (trimmed.isEmpty()) return
+        android.util.Log.i("SMTHTerminal", "command: $trimmed")
 
         // Add to history
         commandHistory.add(trimmed)
@@ -356,6 +316,7 @@ class TerminalView(
     }
 
     private fun enterAhian() {
+        ahianMode = true
         if (ahianState != null) {
             appendOutput("AHIAN mode already active. Type 'unahian' to exit.", errorColor)
             return
@@ -366,6 +327,7 @@ class TerminalView(
     }
 
     private fun exitAhian() {
+        ahianMode = false
         if (ahianState == null) {
             appendOutput("Not in AHIAN mode. Type 'ahian' to enter.", hintColor)
             return
@@ -377,7 +339,7 @@ class TerminalView(
     }
 
     private fun scrollToBottom() {
-        post { fullScroll(android.widget.ScrollView.FOCUS_DOWN) }
+        outputScroll.post { outputScroll.fullScroll(android.widget.ScrollView.FOCUS_DOWN) }
     }
 }
 
@@ -402,6 +364,7 @@ private class AhianState(
     fun start() {
         if (active) return
         active = true
+        android.util.Log.i("SMTHTerminal", "ahian stage 1: terminal failure")
         terminal.commandInput.isEnabled = false
         terminal.commandInput.alpha = 0.5f
 
@@ -433,6 +396,7 @@ private class AhianState(
     }
 
     private fun spawnErrorCascade() {
+        android.util.Log.i("SMTHTerminal", "ahian stage 2: error cascade (24 dialogs over 10s)")
         val displayMetrics = terminal.context.resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
@@ -460,7 +424,7 @@ private class AhianState(
         )
 
         for (i in 0 until dialogCount) {
-            val delay = 400L + (i % 5) * 100L // Stagger: ~10s for all
+            val delay = (i * 400L) // Stagger across ~10s (24 dialogs)
             val x = ((screenWidth * 0.1f) + (screenWidth * 0.8f * (i % 6) / 5f)).toInt()
             val y = ((screenHeight * 0.1f) + (screenHeight * 0.8f * (i / 6))).toInt()
             val width = ((screenWidth * 0.25f) + (Math.random() * screenWidth * 0.2f)).toInt().coerceIn(dp(200), dp(400))
@@ -480,6 +444,7 @@ private class AhianState(
     }
 
     private fun showBsod() {
+        android.util.Log.i("SMTHTerminal", "ahian stage 3: bsod")
         // Close all error dialogs first
         dialogs.forEach { it.dismiss() }
         dialogs.clear()
@@ -496,6 +461,7 @@ private class AhianState(
                 if (!active) return
                 count--
                 if (count > 0) {
+                    android.util.Log.i("SMTHTerminal", "ahian stage 4: countdown $count")
                     bsodView?.setCountdown(count)
                     handler.postDelayed(this, 1000)
                 } else {
@@ -507,45 +473,71 @@ private class AhianState(
         handler.postDelayed(countdownRunnable, 1000)
     }
 
+    private var improvedOverlay: AhianImprovedOverlay? = null
+
     private fun enterImprovedMode() {
+        android.util.Log.i("SMTHTerminal", "ahian stage 5: improved mode")
         // Close BSOD
         bsodView?.dismiss()
         bsodView = null
 
-        // Show improved mode overlay
-        val improvedOverlay = AhianImprovedOverlay(terminal.context, density)
-        improvedOverlay.addToWindow(terminal.context as? android.app.Activity)
+        // Show improved mode overlay (purple-teal)
+        val overlay = AhianImprovedOverlay(terminal.context, density)
+        overlay.addToWindow(terminal.context as? android.app.Activity)
+        improvedOverlay = overlay
+        // The launcher paints its desktop purple-teal while AHIAN is active.
+        terminal.context.getSharedPreferences("smth", android.content.Context.MODE_PRIVATE).edit().putBoolean("ahian_mode", true).apply()
 
-        terminal.appendOutput("AHIAN mode activated", blush(0.9f))
-        terminal.appendOutput("Welcome to the beautiful experience", blush(0.7f))
-
-        // Enable a way to exit
-        terminal.commandInput.isEnabled = true
-        terminal.commandInput.alpha = 1f
-        terminal.commandInput.setText("unahian")
-        terminal.commandInput.post { terminal.commandInput.requestFocus() }
-        terminal.commandInput.setSelection(terminal.commandInput.text.length)
+        // After a brief moment, reveal the terminal again with purple-teal theme
+        terminal.postDelayed({
+            overlay.dismiss()
+            improvedOverlay = null
+            terminal.post {
+                terminal.visibility = View.VISIBLE
+                terminal.animate().alpha(1f).setDuration(300).start()
+                terminal.setBackgroundColor(Color.parseColor("#7C4DFF"))
+            }
+            terminal.commandInput.isEnabled = true
+            terminal.commandInput.alpha = 1f
+            terminal.commandInput.text?.clear()
+            terminal.appendOutput("AHIAN mode activated", blush(0.9f))
+            terminal.appendOutput("Welcome to the beautiful experience", blush(0.7f))
+            terminal.appendOutput("Type 'unahian' to exit.", blush(0.4f))
+            terminal.commandInput.post { terminal.commandInput.requestFocus() }
+        }, 2000L)
 
         active = false
     }
 
     fun exit() {
+        android.util.Log.i("SMTHTerminal", "ahian exit: red screen")
         active = false
         dialogs.forEach { it.dismiss() }
         dialogs.clear()
         bsodView?.dismiss()
         bsodView = null
+        improvedOverlay?.dismiss()
+        improvedOverlay = null
 
-        // Restore terminal
-        terminal.post {
-            terminal.visibility = View.VISIBLE
-            terminal.animate().alpha(1f).setDuration(300).start()
-        }
+        // Angry red exit screen
+        val exitOverlay = AhianExitOverlay(terminal.context, density)
+        exitOverlay.addToWindow(terminal.context as? android.app.Activity)
 
-        terminal.commandInput.isEnabled = true
-        terminal.commandInput.alpha = 1f
-        terminal.commandInput.text?.clear()
-        terminal.commandInput.post { terminal.commandInput.requestFocus() }
+        terminal.context.getSharedPreferences("smth", android.content.Context.MODE_PRIVATE).edit().putBoolean("ahian_mode", false).apply()
+
+        terminal.postDelayed({
+            exitOverlay.dismiss()
+            // Restore terminal
+            terminal.post {
+                terminal.visibility = View.VISIBLE
+                terminal.animate().alpha(1f).setDuration(300).start()
+                terminal.setBackgroundColor(OBSIDIAN)
+            }
+            terminal.commandInput.isEnabled = true
+            terminal.commandInput.alpha = 1f
+            terminal.commandInput.text?.clear()
+            terminal.commandInput.post { terminal.commandInput.requestFocus() }
+        }, 3000L)
     }
 }
 
@@ -707,7 +699,7 @@ class AhianImprovedOverlay(
     private fun dpf(v: Float) = v * density
 
     init {
-        setBackgroundColor(Color.parseColor("#701B35"))
+        setBackgroundColor(Color.parseColor("#7C4DFF"))
         setMinimumHeight(dp(200))
         setMinimumWidth(dp(400))
 
@@ -744,6 +736,47 @@ class AhianImprovedOverlay(
     }
 
     fun dismiss() {
-        removeAllViews()
+        parent?.let { (it as? ViewGroup)?.removeView(this) }
+    }
+}
+
+// ---- Ahian Exit Overlay (angry red) ----
+
+class AhianExitOverlay(
+    context: android.content.Context,
+    private val density: Float
+) : FrameLayout(context) {
+    private fun dp(v: Int) = (v * density).toInt()
+    private fun dpf(v: Float) = v * density
+
+    init {
+        setBackgroundColor(0xFFFF0000.toInt())
+
+        val message = TextView(context).apply {
+            text = "looks like you dont like ahian"
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 22f
+            typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+            setPadding(dp(16), dp(24), dp(16), dp(16))
+            setGravity(android.view.Gravity.CENTER)
+        }
+        addView(message, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { gravity = android.view.Gravity.CENTER })
+    }
+
+    fun addToWindow(activity: android.app.Activity?) {
+        val decorView = activity?.window?.decorView ?: return
+        if (decorView is ViewGroup) {
+            decorView.addView(this, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+        }
+    }
+
+    fun dismiss() {
+        parent?.let { (it as? ViewGroup)?.removeView(this) }
     }
 }
