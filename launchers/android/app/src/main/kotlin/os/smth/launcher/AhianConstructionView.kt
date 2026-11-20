@@ -244,18 +244,22 @@ class AhianConstructionView(context: Context) : View(context) {
                 canvas.drawCircle(cx - k * 4f, cy - k * 3f, dp(4f - k * 0.7f), fillPaint)
             }
             // cursor shape
-            cursorPaint.color = adjustAlpha(Color.BLACK, 0.9f * alpha)
             val path = Path()
             path.moveTo(cx, cy)
-            path.lineTo(cx, cy + dp(18f))
-            path.lineTo(cx + dp(4.6f), cy + dp(13.4f))
-            path.lineTo(cx + dp(7.4f), cy + dp(20f))
-            path.lineTo(cx + dp(10.2f), cy + dp(18.7f))
-            path.lineTo(cx + dp(7.4f), cy + dp(12.2f))
-            path.lineTo(cx + dp(13.5f), cy + dp(12.2f))
+            path.lineTo(cx, cy + dp(22f))
+            path.lineTo(cx + dp(5.8f), cy + dp(16.4f))
+            path.lineTo(cx + dp(9.2f), cy + dp(24f))
+            path.lineTo(cx + dp(12.2f), cy + dp(22f))
+            path.lineTo(cx + dp(9.0f), cy + dp(15f))
+            path.lineTo(cx + dp(17f), cy + dp(15f))
             path.close()
+            cursorPaint.style = Paint.Style.STROKE
+            cursorPaint.strokeWidth = dp(1.2f)
+            cursorPaint.color = adjustAlpha(Color.WHITE, alpha * 0.9f)
             canvas.drawPath(path, cursorPaint)
             cursorPaint.style = Paint.Style.FILL
+            cursorPaint.color = adjustAlpha(Color.BLACK, alpha * 0.92f)
+            canvas.drawPath(path, cursorPaint)
             cursorPaint.color = adjustAlpha(cursorColors[i], alpha)
             canvas.drawPath(path, cursorPaint)
         }
