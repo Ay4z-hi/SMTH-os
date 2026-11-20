@@ -90,7 +90,12 @@ class TerminalActivity : android.app.Activity() {
         normalHeight = (screen.heightPixels * 0.78f).toInt().coerceAtLeast(dp(260))
         window.setBackgroundDrawableResource(android.R.color.transparent)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        window.attributes = window.attributes.apply { dimAmount = 0.18f; gravity = android.view.Gravity.CENTER }
+        window.attributes = window.attributes.apply {
+            dimAmount = 0.18f
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            x = (screen.widthPixels - normalWidth) / 2
+            y = (screen.heightPixels - normalHeight) / 2
+        }
         window.setLayout(normalWidth, normalHeight)
 
         // Title bar
