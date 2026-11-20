@@ -852,9 +852,11 @@ class TerminalWindow:
         self.win.title("Terminal")
         self.win.geometry("600x400")
         self.win.minsize(400, 300)
-        self.win.configure(bg=OBSIDIAN)
+        self.win.configure(bg="#17171D", highlightthickness=1, highlightbackground="#D8D4E0")
         self.win.transient(parent.root)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
+        self.win.attributes("-alpha", 0.96)
+        self._apply_glass_backdrop()
 
         # Terminal state
         self.output = tk.Text(
@@ -868,11 +870,11 @@ class TerminalWindow:
         self.output.bind("<Configure>", lambda e: self.output.yview_moveto(1))
 
         # Input frame
-        input_frame = tk.Frame(self.win, bg=OBSIDIAN)
+        input_frame = tk.Frame(self.win, bg="#202027")
         input_frame.pack(fill=tk.X, padx=12, pady=(0, 12))
 
         self.input = tk.Entry(
-            input_frame, bg=MAROON_DEEP, fg=BLUSH, insertbackground=BLUSH,
+            input_frame, bg="#292832", fg=BLUSH, insertbackground=BLUSH,
             font=(parent.mono, 11), relief="flat", bd=0,
             highlightthickness=1, highlightbackground=BLUSH_DIM,
             highlightcolor=BLUSH
@@ -883,7 +885,7 @@ class TerminalWindow:
 
         submit_btn = tk.Button(
             input_frame, text="Enter", command=self.submit,
-            bg=OBSIDIAN, fg=BLUSH, activebackground=MAROON,
+            bg="#302D38", fg=BLUSH, activebackground=MAROON,
             activeforeground=BLUSH, relief="flat", bd=0,
             font=(parent.mono, 9), padx=12, cursor="hand2"
         )
