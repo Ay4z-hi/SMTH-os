@@ -950,7 +950,7 @@ class TerminalWindow:
             pass
 
         def begin_construction():
-            if not root.winfo_exists():
+            if not root.winfo_exists() or not launcher.ahian_mode:
                 return
             try:
                 launcher._ahian_intro = AhianConstructionIntro(launcher)
