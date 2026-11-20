@@ -66,6 +66,51 @@ AHIAN_PURPLE = "#7C4DFF"      # improved mode, deliberately outside the palette
 AHIAN_DEEP = "#1B1430"
 AHIAN_TEAL = "#2BD9C4"
 
+
+def apply_glass_backdrop_to_process(pid):
+    """Best-effort acrylic treatment for native windows launched by SMTH."""
+    if os.name != "nt":
+        return
+    try:
+        from ctypes import wintypes
+
+        class ACCENT_POLICY(ctypes.Structure):
+            _fields_ = [("AccentState", ctypes.c_int), ("AccentFlags", ctypes.c_int),
+                        ("GradientColor", ctypes.c_uint), ("AnimationId", ctypes.c_int)]
+
+        class WINDOWCOMPOSITIONATTRIBDATA(ctypes.Structure):
+            _fields_ = [("Attribute", ctypes.c_int), ("Data", ctypes.c_void_p),
+                        ("SizeOfData", ctypes.c_size_t)]
+
+        user32 = ctypes.windll.user32
+        dwmapi = ctypes.windll.dwmapi
+        set_composition = user32.SetWindowCompositionAttribute
+        set_composition.argtypes = [wintypes.HWND, ctypes.POINTER(WINDOWCOMPOSITIONATTRIBDATA)]
+        set_composition.restype = wintypes.BOOL
+
+        def visit(hwnd, _):
+            try:
+                process_id = wintypes.DWORD()
+                user32.GetWindowThreadProcessId(hwnd, ctypes.byref(process_id))
+                if process_id.value != pid or not user32.IsWindowVisible(hwnd):
+                    return True
+                policy = ACCENT_POLICY(4, 2, 0xCC17171D, 0)
+                data = WINDOWCOMPOSITIONATTRIBDATA(19, ctypes.cast(ctypes.pointer(policy), ctypes.c_void_p),
+                                                    ctypes.sizeof(policy))
+                set_composition(hwnd, ctypes.byref(data))
+                for attribute, value in ((20, 1), (33, 2), (38, 3)):
+                    setting = ctypes.c_int(value)
+                    dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(setting), ctypes.sizeof(setting))
+            except (OSError, AttributeError, ValueError):
+                pass
+            return True
+
+        callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)(visit)
+        user32.EnumWindows(callback, 0)
+    except (OSError, AttributeError, ImportError):
+        pass
+
+
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 if not os.path.isdir(ASSETS):
     ASSETS = os.path.join(getattr(sys, "_MEIPASS", ""), "assets")
@@ -582,7 +627,12 @@ class SMTHLauncher:
                 # treat "ms-settings:" as an unknown URL and fail silently.
                 os.startfile(target)
             else:
-                subprocess.Popen([target], shell=False)
+                process = subprocess.Popen([target], shell=False)
+                # Native Windows apps keep their own UI, but SMTH asks DWM to
+                # give their top-level window the same acrylic glass backdrop.
+                for delay in (500, 1200, 2200, 3600):
+                    self.root.after(delay, lambda pid=process.pid:
+                                    apply_glass_backdrop_to_process(pid))
             if name not in self.recent:
                 self.recent.insert(0, name)
                 self.recent = self.recent[:5]
@@ -596,7 +646,9 @@ class SMTHLauncher:
                     if fallback.endswith(":"):
                         os.startfile(fallback)
                     else:
-                        subprocess.Popen([fallback], shell=False)
+                        process = subprocess.Popen([fallback], shell=False)
+                        self.root.after(900, lambda pid=process.pid:
+                                        apply_glass_backdrop_to_process(pid))
                     self.status.config(text=f"Opened {fallback} (fallback for {name})", fg=BLUSH_DIM)
                     return
                 except (OSError, subprocess.SubprocessError):
