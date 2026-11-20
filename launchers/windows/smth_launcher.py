@@ -921,7 +921,11 @@ class TerminalWindow:
         else:
             self._append(f"command not found: {cmd}\n")
 
-        self.output.yview_moveto(1)
+        try:
+            self.output.yview_moveto(1)
+        except tk.TclError:
+            # AHIAN activation deliberately destroys the terminal window.
+            pass
 
     def _append(self, text):
         self.output.config(state=tk.NORMAL)
