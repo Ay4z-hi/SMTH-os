@@ -55,13 +55,17 @@ class AhianConstructionView(context: Context) : View(context) {
         textPaint.typeface = android.graphics.Typeface.MONOSPACE
     }
 
-    fun start(onComplete: (() -> Unit)? = null) {
+    fun start(onProgress: ((Float) -> Unit)? = null, onComplete: (() -> Unit)? = null) {
         animator?.cancel()
         val a = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 10000
             interpolator = LinearInterpolator()
             addUpdateListener { anim ->
                 progress = anim.animatedValue as Float
+                // Let MainActivity reveal its actual desktop children in step
+                // with the construction cursors.
+                onProgress?.invoke(progress)
+                alpha = if (progress > 0.86f) ((1f - progress) / 0.14f).coerceIn(0f, 1f) else 1f
                 invalidate()
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
