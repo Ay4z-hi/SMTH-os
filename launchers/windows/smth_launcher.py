@@ -890,12 +890,11 @@ class TerminalWindow:
         submit_btn.pack(side=tk.RIGHT)
 
         # Ahian state
-        self.ahian_active = False
+        self.ahian_active = bool(parent.ahian_mode)
         self._ahian_intro = None
 
     def close(self):
-        if self.ahian_active:
-            self.exit_ahian()
+        # Closing Terminal must not turn off a desktop mode that is already active.
         self.win.destroy()
 
     def submit(self):
