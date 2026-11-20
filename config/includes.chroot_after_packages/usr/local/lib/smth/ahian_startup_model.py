@@ -128,8 +128,10 @@ class CursorSpec:
     def position(self, t_ms, width, height):
         span = max(1, self.end_ms - self.start_ms)
         p = clamp((t_ms - self.start_ms) / span)
-        if p <= 0 or p >= 1:
+        if p <= 0:
             return (self.points[0][0] * width, self.points[0][1] * height)
+        if p >= 1:
+            return (self.points[-1][0] * width, self.points[-1][1] * height)
         seg = p * (len(self.points) - 1)
         index = min(len(self.points) - 2, int(seg))
         local = ease(seg - index)
@@ -283,22 +285,22 @@ class StartupScene:
         paths = [
             ("AHIAN", PURPLE, (n(task, 0.05, 0.0), n(task, 0.38, 0.55),
                                n(win, 0.02, 0.02), n(win, 0.35, 0.25),
-                               n(win, 0.85, 0.8))),
+                               n(win, 0.85, 0.8), (1.06, 0.94))),
             ("PURPLE", PURPLE_SOFT, ((0.52, -0.05), n(win, 0.5, 0.08),
                                      n(win, 0.08, 0.3), n(win, 0.9, 0.62),
-                                     n(task, 0.7, 0.5))),
+                                     n(task, 0.7, 0.5), (0.52, -0.08))),
             ("TEAL", TEAL, ((1.04, 0.18), n(win, 0.95, 0.35),
                             n(grid, 0.7, 0.25), n(icons[5], 0.5, 0.5),
-                            n(win, 0.3, 0.55))),
+                            n(win, 0.3, 0.55), (1.06, 0.48))),
             ("SPATIAL", TEAL_BRIGHT, ((-0.04, 0.45), n(clock, 0.85, 0.25),
                                       n(clock, 0.25, 0.7), n(task, 0.2, 0.5),
-                                      n(win, 0.55, 0.85))),
+                                      n(win, 0.55, 0.85), (-0.06, 0.92))),
             ("DEPTH", VIOLET, ((0.7, -0.04), n(icons[2], 0.5, 0.4),
                                n(icons[9], 0.45, 0.5), n(dock, 0.35, 0.5),
-                               n(grid, 0.2, 0.85))),
+                               n(grid, 0.2, 0.85), (0.72, 1.06))),
             ("PANEL", PURPLE_DEEP, ((-0.04, 0.9), n(grid, 0.5, 0.75),
                                     n(icons[8], 0.55, 0.4), n(win, 0.18, 0.75),
-                                    n(win, 0.48, 0.35))),
+                                    n(win, 0.48, 0.35), (-0.06, 0.36))),
             ("BUILD", TEAL_SOFT, ((1.04, 0.95), n(dock, 0.7, 0.5),
                                   n(task, 0.9, 0.5), n(win, 0.7, 0.2),
                                   (0.55, -0.05))),
