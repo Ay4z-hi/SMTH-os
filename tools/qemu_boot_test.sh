@@ -31,6 +31,7 @@ echo "kernel: $(basename "$K")  initrd: $(basename "$I")"
 ACCEL=tcg
 CPU=max
 RNG=()
+GPU=()
 if [ -w /dev/kvm ] && [ -r /dev/kvm ]; then
     ACCEL=kvm
     CPU=host
@@ -47,6 +48,9 @@ else
     QEMU=qemu-system-aarch64
     APPEND="boot=live components console=ttyAMA0,115200 smth.bootcheck=1 username=smth hostname=smth loglevel=4"
     MACHINE=(-machine virt)
+    # The ARM virt machine has no default display adapter. Add virtio-gpu
+    # so the live Wayland compositor has a DRM device in headless CI.
+    GPU=(-device virtio-gpu-pci)
     # virt has no IDE bus; attach the ISO as a readable virtio disk.  live-boot
     # scans block devices for /live/filesystem.squashfs, not only sr0.
     MEDIA=(-drive "file=$ISO,format=raw,if=virtio,readonly=on")
@@ -59,7 +63,7 @@ command -v "$QEMU" >/dev/null || { echo "$QEMU is not installed" >&2; exit 1; }
     -m 2048 -smp 2 -no-reboot -display none \
     -serial "file:$LOG" -monitor none \
     -kernel "$K" -initrd "$I" -append "$APPEND" \
-    "${MEDIA[@]}" "${RNG[@]}" &
+    "${MEDIA[@]}" "${RNG[@]}" "${GPU[@]}" &
 PID=$!
 
 if [ "$ARCH" = amd64 ]; then WAIT_ITERS=240; else WAIT_ITERS=900; fi
