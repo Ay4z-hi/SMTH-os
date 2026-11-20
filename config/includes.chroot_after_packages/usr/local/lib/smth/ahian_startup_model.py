@@ -17,10 +17,11 @@ import math
 # ---- timeline ---------------------------------------------------------------
 DURATION_MS = 9600
 REDUCED_MS = 760
-LOGO_END_MS = 850
-LOGO_FADE_END_MS = 1400
-CURSOR_START_MS = 900
-CONSTRUCT_START_MS = 1900
+# AHIAN activation starts with cursors, not a second boot logo.
+LOGO_END_MS = 0
+LOGO_FADE_END_MS = 0
+CURSOR_START_MS = 0
+CONSTRUCT_START_MS = 900
 CONSTRUCT_END_MS = 7800
 REVEAL_END_MS = 8600
 FADE_END_MS = DURATION_MS
