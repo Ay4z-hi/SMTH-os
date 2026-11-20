@@ -11,7 +11,7 @@
     <application
         android:theme="@style/SMTH"
         android:label="SMTH Launcher"
-        android:icon="@drawable/ic_launcher_smth"
+        android:icon="@drawable/ic_launcher_black"
         android:allowBackup="false"
         android:supportsRtl="true">
         <activity
