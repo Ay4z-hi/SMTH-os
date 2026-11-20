@@ -319,6 +319,7 @@ class SMTHLauncher:
             state["x"], state["y"] = event.x, event.y
         return "break"
 
+    # Drag releases resolve to one invisible grid cell; occupied cells are skipped.
     def end_shortcut_drag(self, event, target, kind, fallbacks):
         state = self.drag_state
         self.drag_state = None
