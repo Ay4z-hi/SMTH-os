@@ -38,6 +38,10 @@ def test_cursors_are_independent_and_visible():
         assert -10 <= c.y <= scene.height + 10
         assert len(c.trail) == 3
     assert any(c.click > 0 for c in mid.cursors)
+    # A completed cursor must travel to its exit point, not teleport back to entry.
+    for spec in scene.cursors:
+        x, y = spec.position(spec.end_ms, scene.width, scene.height)
+        assert x < 0 or x > scene.width or y < 0 or y > scene.height
     assert not scene.frame(500).cursors
 
 
