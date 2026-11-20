@@ -14,4 +14,9 @@ export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP=SMTH
 export XDG_SESSION_DESKTOP=SMTH
 export MOZ_ENABLE_WAYLAND=1
+# Wayfire supplies compositor-level blur for translucent app surfaces.
+# Keep Labwc as a safe fallback if the Wayfire binary is unavailable.
+if command -v wayfire >/dev/null 2>&1; then
+    exec dbus-run-session -- wayfire
+fi
 exec dbus-run-session -- labwc
