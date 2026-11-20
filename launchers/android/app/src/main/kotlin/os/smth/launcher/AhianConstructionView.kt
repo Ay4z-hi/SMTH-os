@@ -135,7 +135,84 @@ class AhianConstructionView(context: Context) : View(context) {
             // grid panel
             canvas.drawRoundRect(dp(44f), dp(44f), dp(44f) + w * 0.32f, dp(44f) + h - 210f, dp(4f), dp(4f), fillPaint)
             // taskbar
-            canvas.drawRoundRect(dp(8f), h - dp(56f), w - dp(8f), h - dp(8f), dp(4f), dp(4f), fillPaint)
+            canvas.drawRoundRect(dp(8f), h - dp(56f), w - dp(8f), h - dp(8f), dp(12f), dp(12f), fillPaint)
+
+            // The window is built as a real-looking app surface: titlebar,
+            // controls, content cards and a small live chart appear in sequence.
+            if (pp > 0.12f) {
+                val reveal = ((pp - 0.12f) / 0.58f).coerceIn(0f, 1f)
+                val left = w * 0.37f
+                val top = h * 0.17f
+                val right = left + w * 0.56f
+                val bottom = top + h * 0.58f
+                fillPaint.color = adjustAlpha(Color.parseColor("#21133D"), reveal)
+                canvas.drawRoundRect(left, top, right, top + dp(34f), dp(7f), dp(7f), fillPaint)
+                textPaint.color = adjustAlpha(white, reveal)
+                textPaint.textSize = dp(9f)
+                canvas.drawText("AHIAN / SPATIAL DESKTOP", left + dp(12f), top + dp(22f), textPaint)
+                for (i in 0..2) {
+                    fillPaint.color = adjustAlpha(if (i == 0) teal else purple, reveal)
+                    canvas.drawCircle(right - dp(42f) + i * dp(13f), top + dp(17f), dp(3f), fillPaint)
+                }
+                // Content cards grow from left to right.
+                for (i in 0..2) {
+                    val cardTop = top + dp(48f) + i * dp(40f)
+                    val cardRight = left + dp(110f) * reveal
+                    fillPaint.color = adjustAlpha(Color.parseColor("#30234C"), reveal * 0.9f)
+                    canvas.drawRoundRect(left + dp(12f), cardTop, cardRight, cardTop + dp(29f),
+                        dp(5f), dp(5f), fillPaint)
+                    if (reveal > 0.35f) {
+                        fillPaint.color = adjustAlpha(if (i % 2 == 0) teal else softPurple, reveal)
+                        canvas.drawCircle(left + dp(24f), cardTop + dp(14f), dp(4f), fillPaint)
+                        fillPaint.color = adjustAlpha(white, reveal * 0.45f)
+                        canvas.drawRect(left + dp(36f), cardTop + dp(10f),
+                            left + dp(82f), cardTop + dp(12f), fillPaint)
+                    }
+                }
+                // Spatial widget on the right, with a chart trace.
+                if (reveal > 0.42f) {
+                    val wx = left + w * 0.30f
+                    val wy = top + dp(48f)
+                    fillPaint.color = adjustAlpha(Color.parseColor("#17102B"), reveal)
+                    canvas.drawRoundRect(wx, wy, right - dp(12f), bottom - dp(12f),
+                        dp(8f), dp(8f), fillPaint)
+                    boxPaint.color = adjustAlpha(teal, reveal)
+                    val chart = Path().apply {
+                        moveTo(wx + dp(10f), wy + dp(62f))
+                        lineTo(wx + dp(30f), wy + dp(48f))
+                        lineTo(wx + dp(48f), wy + dp(54f))
+                        lineTo(wx + dp(70f), wy + dp(24f))
+                        lineTo(wx + dp(88f), wy + dp(34f))
+                    }
+                    canvas.drawPath(chart, boxPaint)
+                }
+            }
+
+            // App icons are placed individually by the moving cursors.
+            if (pp > 0.22f) {
+                val reveal = ((pp - 0.22f) / 0.52f).coerceIn(0f, 1f)
+                for (i in 0..5) {
+                    val col = i % 3
+                    val row = i / 3
+                    val x = dp(54f) + col * dp(48f)
+                    val y = dp(62f) + row * dp(54f)
+                    fillPaint.color = adjustAlpha(if (i % 2 == 0) purple else teal, reveal)
+                    canvas.drawRoundRect(x, y, x + dp(24f), y + dp(24f),
+                        dp(6f), dp(6f), fillPaint)
+                    fillPaint.color = adjustAlpha(white, reveal * 0.8f)
+                    canvas.drawCircle(x + dp(12f), y + dp(12f), dp(3f), fillPaint)
+                }
+            }
+
+            // Taskbar controls and pinned app dots are assembled last.
+            if (pp > 0.5f) {
+                val reveal = ((pp - 0.5f) / 0.3f).coerceIn(0f, 1f)
+                for (i in 0..5) {
+                    fillPaint.color = adjustAlpha(if (i % 2 == 0) purple else teal, reveal)
+                    canvas.drawRoundRect(dp(24f) + i * dp(25f), h - dp(42f),
+                        dp(38f) + i * dp(25f), h - dp(24f), dp(4f), dp(4f), fillPaint)
+                }
+            }
         }
 
         // cursors
