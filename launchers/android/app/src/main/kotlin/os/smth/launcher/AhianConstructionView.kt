@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import android.view.View
 import android.view.animation.LinearInterpolator
 import kotlin.math.sin
@@ -30,12 +32,12 @@ class AhianConstructionView(context: Context) : View(context) {
 
     // Normalized paths (x,y in 0..1) for 7 cursors, entering from different edges.
     private val paths = arrayOf(
-        arrayOf(Pair(0.05f, 0.0f), Pair(0.38f, 0.55f), Pair(0.02f, 0.02f), Pair(0.35f, 0.25f), Pair(0.85f, 0.8f)),
-        arrayOf(Pair(0.52f, -0.05f), Pair(0.5f, 0.08f), Pair(0.08f, 0.3f), Pair(0.9f, 0.62f), Pair(0.7f, 0.5f)),
-        arrayOf(Pair(1.04f, 0.18f), Pair(0.95f, 0.35f), Pair(0.7f, 0.25f), Pair(0.5f, 0.5f), Pair(0.3f, 0.55f)),
-        arrayOf(Pair(-0.04f, 0.45f), Pair(0.85f, 0.25f), Pair(0.25f, 0.7f), Pair(0.2f, 0.5f), Pair(0.55f, 0.85f)),
-        arrayOf(Pair(0.7f, -0.04f), Pair(0.5f, 0.4f), Pair(0.45f, 0.5f), Pair(0.35f, 0.5f), Pair(0.2f, 0.85f)),
-        arrayOf(Pair(-0.04f, 0.9f), Pair(0.5f, 0.75f), Pair(0.55f, 0.4f), Pair(0.18f, 0.75f), Pair(0.48f, 0.35f)),
+        arrayOf(Pair(0.05f, 0.0f), Pair(0.38f, 0.55f), Pair(0.02f, 0.02f), Pair(0.35f, 0.25f), Pair(0.85f, 0.8f), Pair(1.06f, 0.94f)),
+        arrayOf(Pair(0.52f, -0.05f), Pair(0.5f, 0.08f), Pair(0.08f, 0.3f), Pair(0.9f, 0.62f), Pair(0.7f, 0.5f), Pair(0.52f, -0.08f)),
+        arrayOf(Pair(1.04f, 0.18f), Pair(0.95f, 0.35f), Pair(0.7f, 0.25f), Pair(0.5f, 0.5f), Pair(0.3f, 0.55f), Pair(1.06f, 0.48f)),
+        arrayOf(Pair(-0.04f, 0.45f), Pair(0.85f, 0.25f), Pair(0.25f, 0.7f), Pair(0.2f, 0.5f), Pair(0.55f, 0.85f), Pair(-0.06f, 0.92f)),
+        arrayOf(Pair(0.7f, -0.04f), Pair(0.5f, 0.4f), Pair(0.45f, 0.5f), Pair(0.35f, 0.5f), Pair(0.2f, 0.85f), Pair(0.72f, 1.06f)),
+        arrayOf(Pair(-0.04f, 0.9f), Pair(0.5f, 0.75f), Pair(0.55f, 0.4f), Pair(0.18f, 0.75f), Pair(0.48f, 0.35f), Pair(-0.06f, 0.36f)),
         arrayOf(Pair(1.04f, 0.95f), Pair(0.7f, 0.5f), Pair(0.9f, 0.5f), Pair(0.7f, 0.2f), Pair(0.55f, -0.05f))
     )
 
@@ -86,8 +88,13 @@ class AhianConstructionView(context: Context) : View(context) {
         // dark base
         canvas.drawColor(Color.BLACK)
 
-        // wallpaper emerging
-        val wallAlpha = (progress * 1.4f).coerceIn(0f, 1f)
+        // Reveal the actual AHIAN purple-to-teal wallpaper before assembling UI.
+        val wallAlpha = (progress * 1.35f).coerceIn(0f, 1f)
+        fillPaint.shader = LinearGradient(0f, 0f, w, h, purple, teal, Shader.TileMode.CLAMP)
+        fillPaint.alpha = (wallAlpha * 210f).toInt().coerceIn(0, 210)
+        canvas.drawRect(0f, 0f, w, h, fillPaint)
+        fillPaint.shader = null
+        fillPaint.alpha = 255
         val spacing = (minOf(w, h) / 24f).coerceAtLeast(20f)
         fillPaint.style = Paint.Style.FILL
         var y = spacing
@@ -108,17 +115,17 @@ class AhianConstructionView(context: Context) : View(context) {
                 Triple(0.02f, 0.88f, 0.96f to 0.08f), // status-ish bottom
             )
             // Draw a few guides
-            val guideAlpha = ((progress - 0.18f) / 0.4f).coerceIn(0f, 1f)
+            val guideAlpha = (((0.88f - progress) / 0.14f).coerceIn(0f, 1f) * ((progress - 0.18f) / 0.4f).coerceIn(0f, 1f))
             boxPaint.color = adjustAlpha(teal, guideAlpha)
             // taskbar guide
             canvas.drawRect(dp(8f), h - dp(56f), w - dp(8f), h - dp(8f), boxPaint)
             // window guide
-            val p2 = ((progress - 0.28f) / 0.4f).coerceIn(0f, 1f)
+            val p2 = ((progress - 0.28f) / 0.4f).coerceIn(0f, 1f) * ((0.88f - progress) / 0.14f).coerceIn(0f, 1f)
             if (p2 > 0) {
                 boxPaint.color = adjustAlpha(purple, p2)
                 canvas.drawRect(w * 0.37f, h * 0.17f, w * 0.37f + w * 0.56f * p2, h * 0.17f + h * 0.58f * p2, boxPaint)
             }
-            val p3 = ((progress - 0.22f) / 0.4f).coerceIn(0f, 1f)
+            val p3 = ((progress - 0.22f) / 0.4f).coerceIn(0f, 1f) * ((0.88f - progress) / 0.14f).coerceIn(0f, 1f)
             if (p3 > 0) {
                 boxPaint.color = adjustAlpha(teal, p3)
                 canvas.drawRect(dp(44f), dp(44f), dp(44f) + (w * 0.32f) * p3, dp(44f) + (h - 210f) * p3, boxPaint)
