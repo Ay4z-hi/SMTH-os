@@ -532,7 +532,7 @@ class MainActivity : Activity() {
                 gravity = Gravity.TOP or Gravity.START
                 val prefs = getSharedPreferences("smth_desktop", MODE_PRIVATE)
                 leftMargin = prefs.getInt(entry.packageName + "_x", dp(18))
-                topMargin = prefs.getInt(entry.packageName + "_y", dp(18 + index * 84))
+                topMargin = prefs.getInt(entry.packageName + "_y", dp(18 + index * 72))
             }
             desktop.addView(icon, params)
         }
