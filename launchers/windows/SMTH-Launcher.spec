@@ -26,5 +26,5 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
-    icon='assets/smth.ico',
+    icon='assets/smth-black.ico',
 )

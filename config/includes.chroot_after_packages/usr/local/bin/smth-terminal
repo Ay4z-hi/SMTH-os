@@ -112,20 +112,20 @@ def enter_ahian_mode():
         print_color("AHIAN mode already active. Type 'unahian' to exit.", MAROON)
         return False
 
-    write_state(True)
+    # Reuse the system command so desktop, wallpaper, Waybar and saved
+    # settings all switch together. It launches construction after 2.5 seconds.
+    try:
+        subprocess.run(["/usr/local/bin/ahian", "on"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        write_state(True)
+
     print()
     print_color("AHIAN MODE ON", BLUSH)
     print_color("purple/teal spatial UI · all apps available", BLUSH)
     print()
-    print_color("Run 'unahian' to return to normal mode.", f"{BLUSH}\033[2m")
+    print_color("Run 'unahian' to return to normal mode.", f"{BLUSH}\\033[2m")
     print()
-
-    try:
-        subprocess.run(["notify-send", "-a", "SMTH", "AHIAN", "AHIAN mode activated."],
-                      check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except (OSError, subprocess.SubprocessError):
-        pass
-
     return True
 
 
@@ -135,17 +135,15 @@ def exit_ahian_mode():
         print_color("Not in AHIAN mode. Type 'ahian' to enter.", f"{BLUSH}\033[2m")
         return False
 
-    write_state(False)
+    try:
+        subprocess.run(["/usr/local/bin/ahian", "off"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        write_state(False)
+
     print()
     print_color("AHIAN mode off — normal experience restored", BLUSH)
     print()
-
-    try:
-        subprocess.run(["notify-send", "-a", "SMTH", "AHIAN", "Normal mode restored."],
-                      check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except (OSError, subprocess.SubprocessError):
-        pass
-
     return True
 
 
@@ -195,10 +193,8 @@ def main():
             show_about()
         elif cmd_lower == "ahian":
             if enter_ahian_mode():
-                # Stay in terminal but indicate Ahian mode
-                print_color("❯ ", BLUSH)
-                sys.stdout.flush()
-                continue
+                # The detached desktop animation takes over after a short pause.
+                break
             else:
                 break
         elif cmd_lower == "unahian":

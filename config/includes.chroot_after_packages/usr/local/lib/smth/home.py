@@ -5,7 +5,7 @@ Maroon, obsidian and blush only, with the official logo, real application
 launching and AHIAN's live dot scene kept intact. Shortcuts sit directly on the
 wallpaper (no tiles or boxes) and the system readouts stay quiet in the corners.
 """
-import datetime, glob, math, os, random, signal, sys, time
+import datetime, glob, json, math, os, random, signal, sys, time
 sys.path.insert(0, "/usr/local/lib/smth")
 import cairo
 import gi
@@ -182,13 +182,46 @@ def on_activate(app):
     bh = BlackHole(); live = Gtk.DrawingArea(); live.set_visible(False); live.set_can_target(False)
     live.set_draw_func(lambda _a, cr, w, h: bh.draw(cr, w, h, T(), S.mx, S.my)); overlay.add_overlay(live)
 
-    # Desktop shortcuts: twelve entries, four rows, starting in the top-left.
-    icons = Gtk.FlowBox(orientation=Gtk.Orientation.VERTICAL, selection_mode=Gtk.SelectionMode.NONE,
-                        max_children_per_line=4, min_children_per_line=4, halign=Gtk.Align.START,
-                        valign=Gtk.Align.START, margin_start=26, margin_top=24, row_spacing=6, column_spacing=4)
-    for n in APPS:
+    # Freely placeable desktop shortcuts. Positions persist per user.
+    icons = Gtk.Fixed()
+    icons.set_hexpand(True); icons.set_vexpand(True)
+    icons.set_halign(Gtk.Align.FILL); icons.set_valign(Gtk.Align.FILL)
+    layout_path = os.path.expanduser("~/.config/smth/desktop-layout.json")
+    try:
+        with open(layout_path, encoding="utf-8") as handle:
+            icon_positions = json.load(handle)
+        if not isinstance(icon_positions, dict): icon_positions = {}
+    except (OSError, ValueError, TypeError):
+        icon_positions = {}
+
+    def save_icon_position(name, button):
+        x, y = icons.get_child_position(button)
+        icon_positions[name] = [float(x), float(y)]
+        try:
+            os.makedirs(os.path.dirname(layout_path), exist_ok=True)
+            temp = layout_path + ".tmp"
+            with open(temp, "w", encoding="utf-8") as handle:
+                json.dump(icon_positions, handle, indent=2)
+            os.replace(temp, layout_path)
+        except OSError:
+            pass
+
+    for index, n in enumerate(APPS):
         b = icon_button(n)
-        if b: icons.append(b)
+        if not b: continue
+        pos = icon_positions.get(n, [26 + (index // 7) * 112, 24 + (index % 7) * 82])
+        try: x, y = max(0.0, float(pos[0])), max(0.0, float(pos[1]))
+        except (TypeError, ValueError, IndexError): x, y = 26.0, 24.0 + index * 82.0
+        icons.put(b, x, y)
+        drag = Gtk.GestureDrag()
+        origin = {"x": x, "y": y}
+        drag.connect("drag-begin", lambda _g, _x, _y, button=b, state=origin:
+                     state.update(zip(("x", "y"), icons.get_child_position(button))))
+        drag.connect("drag-update", lambda _g, dx, dy, button=b, state=origin:
+                     icons.move(button, max(0.0, state["x"] + dx), max(0.0, state["y"] + dy)))
+        drag.connect("drag-end", lambda _g, _dx, _dy, name=n, button=b:
+                     save_icon_position(name, button))
+        b.add_controller(drag)
     overlay.add_overlay(icons)
 
     # System readouts: clock and date bottom-left, glance rings bottom-right.

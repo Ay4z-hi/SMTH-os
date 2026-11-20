@@ -78,6 +78,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install launcher source helpers
+        run: python -m pip install --upgrade pillow
+      - name: Compile Python desktop and launcher sources
+        run: |
+          python3 -m py_compile launchers/windows/smth_launcher.py launchers/windows/generate_icon.py
+          python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/home.py
+          python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/ahian_startup.py
+          python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/ahian_startup_model.py
+          python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/startup.py
+          python3 -m py_compile config/includes.chroot_after_packages/usr/local/bin/smth-terminal
+          python3 -m py_compile config/includes.chroot_after_packages/usr/local/bin/ahian
+      - name: Generate Windows black-backed application icon
+        working-directory: launchers/windows
+        run: |
+          python generate_icon.py
+          test -s assets/smth-black.ico
       - name: Windows launcher parses
         run: python3 -m py_compile launchers/windows/smth_launcher.py
       - name: Android sources are complete
@@ -85,4 +101,18 @@ jobs:
           test -f launchers/android/app/src/main/kotlin/os/smth/launcher/MainActivity.kt
           test -f launchers/android/app/src/main/res/font/space_mono.ttf
           test -f launchers/android/app/src/main/res/font/doto.ttf
+          test -f launchers/android/app/src/main/res/drawable/ic_launcher_black.xml
           grep -q 'os.smth.launcher' launchers/android/app/build.gradle
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build Android launcher
+        working-directory: launchers/android
+        run: gradle --no-daemon assembleDebug

@@ -68,9 +68,11 @@ def ahian(on):
         write_state(True)
         # Launch the AHIAN desktop reconstruction animation (non-blocking).
         try:
-            subprocess.Popen(["/usr/local/bin/smth-ahian-startup"],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            start_new_session=True)
+            subprocess.Popen(
+                ["sh", "-c", "sleep 2.5; exec /usr/local/bin/smth-ahian-startup"],
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, start_new_session=True,
+            )
         except (OSError, subprocess.SubprocessError):
             pass
         print("\n  AHIAN MODE ON  purple/teal · spatial UI · all apps available\n"
