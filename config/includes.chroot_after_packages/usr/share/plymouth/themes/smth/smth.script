@@ -6,29 +6,45 @@ cy = Window.GetHeight() / 2;
 logo.image = Image("logo.png");
 logo.sprite = Sprite(logo.image);
 logo.sprite.SetX(cx - logo.image.GetWidth() / 2);
-logo.sprite.SetY(cy - logo.image.GetHeight() / 2 - 80);
+logo.sprite.SetY(cy - logo.image.GetHeight() / 2 - 90);
+logo.sprite.SetOpacity(0.0);
 
 for (l = 0; l < 5; l++) {
   lvc[l] = Image("dot-c" + l + ".png");
   lvv[l] = Image("dot-v" + l + ".png");
 }
-N = 12;
-R = 34;
+N = 16;
+R = 46;
 for (i = 0; i < N; i++) {
   a = 2 * Math.Pi * i / N;
   spin[i] = Sprite(lvc[4]);
   spin[i].SetX(cx + R * Math.Sin(a) - 8);
-  spin[i].SetY(cy + 150 - R * Math.Cos(a) - 8);
+  spin[i].SetY(cy + 160 - R * Math.Cos(a) - 8);
+  spin[i].SetOpacity(0.0);
 }
 frame = 0;
+logo_phase = 0;
 
 fun refresh_callback () {
-  head = Math.Int(global.frame / 2) % global.N;
-  for (i = 0; i < global.N; i++) {
-    d = (head - i + global.N) % global.N;
-    if (d > 4) d = 4;
-    if (i % 2 == 0) global.spin[i].SetImage(global.lvc[d]);
-    else global.spin[i].SetImage(global.lvv[d]);
+  # Smooth logo reveal over the first ~1.2s, then hold with a gentle pulse.
+  if (global.frame < 36) {
+    op = global.frame / 36.0;
+    if (op > 1) op = 1;
+    global.logo.sprite.SetOpacity(op);
+    for (i = 0; i < global.N; i++) {
+      global.spin[i].SetOpacity(0.0);
+    }
+  } else {
+    global.logo.sprite.SetOpacity(1.0);
+    head = Math.Int(global.frame / 2) % global.N;
+    for (i = 0; i < global.N; i++) {
+      d = (head - i + global.N) % global.N;
+      if (d > 4) d = 4;
+      if (i % 2 == 0) global.spin[i].SetImage(global.lvc[d]);
+      else global.spin[i].SetImage(global.lvv[d]);
+      # Fade the ring in once the logo has settled.
+      global.spin[i].SetOpacity(1.0);
+    }
   }
   global.frame = global.frame + 1;
 }

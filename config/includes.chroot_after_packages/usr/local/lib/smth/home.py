@@ -43,18 +43,18 @@ CSS = b"""
 window.home { background: #09090b; color: #f2c6d2; }
 .home, .home label, .home button { font-family: "Space Mono", "Doto", "DotGothic16", monospace; }
 /* Shortcuts are drawn straight on the wallpaper: no tile, no border. */
-.home button.app { background: transparent; border: none; box-shadow: none; padding: 4px 6px; border-radius: 8px; }
-.home button.app:hover { background: alpha(#f2c6d2, 0.08); }
+.home button.app { background: transparent; border: none; box-shadow: 0 2px 8px alpha(#000000, 0.35); padding: 4px 6px; border-radius: 10px; transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease; }
+.home button.app:hover { background: alpha(#f2c6d2, 0.10); transform: translateY(-2px); box-shadow: 0 6px 16px alpha(#000000, 0.45); }
 .home button.app:active { background: alpha(#701b35, 0.45); }
 .home label.cap { color: #f2c6d2; font-size: 10px; }
-.home .glance { background: alpha(#09090b, 0.62); border-radius: 12px; border: 1px solid alpha(#f2c6d2, 0.14); padding: 6px 10px; }
+.home .glance { background: alpha(#09090b, 0.55); border-radius: 14px; border: 1px solid alpha(#f2c6d2, 0.18); padding: 8px 12px; box-shadow: 0 8px 24px alpha(#000000, 0.4), inset 0 1px 0 alpha(#ffffff, 0.06); }
 .home .clockbox { background: transparent; }
 .home label.date { color: alpha(#f2c6d2, 0.62); font-size: 10px; letter-spacing: 1px; }
 @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-3px); } 100% { transform: translateY(0px); } }
 window.home.ahian button.app { animation: float 3.4s ease-in-out infinite; }
 window.home.ahian flowboxchild:nth-child(2n) button.app { animation-delay: 0.9s; }
 window.home.ahian flowboxchild:nth-child(3n) button.app { animation-delay: 1.7s; }
-window.home.reduce-motion button.app { animation: none; }
+window.home.reduce-motion button.app { animation: none; transition: none; }
 """
 
 

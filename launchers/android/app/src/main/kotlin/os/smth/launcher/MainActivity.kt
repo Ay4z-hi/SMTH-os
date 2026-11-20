@@ -909,11 +909,11 @@ private class ConstructionView(
         isClickable = true
         contentDescription = "SMTH startup construction; tap to skip"
         setOnClickListener { finishIntro() }
-        animator.duration = 3_200
+        animator.duration = 3_800
         animator.interpolator = DecelerateInterpolator()
         animator.addUpdateListener { animation ->
             progress = animation.animatedValue as Float
-            alpha = if (progress > 0.88f) (1f - progress) / 0.12f else 1f
+            alpha = if (progress > 0.90f) (1f - progress) / 0.10f else 1f
             invalidate()
         }
         animator.addListener(object : AnimatorListenerAdapter() {
@@ -937,7 +937,7 @@ private class ConstructionView(
         if (closed) return
         closed = true
         animator.cancel()
-        animate().alpha(0f).setDuration(240).withEndAction {
+        animate().alpha(0f).setDuration(280).withEndAction {
             (parent as? ViewGroup)?.removeView(this)
         }.start()
     }

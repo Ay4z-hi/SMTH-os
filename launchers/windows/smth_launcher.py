@@ -619,7 +619,7 @@ class SMTHLauncher:
 class ConstructionIntro:
     """Short adaptation of the ISO startup construction, in the three palette inks."""
 
-    DURATION = 3.4
+    DURATION = 4.2
 
     def __init__(self, root, display_font, mono_font):
         self.root = root
@@ -802,11 +802,7 @@ class TerminalWindow:
 
         # Ahian state
         self.ahian_active = False
-        self.ahian_exiting = False
-        self.ahian_dialogs = []
-        self.ahian_bsod = None
-        self.ahian_overlay = None
-        self.ahian_handler = None
+        self._ahian_intro = None
 
     def close(self):
         if self.ahian_active:
@@ -841,249 +837,24 @@ class TerminalWindow:
         self.output.config(state=tk.DISABLED)
 
     def enter_ahian(self):
-        if self.ahian_active or self.ahian_exiting:
+        if self.ahian_active:
             self._append("AHIAN mode already active. Type 'unahian' to exit.\n")
             return
 
         self.ahian_active = True
-        self.input.config(state=tk.DISABLED, fg=BLUSH_DIM)
-
-        # Stage 1: Terminal failure
-        self._append("KERNEL PANIC: terminal subsystem failure\n")
-        self._append("stack trace: 0x701B35 -> 0xF2C6D2 -> 0x09090B\n")
-        self._append("memory: corrupted\n")
-        self._append("last command: ahian\n")
-
-        # Visually corrupt the terminal
-        self.output.config(fg=maroon(0.9))
-        self.win.after(1500, self._start_error_cascade)
-
-    def _start_error_cascade(self):
-        # Stage 2: Error dialog cascade
-        screen_width = self.win.winfo_screenwidth()
-        screen_height = self.win.winfo_screenheight()
-
-        dialog_messages = [
-            ("smth-core has stopped working", "A problem caused the program to stop working correctly. Reboot recommended."),
-            ("AHIAN subsystem error", "The dot engine could not keep up with the current state."),
-            ("Kernel panic: dot mismatch", "0x000000A1: attempted to divide beauty by zero."),
-            ("System alert: memory corruption", "The window manager would like to apologise for this error."),
-            ("Critical process terminated", "Something is trying to make your life beautiful."),
-            ("SMTH OS fatal error", "This dialog will close itself. Probably."),
-            ("Window manager failure", "FatalError: the void looked back."),
-            ("Surface composer crash", "Error 0x701B35: invalid aesthetic operation."),
-        ]
-
-        for i in range(24):
-            # One dialog every 400 ms, so the storm builds over ~10 s.
-            delay = 400 + i * 400
-            x = int(screen_width * 0.1 + screen_width * 0.8 * (i % 6) / 5)
-            y = int(screen_height * 0.1 + screen_height * 0.8 * (i // 6))
-            width = min(max(int(screen_width * 0.25 + Math.random() * screen_width * 0.2), 200), 400)
-            height = min(max(int(screen_height * 0.15 + Math.random() * screen_height * 0.1), 100), 200)
-
-            title, msg = dialog_messages[i % len(dialog_messages)]
-
-            self.win.after(delay, lambda x=x, y=y, w=width, h=height, t=title, m=msg: self._show_error_dialog(x, y, w, h, t, m))
-
-        # Stage 3: BSOD after the full dialog storm
-        self.win.after(400 + 24 * 400 + 600, self._show_bsod)
-
-    def _show_error_dialog(self, x, y, width, height, title, message):
-        if not self.ahian_active:
-            return
-
-        dialog = tk.Toplevel(self.win)
-        dialog.title("Error")
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
-        dialog.configure(bg=OBSIDIAN)
-        dialog.transient(self.win)
-        dialog.attributes("-topmost", True)
-
-        frame = tk.Frame(dialog, bg=OBSIDIAN)
-        frame.pack(fill=tk.BOTH, expand=True, padx=16, pady=14)
-
-        icon_label = tk.Label(
-            frame, text="⚠", fg=BLUSH, bg=OBSIDIAN,
-            font=("Doto", 24), anchor="w"
-        )
-        icon_label.pack(fill=tk.X)
-
-        title_label = tk.Label(
-            frame, text=title, fg=BLUSH, bg=OBSIDIAN,
-            font=(self.parent.mono, 11, "bold"), anchor="w", wraplength=width-32
-        )
-        title_label.pack(fill=tk.X, pady=(4, 4))
-
-        msg_label = tk.Label(
-            frame, text=message, fg=blush(0.6), bg=OBSIDIAN,
-            font=(self.parent.mono, 10), anchor="w", wraplength=width-32, justify=tk.LEFT
-        )
-        msg_label.pack(fill=tk.X, pady=(0, 8))
-
-        ok_btn = tk.Button(
-            frame, text="OK", command=dialog.destroy,
-            bg=blush(0.1), fg=maroon(0.9), activebackground=MAROON,
-            activeforeground=BLUSH, relief="flat", bd=0,
-            font=(self.parent.mono, 9), padx=12, cursor="hand2"
-        )
-        ok_btn.pack(side=tk.RIGHT, anchor="e", padx=8, pady=8)
-
-        self.ahian_dialogs.append(dialog)
-
-    def _show_bsod(self):
-        # Close all error dialogs
-        for d in self.ahian_dialogs:
-            try:
-                d.destroy()
-            except:
-                pass
-        self.ahian_dialogs.clear()
-
-        # BSOD window
-        self.ahian_bsod = tk.Toplevel(self.win)
-        self.ahian_bsod.title("BSOD")
-        self.ahian_bsod.geometry(f"{self.win.winfo_screenwidth()}x{self.win.winfo_screenheight()}+0+0")
-        self.ahian_bsod.configure(bg="#12245b")
-        self.ahian_bsod.transient(self.win)
-        self.ahian_bsod.attributes("-topmost", True)
-        self.ahian_bsod.protocol("WM_DELETE_WINDOW", lambda: None)  # Prevent closing
-
-        # Draw BSOD content
-        canvas = tk.Canvas(
-            self.ahian_bsod, bg="#12245b", highlightthickness=0, bd=0
-        )
-        canvas.pack(fill=tk.BOTH, expand=True)
-
-        # Accent line at top
-        canvas.create_rectangle(0, 0, self.ahian_bsod.winfo_screenwidth(), 4, fill=MAROON)
-
-        # SMTH OS heading
-        canvas.create_text(
-            self.ahian_bsod.winfo_screenwidth() / 2, 120,
-            text="SMTH OS", fill=BLUSH, font=("Doto", 48, "bold")
-        )
-
-        # Main message
-        canvas.create_text(
-            self.ahian_bsod.winfo_screenwidth() / 2, 180,
-            text="wants to make your life beautiful",
-            fill=BLUSH, font=("Doto", 32)
-        )
-
-        # Stop code
-        canvas.create_text(
-            self.ahian_bsod.winfo_screenwidth() / 2, 220,
-            text="Stop code: AHIAN_BEAUTY_ATTEMPTED",
-            fill=MAROON, font=(self.parent.mono, 14)
-        )
-
-        # Countdown
-        self.bsod_countdown = 9
-        self.bsod_count_label = canvas.create_text(
-            self.ahian_bsod.winfo_screenwidth() / 2, 280,
-            text=f"making your life beautiful in {self.bsod_countdown}...",
-            fill=blush(0.9), font=("Doto", 24, "bold")
-        )
-
-        # Start countdown
-        self._start_countdown()
-
-    def _start_countdown(self):
-        if not self.ahian_active:
-            return
-
-        self.bsod_countdown -= 1
-        if self.bsod_countdown > 0:
-            self.ahian_bsod.after(1000, self._update_countdown)
-        else:
-            self.ahian_bsod.after(1000, self._enter_improved_mode)
-
-        self.ahian_bsod.after(0, lambda: self.ahian_bsod.itemconfig(
-            self.bsod_count_label,
-            text=f"making your life beautiful in {self.bsod_countdown}..."
-        ))
-
-    def _update_countdown(self):
-        self._start_countdown()
-
-    def _enter_improved_mode(self):
-        # Close BSOD
         try:
-            self.ahian_bsod.destroy()
-        except:
-            pass
-        self.ahian_bsod = None
-
-        # Show improved mode overlay
-        self._show_improved_overlay()
-
+            self._ahian_intro = AhianConstructionIntro(self.parent)
+        except Exception:
+            self._ahian_intro = None
+        self.win.configure(bg=AHIAN_DEEP)
+        self.output.configure(bg=AHIAN_DEEP, fg="#EDE7FF")
+        self.input.configure(bg="#241A3D", fg="#EDE7FF")
         self._append("AHIAN mode activated\n")
-        self._append("Welcome to the beautiful experience\n")
-
-        # Stay in AHIAN mode until `unahian`, but let the user type again.
-        self.input.config(state=tk.NORMAL, fg=BLUSH)
+        self._append("purple/teal spatial UI · all apps available\n")
+        self._append("Type 'unahian' to exit.\n")
+        self.input.config(state=tk.NORMAL, fg="#EDE7FF")
         self.input.delete(0, "end")
-        self.input.insert(0, "unahian")
         self.input.focus_set()
-        self.input.select_range(0, "end")
-
-    def _show_improved_overlay(self):
-        overlay = tk.Toplevel(self.win)
-        overlay.title("AHIAN")
-        overlay.geometry(f"{self.win.winfo_screenwidth()}x{self.win.winfo_screenheight()}+0+0")
-        overlay.configure(bg=AHIAN_PURPLE)
-        overlay.transient(self.win)
-        overlay.attributes("-topmost", True)
-        overlay.protocol("WM_DELETE_WINDOW", lambda: None)
-
-        frame = tk.Frame(overlay, bg=AHIAN_PURPLE)
-        frame.pack(fill=tk.BOTH, expand=True)
-        tk.Frame(frame, bg=AHIAN_TEAL, height=4).pack(fill=tk.X)
-
-        msg_label = tk.Label(
-            frame, text="AHIAN mode activated",
-            fg="#FFFFFF", bg=AHIAN_PURPLE,
-            font=("Doto", 28, "bold"),
-            justify=tk.CENTER
-        )
-        msg_label.pack(expand=True)
-
-        sub_label = tk.Label(
-            frame, text="Welcome to the beautiful experience",
-            fg=AHIAN_TEAL, bg=AHIAN_PURPLE,
-            font=(self.parent.mono, 14),
-            justify=tk.CENTER
-        )
-        sub_label.pack(expand=True)
-
-        self.ahian_overlay = overlay
-        # Brief reveal, then hand the purple-teal theme to the terminal.
-        self.win.after(2500, self._apply_improved_theme)
-
-    def _apply_improved_theme(self):
-        if self.ahian_overlay:
-            try:
-                self.ahian_overlay.destroy()
-            except tk.TclError:
-                pass
-            self.ahian_overlay = None
-        try:
-            self.win.configure(bg=AHIAN_DEEP)
-            self.output.configure(bg=AHIAN_DEEP, fg="#EDE7FF")
-            self.input.configure(bg="#241A3D", fg="#EDE7FF")
-            self.output.tag_configure("ahian", foreground=AHIAN_TEAL)
-            self.input.focus_set()
-        except tk.TclError:
-            pass
-
-    def _restore_terminal_theme(self):
-        try:
-            self.win.configure(bg=OBSIDIAN)
-            self.output.configure(bg=OBSIDIAN, fg=BLUSH)
-            self.input.configure(bg=MAROON_DEEP, fg=BLUSH)
-        except tk.TclError:
-            pass
 
     def exit_ahian(self):
         if not self.ahian_active:
@@ -1091,71 +862,177 @@ class TerminalWindow:
             return
 
         self.ahian_active = False
-        self.ahian_exiting = True
-
-        # Close all dialogs
-        for d in self.ahian_dialogs:
-            try:
-                d.destroy()
-            except tk.TclError:
-                pass
-        self.ahian_dialogs.clear()
-
-        # Close BSOD
-        if self.ahian_bsod:
-            try:
-                self.ahian_bsod.destroy()
-            except tk.TclError:
-                pass
-            self.ahian_bsod = None
-
-        # Close improved overlay
-        if self.ahian_overlay:
-            try:
-                self.ahian_overlay.destroy()
-            except tk.TclError:
-                pass
-            self.ahian_overlay = None
-
-        self.input.config(state=tk.DISABLED, fg=BLUSH_DIM)
-        self._show_exit_overlay()
-
-    def _show_exit_overlay(self):
-        """The angry red screen shown by `unahian` before the restore."""
-        overlay = tk.Toplevel(self.win)
-        overlay.title("AHIAN")
-        overlay.geometry(f"{self.win.winfo_screenwidth()}x{self.win.winfo_screenheight()}+0+0")
-        overlay.configure(bg="#D71921")
-        overlay.transient(self.win)
-        overlay.attributes("-topmost", True)
-        overlay.protocol("WM_DELETE_WINDOW", lambda: None)
-
-        frame = tk.Frame(overlay, bg="#D71921")
-        frame.pack(fill=tk.BOTH, expand=True)
-        tk.Label(
-            frame, text="looks like you dont like ahian",
-            fg="#FFFFFF", bg="#D71921",
-            font=("Doto", 30, "bold"), justify=tk.CENTER
-        ).pack(expand=True)
-
-        self.ahian_overlay = overlay
-        self.win.after(3000, self._finish_exit)
-
-    def _finish_exit(self):
-        if self.ahian_overlay:
-            try:
-                self.ahian_overlay.destroy()
-            except tk.TclError:
-                pass
-            self.ahian_overlay = None
-        self.ahian_exiting = False
+        try:
+            if self._ahian_intro is not None and not self._ahian_intro.closed:
+                self._ahian_intro.close()
+        except Exception:
+            pass
+        self._ahian_intro = None
         self._restore_terminal_theme()
+        self._append("AHIAN mode off — normal experience restored\n")
         self.input.config(state=tk.NORMAL, fg=BLUSH)
         self.input.delete(0, "end")
         self.input.focus_set()
-        self._append("AHIAN mode exited. Normal terminal restored.\n")
 
 
-# Need Math for random
-import math as _math
-Math = type('Math', (), {'random': staticmethod(_math.random)})()
+
+class AhianConstructionIntro:
+    """AHIAN desktop reconstruction overlay (~10s)."""
+
+    DURATION = 10.0
+
+    def __init__(self, parent_launcher):
+        self.parent = parent_launcher
+        self.root = parent_launcher.root
+        if os.environ.get("SMTH_REDUCE_MOTION", "").strip().lower() in ("1", "on", "true", "yes"):
+            self.closed = True
+            return
+        self.win = tk.Toplevel(self.root)
+        self.win.overrideredirect(True)
+        self.win.configure(bg="#000000")
+        try:
+            self.win.attributes("-topmost", True)
+            self.win.attributes("-alpha", 1.0)
+        except tk.TclError:
+            pass
+        self.canvas = tk.Canvas(self.win, bg="#000000", highlightthickness=0, bd=0)
+        self.canvas.pack(fill="both", expand=True)
+        self.started = time.monotonic()
+        self.after_id = None
+        self.closed = False
+        self.paths = [
+            [(0.05, 0.0), (0.38, 0.55), (0.02, 0.02), (0.35, 0.25), (0.85, 0.8)],
+            [(0.52, -0.05), (0.5, 0.08), (0.08, 0.3), (0.9, 0.62), (0.7, 0.5)],
+            [(1.04, 0.18), (0.95, 0.35), (0.7, 0.25), (0.5, 0.5), (0.3, 0.55)],
+            [(-0.04, 0.45), (0.85, 0.25), (0.25, 0.7), (0.2, 0.5), (0.55, 0.85)],
+            [(0.7, -0.04), (0.5, 0.4), (0.45, 0.5), (0.35, 0.5), (0.2, 0.85)],
+            [(-0.04, 0.9), (0.5, 0.75), (0.55, 0.4), (0.18, 0.75), (0.48, 0.35)],
+            [(1.04, 0.95), (0.7, 0.5), (0.9, 0.5), (0.7, 0.2), (0.55, -0.05)],
+        ]
+        self.colors = ["#7C4DFF", "#2BD9C4", "#9E75FF", "#33E5CC", "#5738A0", "#33E5CC", "#9E75FF"]
+        self.root.bind("<Configure>", self.reposition, add="+")
+        self.reposition()
+        self.tick()
+
+    def reposition(self, *_):
+        if self.closed:
+            return
+        try:
+            self.root.update_idletasks()
+            w = max(1, self.root.winfo_width())
+            h = max(1, self.root.winfo_height())
+            x = self.root.winfo_rootx()
+            y = self.root.winfo_rooty()
+            self.win.geometry(f"{w}x{h}+{x}+{y}")
+            self.canvas.configure(width=w, height=h)
+        except tk.TclError:
+            pass
+
+    def tick(self):
+        if self.closed:
+            return
+        elapsed = time.monotonic() - self.started
+        progress = min(1.0, elapsed / self.DURATION)
+        self.draw(progress)
+        if elapsed >= self.DURATION:
+            self.close()
+        else:
+            self.after_id = self.root.after(33, self.tick)
+
+    def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        if self.after_id:
+            try:
+                self.root.after_cancel(self.after_id)
+            except tk.TclError:
+                pass
+
+        def fade(step=0):
+            if step >= 6:
+                try:
+                    self.win.destroy()
+                except tk.TclError:
+                    pass
+                return
+            try:
+                self.win.attributes("-alpha", max(0.0, 1.0 - step / 6.0))
+            except tk.TclError:
+                try:
+                    self.win.destroy()
+                except tk.TclError:
+                    pass
+                return
+            self.root.after(40, lambda: fade(step + 1))
+
+        fade()
+
+    def draw(self, p):
+        c = self.canvas
+        c.delete("all")
+        w = c.winfo_width()
+        h = c.winfo_height()
+        if w <= 1 or h <= 1:
+            return
+        c.create_rectangle(0, 0, w, h, fill="#000000", outline="")
+        # wallpaper emerging
+        alpha = min(1.0, p * 1.4)
+        step = max(20, int(min(w, h) / 24))
+        for y in range(step, h, step):
+            for x in range(step, w, step):
+                hot = ((x // step) + (y // step)) % 9 == 0
+                color = "#2BD9C4" if hot else "#1A1030"
+                c.create_oval(x - 1, y - 1, x + 1, y + 1, fill=color, outline="",
+                              stipple="gray50" if alpha < 0.5 else "")
+        # guides
+        if p > 0.18:
+            ga = min(1.0, (p - 0.18) / 0.4)
+            c.create_rectangle(8, h - 56, w - 8, h - 8, outline="#2BD9C4", width=1)
+        if p > 0.22:
+            pa = min(1.0, (p - 0.22) / 0.4)
+            c.create_rectangle(44, 44, 44 + int(w * 0.32 * pa), 44 + int((h - 210) * pa),
+                              outline="#2BD9C4", width=1)
+        if p > 0.28:
+            pa = min(1.0, (p - 0.28) / 0.4)
+            c.create_rectangle(int(w * 0.37), int(h * 0.17),
+                              int(w * 0.37 + w * 0.56 * pa), int(h * 0.17 + h * 0.58 * pa),
+                              outline="#7C4DFF", width=1)
+        # panels
+        if p > 0.3:
+            pp = min(1.0, (p - 0.3) / 0.5)
+            # window
+            c.create_rectangle(int(w * 0.37), int(h * 0.17), int(w * 0.37 + w * 0.56),
+                              int(h * 0.17 + h * 0.58), fill="#120A24", outline="")
+            # grid
+            c.create_rectangle(44, 44, 44 + int(w * 0.32), 44 + int(h - 210),
+                              fill="#120A24", outline="")
+            # taskbar
+            c.create_rectangle(8, h - 56, w - 8, h - 8, fill="#120A24", outline="")
+        # cursors
+        import math as _math
+        for i, pts in enumerate(self.paths):
+            start = 0.08 + i * 0.02
+            end = 0.82 + i * 0.02
+            if p < start or p > end + 0.08:
+                continue
+            prog = min(1.0, max(0.0, (p - start) / (end - start)))
+            segc = len(pts) - 1
+            seg = min(segc - 1, int(prog * segc))
+            local = prog * segc - seg
+            local = 1 - (1 - local) ** 3
+            ax, ay = pts[seg]
+            bx, by = pts[seg + 1]
+            x = (ax + (bx - ax) * local) * w
+            y = (ay + (by - ay) * local) * h
+            wob = _math.sin(prog * _math.tau * 2.2 + i * 0.37) * 3.2
+            cx = x + wob
+            cy = y - wob * 0.6
+            # trail
+            for k in range(3):
+                c.create_oval(cx - k * 4 - 2, cy - k * 3 - 2, cx - k * 4 + 2, cy - k * 3 + 2,
+                              fill=self.colors[i], outline="")
+            # cursor triangle
+            c.create_polygon(cx, cy, cx, cy + 18, cx + 4.6, cy + 13.4, cx + 7.4, cy + 20,
+                            cx + 10.2, cy + 18.7, cx + 7.4, cy + 12.2, cx + 13.5, cy + 12.2,
+                            fill=self.colors[i], outline="#000000")

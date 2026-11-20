@@ -97,12 +97,20 @@ class Renderer:
         D.draw_text(cr, text, x, y, dot, on=blend(colour, alpha), off=None)
 
     def _panel(self, cr, rect, border=M.GREY, alpha=1.0, fill=M.BLACK):
-        rgba(cr, fill, 0.86 * alpha)
-        rounded(cr, rect.x, rect.y, rect.w, rect.h, 3)
+        # Spatial depth: soft layered shadow beneath the panel.
+        rgba(cr, M.BLACK, 0.45 * alpha)
+        rounded(cr, rect.x + 2, rect.y + 4, rect.w, rect.h, 4)
+        cr.fill()
+        # Simulated liquid-glass surface: translucent fill + top highlight.
+        rgba(cr, fill, 0.78 * alpha)
+        rounded(cr, rect.x, rect.y, rect.w, rect.h, 4)
+        cr.fill()
+        rgba(cr, M.WHITE, 0.06 * alpha)
+        cr.rectangle(rect.x + 2, rect.y + 1, rect.w - 4, max(1.0, rect.h * 0.18))
         cr.fill()
         rgba(cr, border, 0.72 * alpha)
         cr.set_line_width(1.0)
-        rounded(cr, rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1, 3)
+        rounded(cr, rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1, 4)
         cr.stroke()
 
     def _wipe(self, cr, rect, progress, horizontal=True):

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# AHIAN desktop reconstruction construction.
+# Draws the AHIAN desktop being assembled, then fades out to reveal it.
+set -u
+exec python3 /usr/local/lib/smth/ahian_startup.py "$@"

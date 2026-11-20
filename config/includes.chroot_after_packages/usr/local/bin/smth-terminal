@@ -107,71 +107,21 @@ def write_state(ahian):
 
 
 def enter_ahian_mode():
-    """Activate Ahian mode."""
+    """Activate Ahian mode directly."""
     if FLAG.exists():
         print_color("AHIAN mode already active. Type 'unahian' to exit.", MAROON)
         return False
 
-    print()
-    print_color("KERNEL PANIC: terminal subsystem failure", MAROON)
-    print_color("stack trace: 0x701B35 -> 0xF2C6D2 -> 0x09090B", f"{MAROON}\033[2m")
-    print_color("memory: corrupted", f"{MAROON}\033[2m")
-    print_color("last command: ahian", f"{MAROON}\033[2m")
-    print()
-
-    # Stage 2: Error cascade (simulated in terminal for non-GTK environments)
-    errors = [
-        "[01] smth-core: cannot resolve symbol `home`",
-        "[02] segmentation fault (core dumped)",
-        "[03] wayland: compositor rejected surface",
-        "[04] ahian.so: undefined reference to `beauty`",
-        "[05] error: 0x0000A1A1 memory not found",
-        "[06] warn: dot grid desynchronised",
-        "[07] error: palette overflow in column 7",
-        "[08] fatal: the void looked back",
-        "[09] error: 42 unnecessary pixels",
-        "[10] AHIAN: something wants to be beautiful",
-    ]
-
-    for error in errors:
-        time.sleep(0.15)
-        print_color(error, MAROON)
-        sys.stdout.flush()
-
-    time.sleep(0.5)
-
-    # Stage 3: Blue screen
-    print()
-    print("_" * 60)
-    print()
-    print_color("        SMTH OS", BLUSH)
-    print()
-    print_color("        wants to make your life beautiful", BLUSH)
-    print()
-    print_color("        Stop code: AHIAN_BEAUTY_ATTEMPTED", MAROON)
-    print()
-
-    # Stage 4: Countdown
-    for i in range(9, 0, -1):
-        time.sleep(1)
-        print_color(f"        making your life beautiful in {i}...", BLUSH)
-        sys.stdout.flush()
-
-    print()
-    print_color("_" * 60, MAROON)
-    print()
-
-    # Stage 5: Improved mode
     write_state(True)
-
-    print_color("AHIAN mode activated", BLUSH)
-    print_color("Welcome to the beautiful experience", BLUSH)
+    print()
+    print_color("AHIAN MODE ON", BLUSH)
+    print_color("purple/teal spatial UI · all apps available", BLUSH)
     print()
     print_color("Run 'unahian' to return to normal mode.", f"{BLUSH}\033[2m")
     print()
 
     try:
-        subprocess.run(["notify-send", "-a", "SMTH", "AHIAN", "Something wants to make your life beautiful."],
+        subprocess.run(["notify-send", "-a", "SMTH", "AHIAN", "AHIAN mode activated."],
                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError):
         pass
@@ -180,26 +130,18 @@ def enter_ahian_mode():
 
 
 def exit_ahian_mode():
-    """Exit Ahian mode."""
+    """Exit Ahian mode and restore normal desktop."""
     if not FLAG.exists():
         print_color("Not in AHIAN mode. Type 'ahian' to enter.", f"{BLUSH}\033[2m")
         return False
 
-    print()
-    print_color("  AHIAN HAS BEEN DISABLED", MAROON)
-    print()
-    print_color("  looks like you dont like ahian", MAROON)
-    print()
-
-    time.sleep(2.6)
-
     write_state(False)
-
-    print_color("ahian mode off — normal experience restored", BLUSH)
+    print()
+    print_color("AHIAN mode off — normal experience restored", BLUSH)
     print()
 
     try:
-        subprocess.run(["notify-send", "-a", "SMTH", "AHIAN", "looks like you dont like ahian"],
+        subprocess.run(["notify-send", "-a", "SMTH", "AHIAN", "Normal mode restored."],
                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (OSError, subprocess.SubprocessError):
         pass
