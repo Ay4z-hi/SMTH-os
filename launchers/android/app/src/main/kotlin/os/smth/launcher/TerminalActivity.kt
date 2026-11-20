@@ -81,7 +81,12 @@ class TerminalActivity : android.app.Activity() {
 
     private fun build() {
         root = FrameLayout(this).apply {
-            setBackgroundColor(OBSIDIAN)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(OBSIDIAN)
+                cornerRadius = dp(14).toFloat()
+                setStroke(dp(1), maroon(0.72f))
+            }
+            clipToOutline = true
         }
         setContentView(root)
         // Present Terminal as a floating desktop-style window, not a fullscreen Activity.
