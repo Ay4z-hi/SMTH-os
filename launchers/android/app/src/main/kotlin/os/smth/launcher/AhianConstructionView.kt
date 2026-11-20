@@ -262,6 +262,11 @@ class AhianConstructionView(context: Context) : View(context) {
             canvas.drawPath(path, cursorPaint)
             cursorPaint.color = adjustAlpha(cursorColors[i], alpha)
             canvas.drawPath(path, cursorPaint)
+            textPaint.color = adjustAlpha(cursorColors[i], alpha)
+            textPaint.setShadowLayer(dp(3f), 0f, dp(1f), Color.BLACK)
+            canvas.drawText(arrayOf("AHIAN", "PURPLE", "TEAL", "SPATIAL", "DEPTH", "PANEL", "BUILD")[i],
+                cx + dp(21f), cy + dp(22f), textPaint)
+            textPaint.clearShadowLayer()
         }
 
         // click ripple occasionally
