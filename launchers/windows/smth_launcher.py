@@ -1023,6 +1023,7 @@ class AhianConstructionIntro:
     def __init__(self, parent_launcher):
         self.parent = parent_launcher
         self.root = parent_launcher.root
+        self.mono = parent_launcher.mono
         if os.environ.get("SMTH_REDUCE_MOTION", "").strip().lower() in ("1", "on", "true", "yes"):
             self.closed = True
             return
