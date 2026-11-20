@@ -166,6 +166,38 @@ class TerminalActivity : android.app.Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ).apply {
             topMargin = dp(36)
+            bottomMargin = dp(22)
+        })
+
+        // Visible resize grip: drag its corner to resize the floating app window.
+        val resizeGrip = TextView(this).apply {
+            text = "◢"
+            textSize = 16f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(blush(0.65f))
+            setBackgroundColor(obsidian(0.7f))
+            var lastX = 0f
+            var lastY = 0f
+            setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> { lastX = event.rawX; lastY = event.rawY; true }
+                    MotionEvent.ACTION_MOVE -> {
+                        if (!maximized) {
+                            normalWidth = (normalWidth + (event.rawX - lastX).toInt())
+                                .coerceIn(dp(320), screen.widthPixels - dp(20))
+                            normalHeight = (normalHeight + (event.rawY - lastY).toInt())
+                                .coerceIn(dp(260), screen.heightPixels - dp(40))
+                            window.setLayout(normalWidth, normalHeight)
+                        }
+                        lastX = event.rawX; lastY = event.rawY
+                        true
+                    }
+                    else -> false
+                }
+            }
+        }
+        root.addView(resizeGrip, FrameLayout.LayoutParams(dp(28), dp(28)).apply {
+            gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
         })
 
         // Keyboard handling
