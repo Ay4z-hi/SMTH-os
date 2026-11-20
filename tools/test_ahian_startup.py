@@ -10,11 +10,12 @@ import ahian_startup_model as M  # noqa: E402
 
 def test_timeline():
     assert 8000 <= M.DURATION_MS <= 12000, M.DURATION_MS
-    assert M.LOGO_END_MS < M.CURSOR_START_MS < M.CONSTRUCT_START_MS
+    assert M.LOGO_END_MS == M.LOGO_FADE_END_MS == 0
+    assert M.CURSOR_START_MS < M.CONSTRUCT_START_MS
     assert M.CONSTRUCT_START_MS < M.CONSTRUCT_END_MS < M.FADE_END_MS
     scene = M.StartupScene(1920, 1080)
-    assert scene.frame(0).phase == "logo"
-    assert scene.frame(1100).phase == "cursors"
+    assert scene.frame(0).phase == "cursors"
+    assert scene.frame(1100).phase == "construct"
     assert scene.frame(4000).phase == "construct"
     assert scene.frame(M.CONSTRUCT_END_MS + 10).phase == "settle"
     assert scene.frame(M.REVEAL_END_MS + 10).phase == "fade"
@@ -42,7 +43,7 @@ def test_cursors_are_independent_and_visible():
     for spec in scene.cursors:
         x, y = spec.position(spec.end_ms, scene.width, scene.height)
         assert x < 0 or x > scene.width or y < 0 or y > scene.height
-    assert not scene.frame(500).cursors
+    assert scene.frame(500).cursors
 
 
 def test_selection_boxes():
