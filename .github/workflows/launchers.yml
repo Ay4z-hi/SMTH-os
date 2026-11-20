@@ -47,6 +47,14 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK"
       - name: Name Android package
         run: cp launchers/android/app/build/outputs/apk/debug/app-debug.apk launchers/android/SMTH-Android-Launcher.apk
+      # Publish immediately after build/integrity checks. Emulator availability
+      # must never delay or prevent users from retrieving a valid APK.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SMTH-Android-Launcher
+          path: launchers/android/SMTH-Android-Launcher.apk
+          if-no-files-found: error
+          retention-days: 30
       - name: Install and launch on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -54,13 +62,6 @@ jobs:
           arch: x86_64
           profile: pixel_2
           script: bash launchers/android/ci-emulator-test.sh launchers/android/SMTH-Android-Launcher.apk
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: SMTH-Android-Launcher
-          path: launchers/android/SMTH-Android-Launcher.apk
-          if-no-files-found: error
-          retention-days: 30
       - uses: actions/upload-artifact@v4
         with:
           name: SMTH-Android-Screenshot
