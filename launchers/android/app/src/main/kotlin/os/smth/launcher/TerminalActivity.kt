@@ -126,6 +126,11 @@ class TerminalActivity : android.app.Activity() {
                 setOnClickListener { action() }
             }
         val minimize = control("—", { moveTaskToBack(true) })
+        val keyboard = control("⌨", {
+            terminalView.commandInput.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            imm.showSoftInput(terminalView.commandInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        })
         val maximize = control("□", {
             maximized = !maximized
             if (maximized) {
@@ -136,6 +141,7 @@ class TerminalActivity : android.app.Activity() {
         })
         closeButton = control("×", { finish() }, Color.parseColor("#FF7185"))
         titleBar.addView(minimize, LinearLayout.LayoutParams(dp(34), dp(28)))
+        titleBar.addView(keyboard, LinearLayout.LayoutParams(dp(34), dp(28)))
         titleBar.addView(maximize, LinearLayout.LayoutParams(dp(34), dp(28)))
         titleBar.addView(closeButton, LinearLayout.LayoutParams(dp(34), dp(28)))
 
@@ -219,7 +225,11 @@ class TerminalActivity : android.app.Activity() {
             submitCommand()
             true
         }
-        editText.requestFocus()
+        editText.post {
+            editText.requestFocus()
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            imm.showSoftInput(editText, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        }
     }
 
     private fun submitCommand() {
