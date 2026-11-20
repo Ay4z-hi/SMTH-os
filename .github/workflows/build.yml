@@ -375,5 +375,10 @@ jobs:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest-os' }}
           target_commitish: main
           name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'SMTH OS — Latest' }}
-          files: dist/*
+          files: |
+            dist/smth-os-amd64.iso
+            dist/smth-os-arm64.iso
+            dist/SHA256SUMS
+          overwrite_files: true
+          fail_on_unmatched_files: true
           generate_release_notes: true
