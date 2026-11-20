@@ -55,6 +55,7 @@ jobs:
           profile: pixel_2
           script: bash launchers/android/ci-emulator-test.sh launchers/android/SMTH-Android-Launcher.apk
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: SMTH-Android-Launcher
           path: launchers/android/SMTH-Android-Launcher.apk
