@@ -34,7 +34,7 @@
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
             android:label="Terminal"
-            android:theme="@style/SMTH">
+            android:theme="@style/SMTH.Terminal">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.DEFAULT" />
