@@ -122,7 +122,7 @@ class MainActivity : Activity() {
         if (!returningFromAhianCommand) root.post { showStartupConstruction() }
         if (returningFromAhianCommand) {
             intent.removeExtra("show_ahian_construction")
-            root.postDelayed({ showAhianConstruction() }, 2500L)
+            root.postDelayed({ if (getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false)) showAhianConstruction() }, 2500L)
         }
     }
 
