@@ -87,7 +87,7 @@ class MainActivity : Activity() {
     }
     private lateinit var root: FrameLayout
     private lateinit var ahianTint: View
-    private lateinit var desktop: LinearLayout
+    private lateinit var desktop: FrameLayout
     private lateinit var pinnedRow: LinearLayout
     private lateinit var startPanel: LinearLayout
     private lateinit var startGlass: GlassView
@@ -105,6 +105,7 @@ class MainActivity : Activity() {
     private var typefaceDot: Typeface? = null
     private var panelOpen = false
     private var animation: ValueAnimator? = null
+    private var ahianIntro: AhianConstructionView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,6 +117,44 @@ class MainActivity : Activity() {
         refreshApps()
         startClock()
         applyAhianTheme()
+        // The normal boot reconstruction was previously defined but never attached.
+        root.post { showStartupConstruction() }
+        if (intent.getBooleanExtra("show_ahian_construction", false)) {
+            intent.removeExtra("show_ahian_construction")
+            root.postDelayed({ showAhianConstruction() }, 2500L)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("show_ahian_construction", false)) {
+            intent.removeExtra("show_ahian_construction")
+            root.postDelayed({ showAhianConstruction() }, 2500L)
+        }
+    }
+
+    private fun showStartupConstruction() {
+        val scale = try {
+            Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        } catch (_: Exception) { 1f }
+        if (scale == 0f || isFinishing) return
+        val intro = ConstructionView(this, typefaceDot, typefaceMono)
+        root.addView(intro, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    private fun showAhianConstruction() {
+        if (!::root.isInitialized || isFinishing) return
+        ahianIntro?.let { root.removeView(it); it.stop() }
+        val intro = AhianConstructionView(this)
+        ahianIntro = intro
+        root.addView(intro, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        intro.start {
+            root.removeView(intro)
+            if (ahianIntro === intro) ahianIntro = null
+        }
     }
 
     override fun onResume() {
@@ -194,13 +233,13 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
         ))
 
-        desktop = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(8))
+        desktop = FrameLayout(this).apply {
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+            isClickable = true
         }
         surface.addView(desktop, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-        ).apply { gravity = Gravity.TOP or Gravity.START })
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ))
 
         // ---- taskbar -----------------------------------------------------
         val taskbar = GlassView(this, wallpaper, wallpaper.blurred).apply {
@@ -417,7 +456,7 @@ class MainActivity : Activity() {
         // layout, dispatch insets again and starve the first frame.
         root.setOnApplyWindowInsetsListener { _, insets ->
             surface.setPadding(0, insets.systemWindowInsetTop, 0, insets.systemWindowInsetBottom)
-            desktop.setPadding(dp(20), dp(18), dp(20), dp(8))
+            desktop.setPadding(dp(8), dp(8), dp(8), dp(8))
             insets
         }
         setContentView(root)
@@ -487,10 +526,19 @@ class MainActivity : Activity() {
 
     private fun rebuildDesktop() {
         desktop.removeAllViews()
-        for (entry in desktopShortcuts()) desktop.addView(desktopIcon(entry))
+        for ((index, entry) in desktopShortcuts().withIndex()) {
+            val icon = desktopIcon(entry, index)
+            val params = FrameLayout.LayoutParams(dp(88), dp(76)).apply {
+                gravity = Gravity.TOP or Gravity.START
+                val prefs = getSharedPreferences("smth_desktop", MODE_PRIVATE)
+                leftMargin = prefs.getInt(entry.packageName + "_x", dp(18))
+                topMargin = prefs.getInt(entry.packageName + "_y", dp(18 + index * 84))
+            }
+            desktop.addView(icon, params)
+        }
     }
 
-    private fun desktopIcon(entry: AppEntry): LinearLayout =
+    private fun desktopIcon(entry: AppEntry, index: Int): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
@@ -515,6 +563,49 @@ class MainActivity : Activity() {
                 launch(entry)
             }
             setOnLongClickListener { openInfo(entry); true }
+            var downX = 0f
+            var downY = 0f
+            var originX = 0f
+            var originY = 0f
+            var moved = false
+            setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = event.rawX
+                        downY = event.rawY
+                        originX = view.x
+                        originY = view.y
+                        moved = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        if (kotlin.math.abs(dx) + kotlin.math.abs(dy) > dp(7)) moved = true
+                        if (moved) {
+                            val lp = view.layoutParams as FrameLayout.LayoutParams
+                            lp.leftMargin = (originX + dx).toInt().coerceIn(0, (desktop.width - view.width).coerceAtLeast(0))
+                            lp.topMargin = (originY + dy).toInt().coerceIn(0, (desktop.height - view.height).coerceAtLeast(0))
+                            view.layoutParams = lp
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (moved) {
+                            val prefs = getSharedPreferences("smth_desktop", MODE_PRIVATE)
+                            prefs.edit()
+                                .putInt(entry.packageName + "_x", view.x.toInt())
+                                .putInt(entry.packageName + "_y", view.y.toInt())
+                                .apply()
+                        } else {
+                            view.performClick()
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> true
+                    else -> true
+                }
+            }
             suppressPointer(this)
         }
 
