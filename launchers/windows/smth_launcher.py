@@ -283,7 +283,10 @@ class SMTHLauncher:
         c = self.canvas
         entries = [a for a in APPS if a[0] in PINNED][:6]
         for i, (name, target, fallbacks, kind, glyph) in enumerate(entries):
-            x, y = self.shortcut_positions.get(name, (44, 34 + i * 74))
+            cols = max(1, (max(1, w) - 48) // 112)
+            default_position = (24 + (i % cols) * 112, 24 + (i // cols) * 84)
+            x, y = self.shortcut_positions.get(name, default_position)
+            self.shortcut_positions[name] = (x, y)
             tag = f"shortcut-{i}"
             accent = "#B9A0FF" if self.ahian_mode else BLUSH
             draw_glyph(c, glyph, x, y + 20, 30, accent, 1.7, tags=("desktop", tag))
@@ -1211,6 +1214,8 @@ class AhianConstructionIntro:
                 c.create_oval(cx - k * 4 - 2, cy - k * 3 - 2, cx - k * 4 + 2, cy - k * 3 + 2,
                               fill=self.colors[i], outline="")
             # cursor triangle
-            c.create_polygon(cx, cy, cx, cy + 18, cx + 4.6, cy + 13.4, cx + 7.4, cy + 20,
-                            cx + 10.2, cy + 18.7, cx + 7.4, cy + 12.2, cx + 13.5, cy + 12.2,
-                            fill=self.colors[i], outline="#000000")
+            c.create_polygon(cx, cy, cx, cy + 22, cx + 5.8, cy + 16.4, cx + 9.2, cy + 24,
+                            cx + 12.2, cy + 22, cx + 9.0, cy + 15, cx + 17, cy + 15,
+                            fill=self.colors[i], outline="#FFFFFF", width=1.2)
+            c.create_text(cx + 21, cy + 22, text=("AHIAN", "PURPLE", "TEAL", "SPATIAL", "DEPTH", "PANEL", "BUILD")[i],
+                          anchor="nw", fill=self.colors[i], font=(self.mono, 7))
