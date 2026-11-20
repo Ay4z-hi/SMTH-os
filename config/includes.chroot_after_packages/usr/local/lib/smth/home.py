@@ -194,9 +194,37 @@ def on_activate(app):
     except (OSError, ValueError, TypeError):
         icon_positions = {}
 
+    CELL_W, CELL_H, GRID_X, GRID_Y = 112.0, 90.0, 24.0, 24.0
+    ICON_W, ICON_H = 96.0, 78.0
+
+    def snap_to_free(name, x, y):
+        cols = max(1, int(max(1, icons.get_width()) // CELL_W))
+        rows = max(1, int(max(1, icons.get_height()) // CELL_H))
+        col = max(0, min(cols - 1, round((x - GRID_X) / CELL_W)))
+        row = max(0, min(rows - 1, round((y - GRID_Y) / CELL_H)))
+        occupied = set()
+        for other, pos in icon_positions.items():
+            if other == name or not isinstance(pos, (list, tuple)) or len(pos) < 2:
+                continue
+            try:
+                occupied.add((round((float(pos[0]) - GRID_X) / CELL_W),
+                              round((float(pos[1]) - GRID_Y) / CELL_H)))
+            except (TypeError, ValueError):
+                continue
+        start = row * cols + col
+        for offset in range(cols * rows):
+            cell = (start + offset) % (cols * rows)
+            candidate = (cell % cols, cell // cols)
+            if candidate not in occupied:
+                return (GRID_X + candidate[0] * CELL_W,
+                        GRID_Y + candidate[1] * CELL_H)
+        return (GRID_X + col * CELL_W, GRID_Y + row * CELL_H)
+
     def save_icon_position(name, button):
         x, y = icons.get_child_position(button)
-        icon_positions[name] = [float(x), float(y)]
+        x, y = snap_to_free(name, float(x), float(y))
+        icons.move(button, x, y)
+        icon_positions[name] = [x, y]
         try:
             os.makedirs(os.path.dirname(layout_path), exist_ok=True)
             temp = layout_path + ".tmp"
@@ -210,8 +238,10 @@ def on_activate(app):
         b = icon_button(n)
         if not b: continue
         pos = icon_positions.get(n, [26 + (index // 7) * 112, 24 + (index % 7) * 82])
-        try: x, y = max(0.0, float(pos[0])), max(0.0, float(pos[1]))
-        except (TypeError, ValueError, IndexError): x, y = 26.0, 24.0 + index * 82.0
+        try: x, y = float(pos[0]), float(pos[1])
+        except (TypeError, ValueError, IndexError): x, y = 24.0, 24.0
+        x, y = snap_to_free(n, x, y)
+        icon_positions[n] = [x, y]
         icons.put(b, x, y)
         drag = Gtk.GestureDrag()
         origin = {"x": x, "y": y}
