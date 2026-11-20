@@ -27,6 +27,12 @@ fail() {
   printf '::error title=%s::%s\n' "$title" "${detail:0:1500}"
   echo "--- adb devices ---"
   adb devices || true
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    echo '' >> "$GITHUB_STEP_SUMMARY"
+    echo '```' >> "$GITHUB_STEP_SUMMARY"
+    adb logcat -d -t 80 2>&1 | tail -c 3000 >> "$GITHUB_STEP_SUMMARY" || true
+    echo '```' >> "$GITHUB_STEP_SUMMARY"
+  fi
   exit 1
 }
 
