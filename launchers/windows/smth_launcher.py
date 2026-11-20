@@ -1118,6 +1118,49 @@ class AhianConstructionIntro:
                               fill="#120A24", outline="")
             # taskbar
             c.create_rectangle(8, h - 56, w - 8, h - 8, fill="#120A24", outline="")
+            # Build visible window chrome and content rather than empty rectangles.
+            if pp > 0.12:
+                q = min(1.0, (pp - 0.12) / 0.55)
+                left, top = int(w * 0.37), int(h * 0.17)
+                right, bottom = int(w * 0.93), int(h * 0.75)
+                c.create_rectangle(left, top, right, top + 32, fill="#21133D", outline="#7C4DFF")
+                c.create_text(left + 12, top + 17, text="AHIAN / SPATIAL DESKTOP",
+                              fill="#EDE7FF", anchor="w", font=(self.mono, 8))
+                for j, colour in enumerate(("#7C4DFF", "#2BD9C4", "#9E75FF")):
+                    c.create_oval(right - 44 + j * 13, top + 13, right - 38 + j * 13,
+                                  top + 19, fill=colour, outline="")
+                for j in range(3):
+                    cy = top + 48 + j * 40
+                    c.create_rectangle(left + 12, cy, left + 122, cy + 28,
+                                       fill="#30234C", outline="#5738A0")
+                    c.create_oval(left + 20, cy + 9, left + 28, cy + 17,
+                                  fill=("#2BD9C4", "#9E75FF")[j % 2], outline="")
+                    c.create_line(left + 38, cy + 13, left + 94, cy + 13,
+                                  fill="#8F80B5", width=2)
+                if q > 0.35:
+                    wx = left + int(w * 0.30)
+                    wy = top + 48
+                    c.create_rectangle(wx, wy, right - 12, bottom - 12,
+                                       fill="#17102B", outline="#2BD9C4")
+                    chart = [(wx + 12, wy + 60), (wx + 32, wy + 45),
+                             (wx + 52, wy + 53), (wx + 72, wy + 22),
+                             (wx + 92, wy + 32)]
+                    c.create_line(*[v for point in chart for v in point],
+                                  fill="#2BD9C4", width=2, smooth=True)
+            if pp > 0.25:
+                q = min(1.0, (pp - 0.25) / 0.48)
+                for j in range(6):
+                    x = 54 + (j % 3) * 48
+                    y = 62 + (j // 3) * 54
+                    c.create_rectangle(x, y, x + 24, y + 24,
+                                       fill=("#7C4DFF", "#2BD9C4")[j % 2], outline="")
+                    c.create_oval(x + 8, y + 8, x + 16, y + 16,
+                                  fill="#F1EDFF", outline="")
+            if pp > 0.5:
+                for j in range(6):
+                    x = 24 + j * 25
+                    c.create_rectangle(x, h - 42, x + 14, h - 24,
+                                       fill=("#7C4DFF", "#2BD9C4")[j % 2], outline="")
         # cursors
         import math as _math
         for i, pts in enumerate(self.paths):
