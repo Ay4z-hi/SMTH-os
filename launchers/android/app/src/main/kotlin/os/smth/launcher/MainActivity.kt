@@ -259,7 +259,7 @@ class MainActivity : Activity() {
             // The logo is the search entry point: no separate Search button.
             setOnClickListener { openStart(focusSearch = true) }
             addView(ImageView(this@MainActivity).apply {
-                setImageResource(R.drawable.ic_launcher_smth)
+                setImageResource(R.drawable.ic_launcher_black)
                 scaleType = ImageView.ScaleType.FIT_CENTER
             }, LinearLayout.LayoutParams(dp(28), dp(28)))
         }
