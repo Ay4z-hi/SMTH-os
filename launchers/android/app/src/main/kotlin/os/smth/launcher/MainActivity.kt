@@ -1056,7 +1056,7 @@ private class ConstructionView(
             paint.alpha = (fade * 255).toInt()
             val bmp = logoBitmap
             if (bmp != null) {
-                val size = dpf(84f)
+                val size = dpf(66f)
                 val dst = RectF(w / 2f - size / 2f, h / 2f - size / 2f, w / 2f + size / 2f, h / 2f + size / 2f)
                 canvas.drawBitmap(bmp, null, dst, paint)
             }
