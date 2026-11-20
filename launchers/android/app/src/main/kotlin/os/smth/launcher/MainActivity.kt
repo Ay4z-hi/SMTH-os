@@ -5,6 +5,7 @@ import android.animation.AnimatorListenerAdapter
 import android.animation.TimeInterpolator
 import android.animation.ValueAnimator
 import android.app.Activity
+import android.app.ActivityOptions
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -16,6 +17,7 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
@@ -823,7 +825,18 @@ class MainActivity : Activity() {
         }
         launched.add(entry.packageName)
         rebuildPinned()
-        startActivitySafely(intent)
+        // Prefer Android's native freeform task mode for installed apps. On
+        // devices that support desktop/freeform windows this opens beside the
+        // SMTH desktop; Android may ignore bounds on devices without that mode.
+        val metrics = resources.displayMetrics
+        val width = (metrics.widthPixels * 0.78f).toInt().coerceAtLeast(dp(300))
+        val height = (metrics.heightPixels * 0.76f).toInt().coerceAtLeast(dp(240))
+        val left = ((metrics.widthPixels - width) / 2).coerceAtLeast(0)
+        val top = ((metrics.heightPixels - height) / 2).coerceAtLeast(0)
+        val options = ActivityOptions.makeBasic().setLaunchBounds(
+            Rect(left, top, left + width, top + height)
+        )
+        startActivitySafely(intent, options.toBundle())
     }
 
     private fun openInfo(entry: AppEntry) {
@@ -833,9 +846,9 @@ class MainActivity : Activity() {
         )
     }
 
-    private fun startActivitySafely(intent: Intent) {
+    private fun startActivitySafely(intent: Intent, options: Bundle? = null) {
         try {
-            startActivity(intent)
+            if (options != null) startActivity(intent, options) else startActivity(intent)
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(this, "Not available on this device", Toast.LENGTH_SHORT).show()
         } catch (e: SecurityException) {
