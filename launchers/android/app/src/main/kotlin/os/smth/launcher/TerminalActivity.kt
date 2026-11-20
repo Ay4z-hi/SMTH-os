@@ -81,10 +81,14 @@ class TerminalActivity : android.app.Activity() {
 
     private fun build() {
         root = FrameLayout(this).apply {
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(OBSIDIAN)
-                cornerRadius = dp(14).toFloat()
-                setStroke(dp(1), maroon(0.72f))
+            // Simulated liquid glass: translucent smoked surface, soft radius,
+            // fine edge and a restrained specular highlight.
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(Color.argb(222, 28, 29, 36), Color.argb(208, 12, 12, 17))
+            ).apply {
+                cornerRadius = dp(18).toFloat()
+                setStroke(dp(1), Color.argb(112, 238, 228, 242))
             }
             clipToOutline = true
         }
@@ -95,8 +99,14 @@ class TerminalActivity : android.app.Activity() {
         normalHeight = (screen.heightPixels * 0.78f).toInt().coerceAtLeast(dp(260))
         window.setBackgroundDrawableResource(android.R.color.transparent)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            // Use platform blur when available; the tinted translucent surface
+            // remains the fallback on devices that disable background blur.
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+            window.setBackgroundBlurRadius(dp(26))
+        }
         window.attributes = window.attributes.apply {
-            dimAmount = 0.18f
+            dimAmount = 0.12f
             gravity = android.view.Gravity.TOP or android.view.Gravity.START
             x = (screen.widthPixels - normalWidth) / 2
             y = (screen.heightPixels - normalHeight) / 2
@@ -107,7 +117,7 @@ class TerminalActivity : android.app.Activity() {
         titleBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(12), dp(8), dp(8), dp(8))
-            setBackgroundColor(obsidian(0.92f))
+            setBackgroundColor(Color.argb(92, 245, 239, 250))
         }
         titleText = TextView(this).apply {
             text = "Terminal"
@@ -176,7 +186,7 @@ class TerminalActivity : android.app.Activity() {
 
         // Terminal view
         terminalView = TerminalView(this, resources.displayMetrics.density, dot, mono).apply {
-            setBackgroundColor(OBSIDIAN)
+            setBackgroundColor(Color.argb(112, 8, 8, 13))
         }
         root.addView(terminalView, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
@@ -191,7 +201,7 @@ class TerminalActivity : android.app.Activity() {
             textSize = 16f
             gravity = android.view.Gravity.CENTER
             setTextColor(blush(0.65f))
-            setBackgroundColor(obsidian(0.7f))
+            setBackgroundColor(Color.argb(90, 245, 239, 250))
             var lastX = 0f
             var lastY = 0f
             setOnTouchListener { _, event ->
@@ -316,7 +326,7 @@ class TerminalView(
 
         val inputRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            setBackgroundColor(obsidian(0.85f))
+            setBackgroundColor(Color.argb(84, 18, 17, 25))
             setPadding(dp(8), dp(6), dp(8), dp(8))
             setOnTouchListener { _, _ ->
                 commandInput.requestFocus()
