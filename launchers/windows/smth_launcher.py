@@ -797,13 +797,23 @@ class ConstructionIntro:
         w, h = c.winfo_width(), c.winfo_height()
         if w <= 1 or h <= 1:
             return
-        c.create_rectangle(0, 0, w, h, fill=OBSIDIAN, outline="")
+        # AHIAN's purple-to-teal wallpaper is revealed progressively.
+        wallpaper_mix = min(1.0, max(0.0, p * 1.4))
+        purple_rgb = (124, 77, 255)
+        teal_rgb = (0, 194, 168)
+        for y in range(0, h, 12):
+            for x in range(0, w, 12):
+                mix = min(1.0, max(0.0, (x / max(1, w) * 0.58 + y / max(1, h) * 0.42)))
+                target = tuple(round(purple_rgb[i] * (1 - mix) + teal_rgb[i] * mix) for i in range(3))
+                colour = tuple(round(v * wallpaper_mix) for v in target)
+                c.create_rectangle(x, y, x + 12, y + 12,
+                                   fill="#%02X%02X%02X" % colour, outline="")
         step = 24
         for y in range(step, h, step):
             for x in range(step, w, step):
                 hot = ((x // step) + (y // step)) % 9 == 0
                 c.create_oval(x - 1, y - 1, x + 1, y + 1,
-                              fill=MAROON if hot else "#141013", outline="")
+                              fill="#33E5CC" if hot else "#201A35", outline="")
 
         if p < 0.42:
             fade = min(1.0, p / 0.16) if p < 0.16 else max(0.0, 1 - (p - 0.30) / 0.12)
