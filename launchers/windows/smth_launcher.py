@@ -783,6 +783,14 @@ class ConstructionIntro:
 
         fade()
 
+    @staticmethod
+    def _fade_colour(colour, background, amount):
+        amount = max(0.0, min(1.0, amount))
+        a = tuple(int(colour[i:i + 2], 16) for i in (1, 3, 5))
+        b = tuple(int(background[i:i + 2], 16) for i in (1, 3, 5))
+        values = [round(b[i] + (a[i] - b[i]) * amount) for i in range(3)]
+        return "#" + "".join(f"{value:02X}" for value in values)
+
     def draw(self, p):
         c = self.canvas
         c.delete("all")
@@ -1125,19 +1133,21 @@ class AhianConstructionIntro:
                 color = "#2BD9C4" if hot else "#1A1030"
                 c.create_oval(x - 1, y - 1, x + 1, y + 1, fill=color, outline="",
                               stipple="gray50" if alpha < 0.5 else "")
-        # guides
-        if p > 0.18:
-            ga = min(1.0, (p - 0.18) / 0.4)
-            c.create_rectangle(8, h - 56, w - 8, h - 8, outline="#2BD9C4", width=1)
-        if p > 0.22:
+        # Construction guides fade away before the finished desktop is revealed.
+        guide_mix = max(0.0, min(1.0, (0.94 - p) / 0.12))
+        teal_guide = self._fade_colour("#2BD9C4", "#000000", guide_mix)
+        purple_guide = self._fade_colour("#7C4DFF", "#000000", guide_mix)
+        if guide_mix > 0.01 and p > 0.18:
+            c.create_rectangle(8, h - 56, w - 8, h - 8, outline=teal_guide, width=1)
+        if guide_mix > 0.01 and p > 0.22:
             pa = min(1.0, (p - 0.22) / 0.4)
             c.create_rectangle(44, 44, 44 + int(w * 0.32 * pa), 44 + int((h - 210) * pa),
-                              outline="#2BD9C4", width=1)
-        if p > 0.28:
+                              outline=teal_guide, width=1)
+        if guide_mix > 0.01 and p > 0.28:
             pa = min(1.0, (p - 0.28) / 0.4)
             c.create_rectangle(int(w * 0.37), int(h * 0.17),
                               int(w * 0.37 + w * 0.56 * pa), int(h * 0.17 + h * 0.58 * pa),
-                              outline="#7C4DFF", width=1)
+                              outline=purple_guide, width=1)
         # panels
         if p > 0.3:
             pp = min(1.0, (p - 0.3) / 0.5)
