@@ -904,11 +904,16 @@ class TerminalWindow:
         self.win.title("Terminal")
         self.win.geometry("600x400")
         self.win.minsize(400, 300)
+        # Smoked-glass surface: translucent native window plus Windows DWM
+        # acrylic backdrop (best effort; gracefully falls back to tinted glass).
         self.win.configure(bg="#17171D", highlightthickness=1, highlightbackground="#D8D4E0")
         self.win.transient(parent.root)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
-        self.win.attributes("-alpha", 0.96)
+        self.win.attributes("-alpha", 0.90)
         self._apply_glass_backdrop()
+        # Apply DWM acrylic to this actual Tk top-level window, not only
+        # externally launched processes. Windows 10/11 may downgrade the effect. 
+        self.win.after(80, lambda: apply_glass_backdrop_to_process(os.getpid()))
 
         # Terminal state
         self.output = tk.Text(
@@ -950,6 +955,14 @@ class TerminalWindow:
             self.win.configure(bg=AHIAN_DEEP)
             self.output.configure(bg=AHIAN_DEEP, fg="#EDE7FF")
             self.input.configure(bg="#241A3D", fg="#EDE7FF")
+
+    def _apply_glass_backdrop(self):
+        """Request native acrylic for the built-in terminal window."""
+        try:
+            if os.name == "nt":
+                apply_glass_backdrop_to_process(os.getpid())
+        except (OSError, AttributeError):
+            pass
 
     def close(self):
         # Closing Terminal must not turn off a desktop mode that is already active.
