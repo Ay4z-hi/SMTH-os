@@ -221,6 +221,9 @@ class SMTHLauncher:
         self.wallpaper = None
         self.recent = []
         self.start_open = False
+        self.shortcut_positions = {}
+        self.drag_state = None
+        self.ahian_mode = False
 
         self.canvas = tk.Canvas(root, bg=OBSIDIAN, highlightthickness=0, bd=0)
         self.canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -266,6 +269,11 @@ class SMTHLauncher:
         else:
             c.create_rectangle(0, 0, w, h, fill=OBSIDIAN, outline="", tags="desktop")
             c.create_polygon(0, h, w, h * 0.55, w, h * 0.72, 0, h, fill=MAROON_DEEP, outline="", tags="desktop")
+        if self.ahian_mode:
+            c.create_rectangle(0, 0, w, h, fill="#241344", stipple="gray50",
+                               outline="", tags="desktop")
+            c.create_polygon(0, h * 0.68, w * 0.42, h, w, h * 0.55, w, h,
+                             fill="#063E3A", stipple="gray50", outline="", tags="desktop")
         self.draw_shortcuts(w, h)
         c.tag_lower("desktop")
         if self.start_open:
@@ -274,14 +282,46 @@ class SMTHLauncher:
     def draw_shortcuts(self, w, h):
         c = self.canvas
         entries = [a for a in APPS if a[0] in PINNED][:6]
-        rows = min(len(entries), 6)
-        for i, (name, target, fallbacks, kind, glyph) in enumerate(entries[:rows]):
-            y = 34 + i * 74
+        for i, (name, target, fallbacks, kind, glyph) in enumerate(entries):
+            x, y = self.shortcut_positions.get(name, (44, 34 + i * 74))
             tag = f"shortcut-{i}"
-            draw_glyph(c, glyph, 44, y + 20, 30, BLUSH, 1.7, tags=("desktop", tag))
-            c.create_text(64, y + 46, text=name, fill=BLUSH, anchor="w",
+            accent = "#B9A0FF" if self.ahian_mode else BLUSH
+            draw_glyph(c, glyph, x, y + 20, 30, accent, 1.7, tags=("desktop", tag))
+            c.create_text(x + 20, y + 46, text=name, fill=accent, anchor="w",
                           font=(self.mono, 9), tags=("desktop", tag))
-            c.tag_bind(tag, "<Button-1>", lambda _e, t=target, k=kind, f=fallbacks: self.launch(t, k, f))
+            c.tag_bind(tag, "<ButtonPress-1>", lambda e, n=name: self.begin_shortcut_drag(e, n))
+            c.tag_bind(tag, "<B1-Motion>", self.drag_shortcut)
+            c.tag_bind(tag, "<ButtonRelease-1>",
+                       lambda e, t=target, k=kind, f=fallbacks: self.end_shortcut_drag(e, t, k, f))
+
+    def begin_shortcut_drag(self, event, name):
+        self.drag_state = {"name": name, "x": event.x, "y": event.y, "moved": False}
+        return "break"
+
+    def drag_shortcut(self, event):
+        state = self.drag_state
+        if not state:
+            return "break"
+        dx, dy = event.x - state["x"], event.y - state["y"]
+        if abs(dx) + abs(dy) > 2:
+            state["moved"] = True
+        if state["moved"]:
+            tag = next((f"shortcut-{i}" for i, app in enumerate([a for a in APPS if a[0] in PINNED][:6])
+                        if app[0] == state["name"]), None)
+            if tag:
+                self.canvas.move(tag, dx, dy)
+                old_x, old_y = self.shortcut_positions.get(
+                    state["name"], (44, 34 + [a[0] for a in APPS if a[0] in PINNED][:6].index(state["name"]) * 74))
+                self.shortcut_positions[state["name"]] = (old_x + dx, old_y + dy)
+            state["x"], state["y"] = event.x, event.y
+        return "break"
+
+    def end_shortcut_drag(self, event, target, kind, fallbacks):
+        state = self.drag_state
+        self.drag_state = None
+        if state and not state["moved"]:
+            self.launch(target, kind, fallbacks)
+        return "break"
 
     def build_taskbar(self):
         bar = tk.Frame(self.root, bg=SURFACE, height=48)
@@ -619,7 +659,7 @@ class SMTHLauncher:
 class ConstructionIntro:
     """Short adaptation of the ISO startup construction, in the three palette inks."""
 
-    DURATION = 4.2
+    DURATION = 9.6
 
     def __init__(self, root, display_font, mono_font):
         self.root = root
@@ -733,10 +773,59 @@ class ConstructionIntro:
                 c.create_image(w / 2, h / 2 - 10, image=self.logo_photo)
 
         if p >= 0.36:
-            q = max(0.0, min(1.0, (p - 0.36) / 0.34))
-            inset = 28
-            bottom = h - 72
-            c.create_line(inset, bottom, inset + (w - inset * 2) * q, bottom, fill=BLUSH, width=1)
+            q = max(0.0, min(1.0, (p - 0.36) / 0.56))
+            fade = max(0.0, min(1.0, (1.0 - q) / 0.12)) if q > 0.88 else 1.0
+            task_y = h - 62
+            # Layout guides are drawn first, then panels grow into their measured bounds.
+            if q > 0.04:
+                c.create_rectangle(12, task_y, w - 12, h - 10, outline=TEAL if "TEAL" in globals() else "#00C2A8")
+            if q > 0.16:
+                c.create_rectangle(30, 42, 30 + int(w * 0.24 * min(1, (q - 0.16) / 0.35)),
+                                   42 + int((h - 125) * min(1, (q - 0.16) / 0.35)),
+                                   outline="#00C2A8")
+            if q > 0.24:
+                c.create_rectangle(int(w * 0.35), int(h * 0.16),
+                                   int(w * 0.35 + w * 0.60 * min(1, (q - 0.24) / 0.42)),
+                                   int(h * 0.16 + h * 0.58 * min(1, (q - 0.24) / 0.42)),
+                                   outline="#7C4DFF")
+            if q > 0.30:
+                c.create_rectangle(30, 42, 30 + int(w * 0.24), h - 83,
+                                   fill="#171020", outline="#2BD9C4")
+                c.create_rectangle(int(w * 0.35), int(h * 0.16),
+                                   int(w * 0.95), int(h * 0.74),
+                                   fill="#100D18", outline="#7C4DFF")
+                c.create_rectangle(12, task_y, w - 12, h - 10,
+                                   fill="#100D18", outline="#2BD9C4")
+                for i in range(6):
+                    if q > 0.42 + i * 0.035:
+                        x, y = 52 + (i % 2) * 54, 64 + (i // 2) * 58
+                        c.create_rectangle(x, y, x + 22, y + 22,
+                                           fill=("#7C4DFF", "#00C2A8")[i % 2], outline="")
+            paths = [
+                [(0.02, -0.04), (0.25, 0.30), (0.42, 0.18), (0.78, 0.24)],
+                [(1.04, 0.22), (0.78, 0.42), (0.54, 0.32), (0.62, 0.72)],
+                [(0.42, -0.04), (0.34, 0.34), (0.18, 0.52), (0.12, 0.82)],
+                [(-0.04, 0.72), (0.28, 0.70), (0.52, 0.82), (0.88, 0.82)],
+                [(0.84, 1.04), (0.72, 0.72), (0.82, 0.42), (0.92, 0.20)],
+                [(0.18, 1.04), (0.32, 0.76), (0.42, 0.50), (0.36, 0.26)],
+                [(1.04, 0.90), (0.78, 0.78), (0.62, 0.54), (0.44, 0.46)],
+            ]
+            colours = ["#7C4DFF", "#00C2A8", "#9E75FF", "#33E5CC", "#5738A0", "#65EBD5", "#B69AFF"]
+            for i, points in enumerate(paths):
+                local = max(0.0, min(1.0, (q - i * 0.025) / 0.86))
+                if local <= 0 or q > 0.96:
+                    continue
+                segf = local * (len(points) - 1)
+                seg = min(len(points) - 2, int(segf))
+                u = segf - seg
+                u = 1 - (1 - u) ** 3
+                ax, ay = points[seg]
+                bx, by = points[seg + 1]
+                x, y = (ax + (bx - ax) * u) * w, (ay + (by - ay) * u) * h
+                c.create_oval(x - 3, y - 3, x + 3, y + 3, fill=colours[i], outline="")
+                c.create_polygon(x, y, x, y + 18, x + 5, y + 13, x + 9, y + 20,
+                                 x + 12, y + 18, x + 8, y + 12, x + 15, y + 12,
+                                 fill=colours[i], outline="#000000")
             c.create_text(w - 18, h - 16, text="CLICK TO SKIP", anchor="se",
                           fill=BLUSH_DIM, font=(self.mono, 8))
 
@@ -842,19 +931,26 @@ class TerminalWindow:
             return
 
         self.ahian_active = True
+        launcher = self.parent
+        root = launcher.root
+        launcher.ahian_mode = True
+        launcher.paint_desktop()
+        # Remove the terminal immediately. The reconstruction starts only after
+        # a 2.5-second clean pause, with no terminal or text-entry widget visible.
         try:
-            self._ahian_intro = AhianConstructionIntro(self.parent)
-        except Exception:
-            self._ahian_intro = None
-        self.win.configure(bg=AHIAN_DEEP)
-        self.output.configure(bg=AHIAN_DEEP, fg="#EDE7FF")
-        self.input.configure(bg="#241A3D", fg="#EDE7FF")
-        self._append("AHIAN mode activated\n")
-        self._append("purple/teal spatial UI · all apps available\n")
-        self._append("Type 'unahian' to exit.\n")
-        self.input.config(state=tk.NORMAL, fg="#EDE7FF")
-        self.input.delete(0, "end")
-        self.input.focus_set()
+            self.win.destroy()
+        except tk.TclError:
+            pass
+
+        def begin_construction():
+            if not root.winfo_exists():
+                return
+            try:
+                self._ahian_intro = AhianConstructionIntro(launcher)
+            except Exception:
+                self._ahian_intro = None
+
+        root.after(2500, begin_construction)
 
     def exit_ahian(self):
         if not self.ahian_active:
@@ -868,6 +964,8 @@ class TerminalWindow:
         except Exception:
             pass
         self._ahian_intro = None
+        self.parent.ahian_mode = False
+        self.parent.paint_desktop()
         self._restore_terminal_theme()
         self._append("AHIAN mode off — normal experience restored\n")
         self.input.config(state=tk.NORMAL, fg=BLUSH)
