@@ -892,6 +892,10 @@ class TerminalWindow:
         # Ahian state
         self.ahian_active = bool(parent.ahian_mode)
         self._ahian_intro = None
+        if self.ahian_active:
+            self.win.configure(bg=AHIAN_DEEP)
+            self.output.configure(bg=AHIAN_DEEP, fg="#EDE7FF")
+            self.input.configure(bg="#241A3D", fg="#EDE7FF")
 
     def close(self):
         # Closing Terminal must not turn off a desktop mode that is already active.
@@ -947,7 +951,7 @@ class TerminalWindow:
             try:
                 launcher._ahian_intro = AhianConstructionIntro(launcher)
             except Exception:
-                self._ahian_intro = None
+                launcher._ahian_intro = None
 
         root.after(2500, begin_construction)
 
@@ -967,7 +971,9 @@ class TerminalWindow:
         self._ahian_intro = None
         self.parent.ahian_mode = False
         self.parent.paint_desktop()
-        self._restore_terminal_theme()
+        self.win.configure(bg=OBSIDIAN)
+        self.output.configure(bg=OBSIDIAN, fg=BLUSH)
+        self.input.configure(bg=MAROON_DEEP, fg=BLUSH)
         self._append("AHIAN mode off — normal experience restored\n")
         self.input.config(state=tk.NORMAL, fg=BLUSH)
         self.input.delete(0, "end")
