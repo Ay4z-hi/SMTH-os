@@ -1000,7 +1000,7 @@ private class ConstructionView(
         isClickable = true
         contentDescription = "SMTH startup construction; tap to skip"
         setOnClickListener { finishIntro() }
-        animator.duration = 3_800
+        animator.duration = 9_600
         animator.interpolator = DecelerateInterpolator()
         animator.addUpdateListener { animation ->
             progress = animation.animatedValue as Float
@@ -1061,15 +1061,82 @@ private class ConstructionView(
             }
             paint.alpha = 255
         }
-        if (p in 0.36f..0.92f) {
-            val q = ((p - 0.36f) / 0.34f).coerceIn(0f, 1f)
-            // A single blush hairline draws the desktop frame into place.
+        if (p >= 0.36f) {
+            val t = ((p - 0.36f) / 0.56f).coerceIn(0f, 1f)
+            val fade = if (t > 0.88f) ((1f - t) / 0.12f).coerceIn(0f, 1f) else 1f
+            val task = RectF(dpf(8f), h - dpf(58f), w - dpf(8f), h - dpf(8f))
+            val side = RectF(dpf(28f), dpf(42f), dpf(28f) + w * 0.25f, h - dpf(84f))
+            val win = RectF(w * 0.36f, h * 0.17f, w * 0.36f + w * 0.58f, h * 0.17f + h * 0.56f)
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = dpf(1f)
-            paint.color = blush(0.7f)
-            val inset = dpf(26f)
-            val bottom = h - dpf(70f)
-            canvas.drawLine(inset, bottom, inset + (w - inset * 2) * q, bottom, paint)
+            paint.strokeWidth = dpf(1.3f)
+            paint.color = Color.argb((fade * 220).toInt(), 0, 194, 168)
+            canvas.drawRect(task.left, task.top, task.left + task.width() * (t / 0.28f).coerceIn(0f, 1f), task.bottom, paint)
+            if (t > 0.12f) {
+                paint.color = Color.argb((fade * 220).toInt(), 124, 77, 255)
+                val q = ((t - 0.12f) / 0.36f).coerceIn(0f, 1f)
+                canvas.drawRect(side.left, side.top, side.left + side.width() * q, side.top + side.height() * q, paint)
+            }
+            if (t > 0.22f) {
+                val q = ((t - 0.22f) / 0.42f).coerceIn(0f, 1f)
+                canvas.drawRect(win.left, win.top, win.left + win.width() * q, win.top + win.height() * q, paint)
+            }
+            // The cursors are separate agents, each travelling from a different edge.
+            val paths = arrayOf(
+                arrayOf(0.02f to -0.04f, 0.25f to 0.30f, 0.42f to 0.18f, 0.78f to 0.24f),
+                arrayOf(1.04f to 0.22f, 0.78f to 0.42f, 0.54f to 0.32f, 0.62f to 0.72f),
+                arrayOf(0.42f to -0.04f, 0.34f to 0.34f, 0.18f to 0.52f, 0.12f to 0.82f),
+                arrayOf(-0.04f to 0.72f, 0.28f to 0.70f, 0.52f to 0.82f, 0.88f to 0.82f),
+                arrayOf(0.84f to 1.04f, 0.72f to 0.72f, 0.82f to 0.42f, 0.92f to 0.20f),
+                arrayOf(0.18f to 1.04f, 0.32f to 0.76f, 0.42f to 0.50f, 0.36f to 0.26f),
+                arrayOf(1.04f to 0.90f, 0.78f to 0.78f, 0.62f to 0.54f, 0.44f to 0.46f)
+            )
+            val colours = intArrayOf(
+                Color.parseColor("#7C4DFF"), Color.parseColor("#00C2A8"),
+                Color.parseColor("#9E75FF"), Color.parseColor("#33E5CC"),
+                Color.parseColor("#5738A0"), Color.parseColor("#65EBD5"),
+                Color.parseColor("#B69AFF")
+            )
+            for (i in paths.indices) {
+                val local = ((t - i * 0.035f) / 0.86f).coerceIn(0f, 1f)
+                if (local <= 0f || t > 0.94f) continue
+                val pts = paths[i]
+                val segFloat = local * (pts.size - 1)
+                val seg = segFloat.toInt().coerceIn(0, pts.size - 2)
+                val q = (segFloat - seg).coerceIn(0f, 1f)
+                val eased = 1f - (1f - q) * (1f - q) * (1f - q)
+                val x = (pts[seg].first + (pts[seg + 1].first - pts[seg].first) * eased) * w
+                val y = (pts[seg].second + (pts[seg + 1].second - pts[seg].second) * eased) * h
+                paint.style = Paint.Style.FILL
+                paint.color = colours[i]
+                paint.alpha = (fade * 255).toInt()
+                canvas.drawCircle(x, y, dpf(3.2f), paint)
+                val cursor = Path().apply {
+                    moveTo(x, y); lineTo(x, y + dpf(18f)); lineTo(x + dpf(5f), y + dpf(13f))
+                    lineTo(x + dpf(9f), y + dpf(20f)); lineTo(x + dpf(12f), y + dpf(18f))
+                    lineTo(x + dpf(8f), y + dpf(12f)); lineTo(x + dpf(15f), y + dpf(12f)); close()
+                }
+                paint.color = Color.BLACK
+                canvas.drawPath(cursor, paint)
+                paint.color = colours[i]
+                paint.alpha = (fade * 245).toInt()
+                canvas.drawPath(cursor, paint)
+            }
+            // Panels and icons are revealed progressively underneath the guides.
+            if (t > 0.30f) {
+                paint.style = Paint.Style.FILL
+                paint.color = Color.argb((fade * 225 * ((t - 0.30f) / 0.25f).coerceIn(0f, 1f)).toInt(), 18, 10, 36)
+                canvas.drawRoundRect(side, dpf(8f), dpf(8f), paint)
+                canvas.drawRoundRect(win, dpf(8f), dpf(8f), paint)
+                canvas.drawRoundRect(task, dpf(10f), dpf(10f), paint)
+                for (i in 0..5) {
+                    val x = side.left + dpf(24f) + (i % 2) * dpf(42f)
+                    val y = side.top + dpf(28f) + (i / 2) * dpf(54f)
+                    if (t > 0.42f + i * 0.035f) {
+                        paint.color = colours[i % colours.size]
+                        canvas.drawRoundRect(x, y, x + dpf(22f), y + dpf(22f), dpf(5f), dpf(5f), paint)
+                    }
+                }
+            }
         }
     }
 
