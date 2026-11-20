@@ -778,7 +778,7 @@ class ConstructionIntro:
             task_y = h - 62
             # Layout guides are drawn first, then panels grow into their measured bounds.
             if q > 0.04:
-                c.create_rectangle(12, task_y, w - 12, h - 10, outline=TEAL if "TEAL" in globals() else "#00C2A8")
+                c.create_rectangle(12, task_y, w - 12, h - 10, outline="#00C2A8")
             if q > 0.16:
                 c.create_rectangle(30, 42, 30 + int(w * 0.24 * min(1, (q - 0.16) / 0.35)),
                                    42 + int((h - 125) * min(1, (q - 0.16) / 0.35)),
@@ -945,7 +945,7 @@ class TerminalWindow:
             if not root.winfo_exists():
                 return
             try:
-                self._ahian_intro = AhianConstructionIntro(launcher)
+                launcher._ahian_intro = AhianConstructionIntro(launcher)
             except Exception:
                 self._ahian_intro = None
 
@@ -958,10 +958,12 @@ class TerminalWindow:
 
         self.ahian_active = False
         try:
-            if self._ahian_intro is not None and not self._ahian_intro.closed:
-                self._ahian_intro.close()
+            intro = getattr(self.parent, "_ahian_intro", None)
+            if intro is not None and not intro.closed:
+                intro.close()
         except Exception:
             pass
+        self.parent._ahian_intro = None
         self._ahian_intro = None
         self.parent.ahian_mode = False
         self.parent.paint_desktop()
