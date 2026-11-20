@@ -43,22 +43,21 @@ class TerminalActivity : android.app.Activity() {
     private var dot: Typeface? = null
     private var ahianActive = false
     private var ahianOverlay: AhianConstructionView? = null
+    private var maximized = false
+    private var normalWidth = 0
+    private var normalHeight = 0
     private val density by lazy { resources.displayMetrics.density }
 
-    fun showAhianConstruction() {
-        val scale = try { android.provider.Settings.Global.getFloat(contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) } catch (e: Exception) { 1f }
-        if (scale == 0f) return
-        hideAhianConstruction()
-        val overlay = AhianConstructionView(this)
-        ahianOverlay = overlay
-        root.addView(overlay, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        overlay.start { hideAhianConstruction() }
-    }
-
-    fun hideAhianConstruction() {
-        ahianOverlay?.let { root.removeView(it); it.stop() }
-        ahianOverlay = null
+    /** Close the terminal before handing AHIAN activation back to the desktop. */
+    fun transitionToAhian() {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(terminalView.commandInput.windowToken, 0)
+        terminalView.commandInput.clearFocus()
+        val home = Intent(this, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra("show_ahian_construction", true)
+        startActivity(home)
+        finish()
     }
 
     private fun dp(v: Int) = (v * density).toInt()
@@ -84,13 +83,20 @@ class TerminalActivity : android.app.Activity() {
             setBackgroundColor(OBSIDIAN)
         }
         setContentView(root)
+        // Present Terminal as a floating desktop-style window, not a fullscreen Activity.
+        val screen = resources.displayMetrics
+        normalWidth = (screen.widthPixels * 0.82f).toInt().coerceAtLeast(dp(320))
+        normalHeight = (screen.heightPixels * 0.78f).toInt().coerceAtLeast(dp(260))
+        window.setBackgroundDrawableResource(android.R.color.transparent)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        window.attributes = window.attributes.apply { dimAmount = 0.18f; gravity = android.view.Gravity.CENTER }
+        window.setLayout(normalWidth, normalHeight)
 
         // Title bar
         titleBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(12), dp(8), dp(8), dp(8))
-            setBackgroundColor(obsidian(0.85f))
-            setOnClickListener { finish() }
+            setBackgroundColor(obsidian(0.92f))
         }
         titleText = TextView(this).apply {
             text = "Terminal"
@@ -101,16 +107,52 @@ class TerminalActivity : android.app.Activity() {
             setShadowLayer(2f, 0f, 1f, OBSIDIAN)
         }
         titleBar.addView(titleText, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
         ).apply { marginEnd = dp(8) })
 
-        closeButton = View(this).apply {
-            setBackgroundColor(maroon(0.6f))
-            setOnClickListener { finish() }
-        }
-        titleBar.addView(closeButton, FrameLayout.LayoutParams(dp(24), dp(24)).apply {
-            gravity = android.view.Gravity.CENTER
+        fun control(glyph: String, action: () -> Unit, colour: Int = blush(0.72f)): TextView =
+            TextView(this).apply {
+                text = glyph
+                setTextColor(colour)
+                textSize = 17f
+                gravity = android.view.Gravity.CENTER
+                isClickable = true
+                setOnClickListener { action() }
+            }
+        val minimize = control("—", { moveTaskToBack(true) })
+        val maximize = control("□", {
+            maximized = !maximized
+            if (maximized) {
+                window.setLayout(screen.widthPixels - dp(20), screen.heightPixels - dp(40))
+            } else {
+                window.setLayout(normalWidth, normalHeight)
+            }
         })
+        closeButton = control("×", { finish() }, Color.parseColor("#FF7185"))
+        titleBar.addView(minimize, LinearLayout.LayoutParams(dp(34), dp(28)))
+        titleBar.addView(maximize, LinearLayout.LayoutParams(dp(34), dp(28)))
+        titleBar.addView(closeButton, LinearLayout.LayoutParams(dp(34), dp(28)))
+
+        // Drag the floating window by its title bar.
+        var dragX = 0f
+        var dragY = 0f
+        titleBar.setOnTouchListener { _, event ->
+            val attrs = window.attributes
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { dragX = event.rawX; dragY = event.rawY; true }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!maximized) {
+                        attrs.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                        attrs.x += (event.rawX - dragX).toInt()
+                        attrs.y += (event.rawY - dragY).toInt()
+                        dragX = event.rawX; dragY = event.rawY
+                        window.attributes = attrs
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
         root.addView(titleBar, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, dp(36)
         ).apply { gravity = android.view.Gravity.TOP })
@@ -340,12 +382,10 @@ class TerminalView(
         prefs.edit().putBoolean("ahian_mode", true).apply()
         ahianMode = true
         setBackgroundColor(Color.parseColor("#7C4DFF"))
-        (context as? TerminalActivity)?.showAhianConstruction()
-        appendOutput("AHIAN mode activated", blush(0.9f))
-        appendOutput("purple/teal spatial UI · all apps available", blush(0.7f))
-        appendOutput("Type 'unahian' to exit.", blush(0.4f))
+        // The keyboard and Terminal window must disappear before the desktop
+        // reconstruction begins. MainActivity waits 2.5 seconds before drawing it.
         commandInput.text?.clear()
-        commandInput.post { commandInput.requestFocus() }
+        (context as? TerminalActivity)?.transitionToAhian()
     }
 
     private fun exitAhian() {
@@ -356,7 +396,6 @@ class TerminalView(
         }
         prefs.edit().putBoolean("ahian_mode", false).apply()
         ahianMode = false
-        (context as? TerminalActivity)?.hideAhianConstruction()
         setBackgroundColor(OBSIDIAN)
         appendOutput("AHIAN mode off — normal experience restored", blush(0.9f))
         commandInput.text?.clear()
