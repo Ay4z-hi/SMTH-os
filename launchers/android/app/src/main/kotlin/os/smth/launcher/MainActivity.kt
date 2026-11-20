@@ -117,9 +117,10 @@ class MainActivity : Activity() {
         refreshApps()
         startClock()
         applyAhianTheme()
-        // The normal boot reconstruction was previously defined but never attached.
-        root.post { showStartupConstruction() }
-        if (intent.getBooleanExtra("show_ahian_construction", false)) {
+        val returningFromAhianCommand = intent.getBooleanExtra("show_ahian_construction", false)
+        // The normal boot reconstruction is shown on ordinary launches only.
+        if (!returningFromAhianCommand) root.post { showStartupConstruction() }
+        if (returningFromAhianCommand) {
             intent.removeExtra("show_ahian_construction")
             root.postDelayed({ showAhianConstruction() }, 2500L)
         }
