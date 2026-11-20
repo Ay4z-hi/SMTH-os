@@ -319,7 +319,32 @@ class SMTHLauncher:
     def end_shortcut_drag(self, event, target, kind, fallbacks):
         state = self.drag_state
         self.drag_state = None
-        if state and not state["moved"]:
+        if state and state["moved"]:
+            name = state["name"]
+            x, y = self.shortcut_positions.get(name, (44, 34))
+            cell_w, cell_h, origin_x, origin_y = 112, 84, 24, 24
+            cols = max(1, (max(1, self.canvas.winfo_width()) - origin_x) // cell_w)
+            rows = max(1, (max(1, self.canvas.winfo_height()) - origin_y - 60) // cell_h)
+            col = max(0, min(cols - 1, round((x - origin_x) / cell_w)))
+            row = max(0, min(rows - 1, round((y - origin_y) / cell_h)))
+            occupied = set()
+            for other, (ox, oy) in self.shortcut_positions.items():
+                if other != name:
+                    occupied.add((round((ox - origin_x) / cell_w), round((oy - origin_y) / cell_h)))
+            start = row * cols + col
+            for offset in range(cols * rows):
+                cell = (start + offset) % (cols * rows)
+                candidate = (cell % cols, cell // cols)
+                if candidate not in occupied:
+                    col, row = candidate
+                    break
+            nx, ny = origin_x + col * cell_w, origin_y + row * cell_h
+            tag = next((f"shortcut-{i}" for i, app in enumerate([a for a in APPS if a[0] in PINNED][:6])
+                        if app[0] == name), None)
+            if tag:
+                self.canvas.move(tag, nx - x, ny - y)
+            self.shortcut_positions[name] = (nx, ny)
+        elif state and not state["moved"]:
             self.launch(target, kind, fallbacks)
         return "break"
 
@@ -682,7 +707,8 @@ class ConstructionIntro:
         try:
             _logo = os.path.join(ASSETS, "logo.png")
             if os.path.isfile(_logo):
-                self.logo_photo = tk.PhotoImage(file=_logo)
+                original_logo = tk.PhotoImage(file=_logo)
+                self.logo_photo = original_logo.subsample(2, 2)
         except tk.TclError:
             self.logo_photo = None
         self.win.bind("<Button-1>", lambda *_: self.close())
