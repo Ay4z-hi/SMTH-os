@@ -24,12 +24,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with: { distribution: temurin, java-version: '17' }
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
-        with: { gradle-version: '8.9' }
+        with:
+          gradle-version: '8.9'
       - name: Build Android launcher
         working-directory: launchers/android
         run: gradle --no-daemon assembleDebug
@@ -47,18 +50,18 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK"
       - name: Name Android package
         run: cp launchers/android/app/build/outputs/apk/debug/app-debug.apk launchers/android/SMTH-Android-Launcher.apk
-      # Publish immediately after build/integrity checks. Emulator availability
-      # must never delay or prevent users from retrieving a valid APK.
       - uses: actions/upload-artifact@v4
         with:
           name: SMTH-Android-Launcher
           path: launchers/android/SMTH-Android-Launcher.apk
           if-no-files-found: error
           retention-days: 30
+      # Emulator startup is an additional runtime check, not a release gate:
+      # a valid, integrity-checked APK must still reach the rolling release.
       - name: Install and launch on Android emulator
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         env:
-          # Newer emulator builds reject -accel off unless TCG is explicitly enabled.
           ANDROID_I_WANT_MY_TCG: 'yes'
         with:
           api-level: 35
@@ -66,10 +69,11 @@ jobs:
           profile: pixel_2
           script: bash launchers/android/ci-emulator-test.sh launchers/android/SMTH-Android-Launcher.apk
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: SMTH-Android-Screenshot
           path: launchers/android/smth-launcher-*.png
-          if-no-files-found: warn
+          if-no-files-found: ignore
           retention-days: 30
 
   windows:
@@ -79,7 +83,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
+        with:
+          python-version: '3.12'
       - name: Build portable Windows launcher
         working-directory: launchers/windows
         run: |
@@ -109,7 +114,6 @@ jobs:
 
   release:
     name: Release launchers
-    # Only tagged launcher releases are published, never every push to main.
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/launcher-v')
     needs: [android, windows]
     runs-on: ubuntu-latest
@@ -117,7 +121,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/download-artifact@v4
-        with: { path: dist, merge-multiple: true }
+        with:
+          path: dist
+          merge-multiple: true
       - name: Verify release packages and generate checksums
         run: |
           set -euo pipefail
@@ -132,6 +138,8 @@ jobs:
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest-launchers' }}
           target_commitish: main
-          files: dist/*
+          files: dist/SMTH-Android-Launcher.apk,dist/SMTH-Launcher.exe,dist/SHA256SUMS
+          overwrite_files: true
+          fail_on_unmatched_files: true
           name: ${{ startsWith(github.ref, 'refs/tags/') && format('SMTH Launchers {0}', github.ref_name) || 'SMTH Launchers — Latest' }}
           generate_release_notes: true
