@@ -198,8 +198,14 @@ def on_activate(app):
     ICON_W, ICON_H = 96.0, 78.0
 
     def snap_to_free(name, x, y):
-        cols = max(1, int(max(1, icons.get_width()) // CELL_W))
-        rows = max(1, int(max(1, icons.get_height()) // CELL_H))
+        display = Gdk.Display.get_default()
+        monitors = display.get_monitors() if display else None
+        monitor = monitors.get_item(0) if monitors and monitors.get_n_items() else None
+        geometry = monitor.get_geometry() if monitor else None
+        area_w = icons.get_width() if icons.get_width() > 1 else (geometry.width if geometry else 1280)
+        area_h = icons.get_height() if icons.get_height() > 1 else (geometry.height if geometry else 800)
+        cols = max(1, int(max(1, area_w - GRID_X) // CELL_W))
+        rows = max(1, int(max(1, area_h - GRID_Y) // CELL_H))
         col = max(0, min(cols - 1, round((x - GRID_X) / CELL_W)))
         row = max(0, min(rows - 1, round((y - GRID_Y) / CELL_H)))
         occupied = set()
