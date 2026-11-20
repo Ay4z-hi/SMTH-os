@@ -389,7 +389,7 @@ class Renderer:
             cr.stroke()
         cr.save()
         cr.translate(x, y)
-        cr.scale(1.32, 1.32)
+        cr.scale(1.40, 1.40)
         points = ((0, 0), (0, 18), (4.6, 13.4), (7.4, 20),
                   (10.2, 18.7), (7.4, 12.2), (13.5, 12.2))
         cr.new_path()
@@ -406,7 +406,7 @@ class Renderer:
         cr.set_line_width(0.8)
         cr.stroke()
         cr.restore()
-        dot = 1.2
+        dot = 1.55
         self._label(cr, spec.key, x + 18, y + 18, dot, spec.colour, a)
 
     def draw(self, cr, w, h):
