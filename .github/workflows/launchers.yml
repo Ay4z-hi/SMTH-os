@@ -57,6 +57,9 @@ jobs:
           retention-days: 30
       - name: Install and launch on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          # Newer emulator builds reject -accel off unless TCG is explicitly enabled.
+          ANDROID_I_WANT_MY_TCG: 'yes'
         with:
           api-level: 35
           arch: x86_64
