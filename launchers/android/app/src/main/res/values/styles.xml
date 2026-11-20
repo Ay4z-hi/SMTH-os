@@ -10,9 +10,14 @@
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
     <style name="SMTH.Terminal" parent="@style/SMTH">
+        <!-- A genuinely translucent Activity window lets the desktop remain
+             visible around the app surface instead of painting an opaque page. -->
         <item name="android:windowIsFloating">true</item>
+        <item name="android:windowIsTranslucent">true</item>
         <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowDimAmount">0.16</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowElevation">12dp</item>
     </style>
 </resources>
