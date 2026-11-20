@@ -61,9 +61,10 @@ command -v "$QEMU" >/dev/null || { echo "$QEMU is not installed" >&2; exit 1; }
     -kernel "$K" -initrd "$I" -append "$APPEND" \
     "${MEDIA[@]}" "${RNG[@]}" &
 PID=$!
-echo "QEMU pid=$PID; waiting for SMTH_BOOT: OK (up to $((WAIT_ITERS*2/60)) minutes)"
 
 if [ "$ARCH" = amd64 ]; then WAIT_ITERS=240; else WAIT_ITERS=900; fi
+echo "QEMU pid=$PID; waiting for SMTH_BOOT: OK (up to $((WAIT_ITERS*2/60)) minutes)"
+
 ok=0
 failed=0
 for _ in $(seq 1 "$WAIT_ITERS"); do
