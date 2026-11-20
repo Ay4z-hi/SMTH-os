@@ -126,6 +126,16 @@ def enter_ahian_mode():
     except (OSError, subprocess.SubprocessError):
         pass
 
+    # Exit this terminal process immediately; launch the reconstruction after
+    # the terminal window and its input method have disappeared.
+    try:
+        subprocess.Popen(
+            ["sh", "-c", "sleep 2.5; exec /usr/local/bin/smth-ahian-startup"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, start_new_session=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
     return True
 
 
@@ -195,10 +205,8 @@ def main():
             show_about()
         elif cmd_lower == "ahian":
             if enter_ahian_mode():
-                # Stay in terminal but indicate Ahian mode
-                print_color("❯ ", BLUSH)
-                sys.stdout.flush()
-                continue
+                # The detached desktop animation takes over after a short pause.
+                break
             else:
                 break
         elif cmd_lower == "unahian":
