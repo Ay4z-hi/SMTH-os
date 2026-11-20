@@ -88,6 +88,7 @@ class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var ahianTint: View
     private lateinit var desktop: FrameLayout
+    private lateinit var taskbarView: View
     private lateinit var pinnedRow: LinearLayout
     private lateinit var startPanel: LinearLayout
     private lateinit var startGlass: GlassView
@@ -148,14 +149,39 @@ class MainActivity : Activity() {
     private fun showAhianConstruction() {
         if (!::root.isInitialized || isFinishing) return
         ahianIntro?.let { root.removeView(it); it.stop() }
+        // The live launcher elements are what get revealed; the construction
+        // view only supplies cursors, guides and the transition surface.
+        for (i in 0 until desktop.childCount) {
+            desktop.getChildAt(i).apply { alpha = 0f; translationY = dpf(12f) }
+        }
+        taskbarView.alpha = 0f
         val intro = AhianConstructionView(this)
         ahianIntro = intro
         root.addView(intro, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        intro.start {
+        intro.start(onProgress = { progress -> revealAhianDesktop(progress) }) {
+            for (i in 0 until desktop.childCount) {
+                desktop.getChildAt(i).apply { alpha = 1f; translationY = 0f }
+            }
+            taskbarView.alpha = 1f
             root.removeView(intro)
             if (ahianIntro === intro) ahianIntro = null
         }
+    }
+
+    private fun revealAhianDesktop(progress: Float) {
+        // Each real desktop shortcut enters in sequence, following the cursors.
+        val count = desktop.childCount.coerceAtLeast(1)
+        for (i in 0 until desktop.childCount) {
+            val start = 0.34f + (i.toFloat() / count) * 0.30f
+            val alpha = ((progress - start) / 0.16f).coerceIn(0f, 1f)
+            desktop.getChildAt(i).apply {
+                this.alpha = alpha
+                translationY = dpf(12f) * (1f - alpha)
+            }
+        }
+        // The real taskbar assembles after the icons, not as a painted fake.
+        taskbarView.alpha = ((progress - 0.62f) / 0.22f).coerceIn(0f, 1f)
     }
 
     override fun onResume() {
@@ -308,6 +334,7 @@ class MainActivity : Activity() {
         taskbar.addView(barRow, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
         ))
+        taskbarView = taskbar
         surface.addView(taskbar, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, dp(46),
         ).apply {
