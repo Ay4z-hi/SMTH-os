@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""ahian: activate AHIAN mode — an alternative purple/teal desktop.
+"""ahian: activate AHIAN mode — an alternative cold-glass desktop.
 
 `ahian` (or `ahian on`) switches the desktop into AHIAN mode directly:
-purple/teal wallpaper, spatial UI, all apps and desktop functionality intact.
+cold-glass wallpaper, spatial UI, all apps and desktop functionality intact.
 
 `unahian` (or `ahian off`) exits AHIAN mode immediately and restores the
 previous (normal) desktop state. It plays no animation at all.
@@ -80,7 +80,7 @@ def ahian(on):
             )
         except (OSError, subprocess.SubprocessError):
             pass
-        print("\n  AHIAN MODE ON  purple/teal · spatial UI · all apps available\n"
+        print("\n  AHIAN MODE ON  cold glass · spatial UI · all apps available\n"
               "  run `unahian` to return to normal mode\n")
         notify("AHIAN", "AHIAN mode activated.")
     else:

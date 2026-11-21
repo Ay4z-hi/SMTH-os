@@ -71,15 +71,16 @@ def test_crash_screen_is_blue_and_reads_as_a_crash_screen():
     assert 20 < b < 235, "a deep blue, not a neon fill"
 
 
-def test_the_ahian_desktop_is_purple_teal_not_blue():
+def test_the_ahian_desktop_is_cold_glass_not_purple_teal():
     final = renderer().render(24000)
     left = mean(final, (0, 0, 400, 800))
     right = mean(final, (880, 0, 1280, 800))
     r, g, b = mean(final)
-    assert b > 40 and g > 40, (r, g, b)
-    assert left[2] > left[1] * 1.4, "purple on the left"
-    assert right[1] > right[0] * 1.8, "green-led teal on the right"
-    assert right[2] < right[1] * 1.25, "and not a blue screen"
+    # Cold glass: deep cool grey, blue-dominant, never the old purple/teal.
+    assert r < 80 and g < 80 and b < 90, (r, g, b)
+    assert b >= r, ("blue-led cold glass, not purple", r, g, b)
+    assert not (left[2] > left[1] * 1.4), "no purple on the left"
+    assert not (right[1] > right[0] * 1.8), "no teal on the right"
 
 
 def test_outbreak_backdrop_is_the_smth_desktop():

@@ -64,9 +64,9 @@ BLUSH = "#F2C6D2"
 SURFACE = "#0D0B0F"          # obsidian lifted one step for the taskbar
 BLUSH_DIM = "#8A7078"        # blush at low emphasis, still within the palette
 MAROON_DEEP = "#3A0F1D"
-AHIAN_PURPLE = "#7C4DFF"      # improved mode, deliberately outside the palette
-AHIAN_DEEP = "#1B1430"
-AHIAN_TEAL = "#2BD9C4"
+AHIAN_PURPLE = "#4FB0E0"      # cold blue (was purple)
+AHIAN_TEAL = "#F0A85A"        # amber (was teal)
+AHIAN_DEEP = "#141822"
 
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 if not os.path.isdir(ASSETS):
@@ -1138,11 +1138,11 @@ def _mix(a, b, t):
         int(ar + (br - ar) * t), int(ag + (bg - ag) * t), int(ab + (bb - ab) * t))
 
 
-AHIAN_VOID = "#07060D"
-AHIAN_PANEL = "#150F25"
-AH_WALL_PURPLE = "#2A174D"
-AH_WALL_TEAL = "#054740"
-AHIAN_INK = "#EDE7FF"
+AHIAN_VOID = "#07080B"
+AHIAN_PANEL = "#141822"
+AH_WALL_PURPLE = "#07080B"
+AH_WALL_TEAL = "#141822"
+AHIAN_INK = "#E7ECF5"
 AHIAN_COLS = 8
 AHIAN_ROWS = 5
 

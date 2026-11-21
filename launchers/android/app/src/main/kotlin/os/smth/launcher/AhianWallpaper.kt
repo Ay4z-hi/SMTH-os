@@ -15,10 +15,10 @@ import kotlin.math.sin
  * reconstruction's final frame (phase 1) is the live wallpaper (phase 0).
  */
 internal object AhianFlow {
-    private const val PURPLE = 0xFF2A174D.toInt()
-    private const val TEAL = 0xFF054740.toInt()
-    private const val PURPLE_SOFT = 0xFF9E75FF.toInt()
-    private const val TEAL_BRIGHT = 0xFF33E5CC.toInt()
+    private const val PURPLE = 0xFF07080B.toInt()   // glass void (was wall purple)
+    private const val TEAL = 0xFF141822.toInt()     // glass panel (was wall teal)
+    private const val PURPLE_SOFT = 0xFF4FB0E0.toInt() // cold blue (was purple soft)
+    private const val TEAL_BRIGHT = 0xFFF0A85A.toInt() // amber (was teal bright)
 
     fun color(u: Float, v: Float, phase: Float): Int {
         val x = u.coerceIn(0f, 1f)
@@ -113,7 +113,7 @@ internal class AhianWallpaperView(context: Context) : View(context) {
         // Two wide translucent bands drifting across the sheet.
         for (i in 0 until 2) {
             val centre = h * (0.32f + 0.30f * i) + sin(phase * TAU + i * 2.1f) * h * 0.06f
-            val tint = if (i == 0) 0x339E75FF else 0x2233E5CC
+            val tint = if (i == 0) 0x334FB0E0 else 0x22F0A85A
             bandPaint.shader = LinearGradient(
                 0f, centre - h * 0.24f, w, centre + h * 0.24f,
                 intArrayOf(Color.TRANSPARENT, tint, Color.TRANSPARENT),
@@ -128,7 +128,7 @@ internal class AhianWallpaperView(context: Context) : View(context) {
         val sx = w / (cols + 1)
         val sy = h / (rows + 1)
         val radius = resources.displayMetrics.density * 0.9f
-        dotPaint.color = 0x24EDE7FF
+        dotPaint.color = 0x24E7ECF5
         for (r in 1..rows) {
             for (c in 1..cols) {
                 canvas.drawCircle(sx * c, sy * r, radius, dotPaint)
