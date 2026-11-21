@@ -237,10 +237,11 @@ class SMTHLauncher:
         self.build_taskbar()
         self.build_start()
 
-        self.root.after(60, self.load_wallpaper)
+        # Start the overlay before loading any wallpaper. Loading it first
+        # exposed the finished wallpaper for a frame before AHIAN cursors ran.
         self.tick()
         self.intro = None
-        self.root.after(120, self.start_intro)
+        self.root.after(20, self.start_intro)
 
     # ---- chrome ---------------------------------------------------------
     def pick_font(self, candidates):
@@ -693,9 +694,12 @@ class SMTHLauncher:
                 self.ahian_mode = False
             if self.ahian_mode:
                 os.makedirs(os.path.dirname(self.ahian_state_file), exist_ok=True)
-                self.paint_desktop()
+                # Keep the real desktop black/hidden until the cursor-built
+                # reconstruction has finished; the overlay paints its own
+                # progressive purple/teal wallpaper.
                 self.intro = AhianConstructionIntro(self)
             else:
+                self.load_wallpaper()
                 self.intro = ConstructionIntro(self.root, self.display, self.mono)
         except (tk.TclError, OSError):
             self.intro = None
@@ -1160,15 +1164,30 @@ class AhianConstructionIntro:
         if w <= 1 or h <= 1:
             return
         c.create_rectangle(0, 0, w, h, fill="#000000", outline="")
-        # wallpaper emerging
-        alpha = min(1.0, p * 1.4)
+        # Build the purple-to-teal wallpaper as a progressive tile reveal.
+        # It must not exist fully formed at the start of the animation.
+        reveal = min(1.0, max(0.0, (p - 0.06) / 0.62))
+        tile = max(18, int(min(w, h) / 30))
+        cols = max(1, (w + tile - 1) // tile)
+        rows = max(1, (h + tile - 1) // tile)
+        total = cols * rows
+        built = int(total * reveal)
+        for n in range(built):
+            row, col = divmod(n, cols)
+            x, y = col * tile, row * tile
+            mix = min(1.0, max(0.0, (x / max(1, w) * 0.58 + y / max(1, h) * 0.42)))
+            pr, pg, pb = (124, 77, 255)
+            tr, tg, tb = (0, 194, 168)
+            rgb = tuple(round(a * (1 - mix) + b * mix) for a, b in ((pr, tr), (pg, tg), (pb, tb)))
+            c.create_rectangle(x, y, x + tile + 1, y + tile + 1,
+                               fill="#%02X%02X%02X" % rgb, outline="")
         step = max(20, int(min(w, h) / 24))
-        for y in range(step, h, step):
-            for x in range(step, w, step):
-                hot = ((x // step) + (y // step)) % 9 == 0
-                color = "#2BD9C4" if hot else "#1A1030"
-                c.create_oval(x - 1, y - 1, x + 1, y + 1, fill=color, outline="",
-                              stipple="gray50" if alpha < 0.5 else "")
+        if reveal > 0.18:
+            for y in range(step, h, step):
+                for x in range(step, w, step):
+                    hot = ((x // step) + (y // step)) % 9 == 0
+                    color = "#2BD9C4" if hot else "#1A1030"
+                    c.create_oval(x - 1, y - 1, x + 1, y + 1, fill=color, outline="")
         # Construction guides fade away before the finished desktop is revealed.
         guide_mix = max(0.0, min(1.0, (0.94 - p) / 0.12))
         teal_guide = self._fade_colour("#2BD9C4", "#000000", guide_mix)
