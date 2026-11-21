@@ -537,14 +537,22 @@ def run(reduced=False):
 
 
 def main(argv):
+    if "--no-animation" in argv or (disabled() and "--force" not in argv):
+        return 0
+
+    # Keep the full AHIAN cursor-built desktop as the session startup after
+    # the user activates AHIAN once. This is the normal ISO startup entry point.
+    if _flag(CONFIG / "ahian") and "--normal" not in argv:
+        import ahian_startup
+        forwarded = [arg for arg in argv if arg != "--normal"]
+        return ahian_startup.main(forwarded)
+
     if "--print-plan" in argv:
         scene = M.StartupScene(1920, 1080)
         frame = scene.frame(4200)
         print(f"phase={frame.phase} cursors={len(frame.cursors)} "
               f"boxes={len(frame.boxes)} items={len(frame.items)} "
               f"duration={M.DURATION_MS}ms")
-        return 0
-    if "--no-animation" in argv or (disabled() and "--force" not in argv):
         return 0
     return run(reduced=reduced_motion() and "--force" not in argv)
 
