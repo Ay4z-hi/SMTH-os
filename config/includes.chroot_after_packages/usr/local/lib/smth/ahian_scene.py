@@ -113,6 +113,16 @@ def measure(font, text, tracking=0.0):
     return sum(font.getlength(ch) for ch in text) + tracking * max(0, len(text) - 1)
 
 
+def to_argb32(image):
+    """Return ``(buffer, stride)``: the frame as cairo ARGB32 (premultiplied BGRA).
+
+    A cairo ImageSurface points straight at this buffer, so the caller must keep
+    it alive for as long as the surface is in use.
+    """
+    rgba = image.convert("RGBA")
+    return bytearray(rgba.tobytes("raw", "BGRA")), rgba.width * 4
+
+
 def flatten(fill, backdrop):
     """Make a text colour opaque against its surface.
 

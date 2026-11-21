@@ -96,6 +96,7 @@ def run(reduced=False):
             self.skipping = None
             self.finished = False
             self.frame_image = None
+            self.rendered_t = -1.0
 
         def do_activate(self):
             display = Gdk.Display.get_default()
@@ -157,12 +158,13 @@ def run(reduced=False):
                 return
             if width > 0 and height > 0 and (image.width, image.height) != (width, height):
                 image = image.resize((width, height))
-            data = bytearray(image.convert("RGBA").tobytes("raw", "BGRA"))
+            data, stride = ahian_scene.to_argb32(image)
             surface = cairo.ImageSurface.create_for_data(
-                data, cairo.FORMAT_ARGB32, image.width, image.height, image.width * 4)
+                data, cairo.FORMAT_ARGB32, image.width, image.height, stride)
             cr.set_source_surface(surface, 0, 0)
             cr.paint()
             self.frame_image = data          # keep the buffer alive with the surface
+            self.rendered_t = self.t
 
         def skip(self):
             if self.skipping is None:
@@ -180,6 +182,11 @@ def run(reduced=False):
                     self.area.queue_draw()
                     return GLib.SOURCE_CONTINUE
                 self.t = (now - self.started) * 1000.0
+                # The tick callback fires at the display refresh; the scene is
+                # authored at 30 fps and a Pillow frame is far too expensive to
+                # draw at 60, so throttle the redraws instead of the clock.
+                if self.rendered_t >= 0 and self.t - self.rendered_t < 30.0:
+                    return GLib.SOURCE_CONTINUE
                 frame = self.scene.frame(self.t)
                 self.window.set_opacity(frame.overlay_alpha)
                 self.area.queue_draw()

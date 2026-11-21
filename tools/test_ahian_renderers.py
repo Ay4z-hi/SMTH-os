@@ -18,7 +18,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SMTH_LIB = ROOT / "config/includes.chroot_after_packages/usr/local/lib/smth"
 sys.path.insert(0, str(SMTH_LIB))
 
-from PIL import ImageStat  # noqa: E402
+from PIL import Image, ImageStat  # noqa: E402
 import ahian_scene  # noqa: E402
 import ahian_startup_model as M  # noqa: E402
 
@@ -97,6 +97,18 @@ def test_error_windows_are_drawn_bigger_than_nothing_and_varied():
     # A dozen windows leave far more structure on screen than two.
     assert len(late.resize((64, 40)).getcolors(64 * 40)) > len(
         early.resize((64, 40)).getcolors(64 * 40))
+
+
+def test_frames_convert_to_cairo_argb32():
+    """The GTK overlay hands cairo a raw buffer; byte order and stride matter."""
+    image = Image.new("RGB", (5, 3), (10, 20, 30))
+    buffer, stride = ahian_scene.to_argb32(image)
+    assert stride == 20 and len(buffer) == 60
+    assert bytes(buffer[0:4]) == bytes((30, 20, 10, 255)), "BGRA with full alpha"
+    frame = renderer().render(23000)
+    buffer, stride = ahian_scene.to_argb32(frame)
+    assert stride == frame.width * 4
+    assert len(buffer) == stride * frame.height
 
 
 def test_text_alpha_is_flattened_against_its_surface():
