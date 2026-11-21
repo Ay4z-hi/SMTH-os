@@ -4,10 +4,15 @@
 `ahian` (or `ahian on`) switches the desktop into AHIAN mode directly:
 purple/teal wallpaper, spatial UI, all apps and desktop functionality intact.
 
-`unahian` (or `ahian off`) exits AHIAN mode and restores the previous
-(normal) desktop state.
+`unahian` (or `ahian off`) exits AHIAN mode immediately and restores the
+previous (normal) desktop state. It plays no animation at all.
 
-There is no crash sequence, no error dialogs, no blue screen and no countdown.
+Activating AHIAN plays the takeover exactly once: ten seconds of custom error
+windows over the desktop, a full-screen AH1AN system screen with a nine second
+countdown, then the AHIAN desktop assembling out of the collapsing screen. The
+animation is the shared ``ahian_scene`` renderer, the same one the Windows
+launcher and the Android launcher draw, and it finishes on the real desktop.
+Tap, click or any key skips it.
 """
 import json, os, shutil, subprocess, sys
 

@@ -75,17 +75,25 @@ journey on a booted image and must not be claimed as passing.
 - [ ] Reduce Motion disables decorative animation, including AHIAN.
 - [ ] Layout switch desktop/mobile at portrait and landscape sizes.
 
-## AHIAN — timeline VERIFIED, animation NOT RUN
+## AHIAN — frames VERIFIED, animation NOT RUN ON A DEVICE
 
-- [x] Plan contains progressive terminal errors before the storm.
-- [x] Dialog storm spans ~10 s, all dialogs on-screen, chronological.
-- [x] Blue screen text is exactly "wants to make your life beautiful".
-- [x] Countdown is 9 seconds.
-- [x] AHIAN wallpaper path exists and uses the purple/teal pair.
+- [x] One shared frame renderer (`ahian_scene.py`) drives the ISO overlay (GTK),
+      the Windows launcher (Tk) and is mirrored by the Android view.
+- [x] Act 1 is 10 s of custom error windows over the live desktop: 22 hand-written
+      messages, no two the same, varied sizes and positions, no diagonal staircase,
+      accelerating arrivals (700 ms apart down to ~140 ms), sparse then dense glitches.
+- [x] Act 2 cuts to the full-screen AH1AN system screen at 10 s; copy is exactly
+      "AHIAN HAS TAKEN CONTROL" and "AHIAN wants to make your life beautiful."
+- [x] Countdown is 9 seconds (9 at 10 000 ms, 0 at 19 000 ms), with arc, progress
+      bar and nine segments; glitching stays subtle.
+- [x] Act 3 opens the screen from a CRT line, fills the purple/teal flow, assembles
+      the dot-matrix wordmark, then staggers panel, icons, widgets and toast; the
+      wordmark dissolves before the black hole and clock settle.
+- [x] Reduced Motion replaces everything with one short fade to the finished desktop.
 - [x] `unahian` copy is exactly "looks like you dont like ahian", restores normal.
-- [ ] Run `ahian` on a booted image: dialogs appear gradually, BSOD shows, 9 s
-      countdown, then the purple/teal desktop.
-- [ ] Run `unahian`: red screen appears, normal wallpaper/mode restored.
+- [ ] Run `ahian` on a booted image: windows build up, crash screen counts down, then
+      the purple/teal desktop; and on a real phone with the APK.
+- [ ] Run `unahian`: normal wallpaper/mode restored.
 
 ## Apps — NOT RUN
 

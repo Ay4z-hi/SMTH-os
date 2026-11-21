@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Choose the one desktop reveal for this session.
 #
-# AHIAN mode enabled -> the 9 second AHIAN reconstruction reveal.
+# AHIAN mode enabled -> the AHIAN takeover (outbreak, crash screen, upgrade).
 # Otherwise          -> the regular SMTH startup construction.
 #
 # Every platform runs its reveal exactly once per desktop startup; typing

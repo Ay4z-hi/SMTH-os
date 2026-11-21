@@ -61,11 +61,11 @@ jobs:
         run: python3 tools/test_palette.py
       - name: Desktop entry / taskbar / keybind wiring
         run: python3 tools/check_wiring.py
-      - name: Startup construction timeline
+      - name: Startup timeline
         run: python3 tools/test_startup.py
-      - name: AHIAN reconstruction timeline
+      - name: AHIAN takeover timeline
         run: python3 tools/test_ahian_startup.py
-      - name: AHIAN renderer draw paths
+      - name: AHIAN renderer frames (all three platforms)
         run: python3 tools/test_ahian_renderers.py
       - name: AHIAN flowing wallpaper
         run: python3 tools/test_ahian_flow.py
@@ -94,6 +94,7 @@ jobs:
           python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/home.py
           python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/ahian_startup.py
           python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/ahian_startup_model.py
+          python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/ahian_scene.py
           python3 -m py_compile config/includes.chroot_after_packages/usr/local/lib/smth/startup.py
           python3 -m py_compile config/includes.chroot_after_packages/usr/local/bin/smth-terminal
           python3 -m py_compile config/includes.chroot_after_packages/usr/local/bin/ahian

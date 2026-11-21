@@ -1,69 +1,116 @@
-"""AHIAN desktop reconstruction timeline (shared across all three platforms).
+"""AHIAN takeover: the cinematic three-act timeline (shared by every platform).
 
-This module is the single source of truth for the AHIAN animated desktop
-reveal.  It is deliberately free of GTK, cairo, Pillow and platform APIs so
-the geometry and timing can be tested on any machine.  The Linux renderer
-(``ahian_startup.py``), the Android ``AhianRevealView`` and the Windows
-``AhianConstructionIntro`` implement the same timeline and ordering.
+This module is the single source of truth for the AHIAN presentation.  It is
+free of GTK, cairo, Pillow, Tk and Android APIs so the geometry, the wording and
+the timing can be tested anywhere.  The Linux overlay and the Windows launcher
+draw these frames with ``ahian_scene.py``; the Android launcher mirrors the same
+values in ``AhianConstructionView.kt``.
 
-Timeline (9000 ms):
+The sequence (25.8 s, exactly three acts):
 
-    0.0 - 1.0 s   void       dark field, purple/teal fragments drifting in
-    1.0 - 3.0 s   wallpaper  gradient + dot-matrix tiles assemble from fragments
-    3.0 - 5.0 s   structure  taskbar segments, widgets and panels draw in
-    5.0 - 7.0 s   elements   icons materialise in their real positions, a
-                             window frame assembles and dissolves again
-    7.0 - 9.0 s   reveal     the reconstruction settles and fades into the live
-                             AHIAN desktop that is already running underneath
+    act 1  0.0 - 10.0 s   error outbreak
+           the real SMTH desktop, then custom error windows arrive at
+           accelerating intervals over it.  Each window fades and scales in,
+           the screen flickers, slices and splits, and the whole scene gets
+           progressively noisier.  No two windows are identical and none of
+           them line up on a diagonal.
 
-There are no cursors in this sequence: the desktop reconstructs itself.
+    act 2  10.0 - 19.0 s  blue screen
+           the desktop is squeezed to a single bright line and the full-screen
+           AH1AN system screen opens from it.  It carries a real 9 second
+           countdown, a stop code and a quiet progress arc, with restrained
+           glitching and grain.
+
+    act 3  19.0 - 25.8 s  transformation
+           the blue screen collapses to a line again and the line opens into
+           the flowing purple-teal AHIAN wallpaper.  The dot-matrix SMTH mark
+           assembles, then shrinks into a corner watermark while the panel,
+           icons, widgets and taskbar arrive in a coordinated stagger.  The
+           overlay then fades onto the live, interactive desktop.
+
+``unahian`` stays instant: it cancels the overlay and restores the normal
+desktop with no animation at all.
 """
 
 from dataclasses import dataclass
 import math
-import random
 
 # ---- timeline ---------------------------------------------------------------
-DURATION_MS = 9000
-REDUCED_MS = 600
+DURATION_MS = 25800
+REDUCED_MS = 700
 
-VOID_END_MS = 1000
-WALL_START_MS = 1000
-WALL_END_MS = 3000
-STRUCT_START_MS = 3000
-STRUCT_END_MS = 5000
-ELEMENTS_START_MS = 5000
-ELEMENTS_END_MS = 7000
-REVEAL_START_MS = 7600
-FADE_END_MS = DURATION_MS
+OUTBREAK_MS = 10000            # act 1 ends here
+BLUE_START_MS = OUTBREAK_MS
+BLUE_END_MS = 19000            # act 2 ends here, nine full seconds of countdown
+COUNTDOWN_FROM = 9
 
-TILE_SPAN_MS = 1400
-TILE_DURATION_MS = 480
-PARTICLE_END_MS = 3400
-RING_STARTS = (1050, 1400, 1750, 2100)
-RING_DURATION_MS = 1250
+COLLAPSE_MS = 220              # desktop squeezed to a line
+BLUE_OPEN_START_MS = 10220
+BLUE_OPEN_MS = 380             # the blue screen opens out of that line
+BLUE_CLOSE_MS = 180            # blue screen squeezed back to a line
+WALL_OPEN_START_MS = 19180
+WALL_OPEN_MS = 430             # the wallpaper opens out of the line
 
-# ---- AHIAN palette ----------------------------------------------------------
+BRAND_START_MS = 19520
+BRAND_MS = 980                 # last dot of the wordmark lands here
+BRAND_SETTLE_MS = 20600        # mark shrinks into the corner watermark
+BRAND_SETTLED_MS = 21600
+PANEL_START_MS = 20120
+PANEL_MS = 620
+ICON_START_MS = 20460
+ICON_STEP_MS = 86
+ICON_MS = 430
+WIDGET_START_MS = 21420
+WIDGET_MS = 620
+TOAST_START_MS = 22260
+TOAST_MS = 320
+TOAST_END_MS = 24280
+SHIMMER_START_MS = 23600
+SHIMMER_MS = 900
+FADE_START_MS = 25000
+FADE_MS = DURATION_MS - FADE_START_MS
+
+CARD_ENTER_MS = 360            # fade + scale + drift for a new error window
+CARD_FLASH_MS = 300
+
+PROFILES = ("linux", "android", "windows")
+
+# ---- palettes ---------------------------------------------------------------
 BLACK = (0.0, 0.0, 0.0)
-DARK = (0.027, 0.024, 0.050)        # #07060D, the clean dark field
+DARK = (0.027, 0.024, 0.050)        # #07060D, the AHIAN void
 WHITE = (1.0, 1.0, 1.0)
-INK = (0.93, 0.90, 1.0)             # #EDE7FF
-GREY = (0.55, 0.53, 0.62)
-PURPLE = (0.486, 0.302, 1.0)        # AHIAN_A #7C4DFF
-TEAL = (0.0, 0.76, 0.66)            # AHIAN_B #00C2A8
+INK = (0.949, 0.925, 1.0)           # #F2ECFF body ink on AHIAN panels
+GREY = (0.596, 0.565, 0.678)        # secondary copy
+PURPLE = (0.486, 0.302, 1.0)        # #7C4DFF
+TEAL = (0.0, 0.76, 0.66)            # #00C2A8
 TEAL_BRIGHT = (0.20, 0.92, 0.80)    # #33E5CC
 PURPLE_SOFT = (0.62, 0.46, 1.0)     # #9E75FF
 VIOLET = (0.34, 0.22, 0.62)         # #5738A0
-PANEL = (0.082, 0.063, 0.145)       # #150F25, reconstructed panel fill
-WALLPAPER_PURPLE = (0.165, 0.090, 0.302)   # deep AHIAN purple
-WALLPAPER_TEAL = (0.020, 0.278, 0.251)     # deep AHIAN teal
+PANEL = (0.082, 0.063, 0.145)       # #150F25
+WALLPAPER_PURPLE = (0.165, 0.090, 0.302)
+WALLPAPER_TEAL = (0.020, 0.278, 0.251)
+
+# The normal SMTH desktop the takeover starts from.
+OBSIDIAN = (0.035, 0.035, 0.043)    # #09090B
+OBSIDIAN_DEEP = (0.024, 0.022, 0.029)
+MAROON = (0.439, 0.106, 0.208)      # #701B35
+MAROON_DEEP = (0.118, 0.039, 0.059)
+BLUSH = (0.949, 0.776, 0.824)       # #F2C6D2
+BLUSH_DIM = (0.400, 0.310, 0.345)
+
+# The AH1AN blue screen.
+BLUE_TOP = (0.043, 0.110, 0.259)    # #0B1C42, a deep system blue
+BLUE_BOTTOM = (0.078, 0.259, 0.561)  # #14428F
+BLUE_INK = (0.949, 0.969, 1.0)      # #F2F7FF
+BLUE_DIM = (0.647, 0.769, 0.949)    # #A5C4F2
+BLUE_RULE = (0.196, 0.318, 0.541)   # #32518A
 
 AHIAN_A = PURPLE
 AHIAN_B = TEAL
 
-PARTICLE_COLOURS = (PURPLE, TEAL, PURPLE_SOFT, TEAL_BRIGHT, VIOLET)
-
-PROFILES = ("linux", "android", "windows")
+# Error-window accents: the first act is still SMTH's maroon world, and the
+# AH1AN cards (accent 2) are the only ones already in the new palette.
+ACCENTS = (MAROON, BLUSH, PURPLE, TEAL, PURPLE_SOFT, (0.62, 0.20, 0.34))
 
 
 def clamp(value, low=0.0, high=1.0):
@@ -71,7 +118,7 @@ def clamp(value, low=0.0, high=1.0):
 
 
 def ease(value):
-    """Smooth, deliberately decelerating ease used by every element."""
+    """Decelerating ease used by every entrance."""
     value = clamp(value)
     return 1.0 - (1.0 - value) ** 3
 
@@ -79,6 +126,11 @@ def ease(value):
 def ease_in_out(value):
     value = clamp(value)
     return value * value * (3.0 - 2.0 * value)
+
+
+def ease_in(value):
+    value = clamp(value)
+    return value * value
 
 
 def lerp(a, b, t):
@@ -91,23 +143,18 @@ def mix_colour(a, b, t):
 
 
 def gradient_colour(t):
-    """The AHIAN purple-to-teal gradient, top-left to bottom-right."""
     return mix_colour(PURPLE, TEAL, clamp(t))
 
 
 def wallpaper_colour(t):
-    """The deep purple-to-teal wall the fragments resolve into."""
     return mix_colour(WALLPAPER_PURPLE, WALLPAPER_TEAL, clamp(t))
 
 
 def flow_colour(u, v, phase=0.0):
-    """A paced flowing-gradient sample for the live AHIAN wallpaper.
+    """The live AHIAN flowing gradient, sampled by the desktop and the reveal.
 
-    ``u``/``v`` are normalised screen coordinates and ``phase`` completes one
-    full cycle at 1.0, so the final reveal frame (phase 1.0) is identical to
-    the live desktop (phase 0.0).  Two slow diagonal waves bend a purple to
-    teal ramp, and a narrow band lifts it toward the bright AHIAN inks.  The
-    result is deliberately low contrast: it is a wallpaper, not a light show.
+    Two slow diagonal waves bend a purple to teal ramp and a narrow band lifts
+    it toward the bright AHIAN inks.  ``phase`` completes one cycle at 1.0.
     """
     u = clamp(u)
     v = clamp(v)
@@ -119,6 +166,13 @@ def flow_colour(u, v, phase=0.0):
                       ease_in_out(clamp(u * 0.58 + v * 0.42 + wave)))
     accent = mix_colour(PURPLE_SOFT, TEAL_BRIGHT, clamp(u * 0.7 + v * 0.3))
     return mix_colour(wall, accent, 0.035 + 0.075 * band)
+
+
+def ui_scale(width, height):
+    """One uniform metric for every piece of type and padding."""
+    if height >= width * 0.95:                   # portrait phone
+        return clamp(min(width / 900.0, height / 1600.0), 0.72, 2.6)
+    return clamp(min(width / 1280.0, height / 800.0), 0.72, 2.4)
 
 
 @dataclass(frozen=True)
@@ -136,453 +190,594 @@ class Rect:
     def bottom(self):
         return self.y + self.h
 
-    def inset(self, amount):
-        return Rect(self.x - amount, self.y - amount,
-                    self.w + amount * 2, self.h + amount * 2)
-
-    def clamp_into(self, width, height):
-        x = clamp(self.x, 0, max(0, width - self.w))
-        y = clamp(self.y, 0, max(0, height - self.h))
-        w = min(self.w, width)
-        h = min(self.h, height)
-        return Rect(x, y, w, h)
-
     def centre(self):
         return (self.x + self.w / 2, self.y + self.h / 2)
+
+    def moved(self, dx, dy):
+        return Rect(self.x + dx, self.y + dy, self.w, self.h)
+
+    def scaled(self, factor):
+        cx, cy = self.centre()
+        w, h = self.w * factor, self.h * factor
+        return Rect(cx - w / 2, cy - h / 2, w, h)
+
+    def clamp_into(self, width, height):
+        w = min(self.w, width)
+        h = min(self.h, height)
+        x = clamp(self.x, 0, max(0, width - w))
+        y = clamp(self.y, 0, max(0, height - h))
+        return Rect(x, y, w, h)
+
+
+# ---- act 1: error windows ---------------------------------------------------
+# (title, body, code, cx, cy, wf, hf, accent, start_ms)
+# Every window has its own size, wording, accent and anchor.  The anchors are
+# deliberately scattered across all quadrants: no two windows share a
+# diagonal, and the intervals accelerate from 700 ms to a 130 ms storm.
+ERROR_TABLE = (
+    ("SYSTEM FAILURE", "display pipeline stopped responding", "0x00A1",
+     0.235, 0.245, 0.245, 0.190, 0, 700),
+    ("DESKTOP CORRUPTED", "surface buffer 3 returned an invalid state", "0x00B4",
+     0.715, 0.168, 0.230, 0.155, 1, 1180),
+    ("REALITY NOT FOUND", "the compositor could not resolve a scene", "0x00C9",
+     0.435, 0.470, 0.265, 0.185, 2, 1620),
+    ("SIGNAL LOST", "input device 0 is no longer present", "0x00D2",
+     0.845, 0.350, 0.205, 0.150, 0, 2010),
+    ("MEMORY MISALIGNED", "block 0x7F3A exceeds its bounds", "0x00E0",
+     0.165, 0.630, 0.250, 0.175, 3, 2360),
+    ("WRITE PROTECTED", "cannot persist session state", "0x00E8",
+     0.560, 0.665, 0.215, 0.150, 1, 2670),
+    ("RECURSION LIMIT", "the desktop rebuilt itself faster than it renders",
+     "0x00F1", 0.855, 0.705, 0.235, 0.165, 0, 2950),
+    ("TRUST BOUNDARY", "unrecognised aesthetic signature", "0x00F7",
+     0.120, 0.415, 0.210, 0.150, 4, 3200),
+    ("DISPLAY DRIVER HALTED", "falling back to software compositing", "0x0104",
+     0.468, 0.218, 0.240, 0.160, 0, 3420),
+    ("AHIAN INITIALIZATION", "waiting for the user to look away", "0xA11A",
+     0.740, 0.500, 0.250, 0.205, 2, 3620),
+    ("SESSION STATE LOST", "session 3 has no resting state", "0x0112",
+     0.305, 0.315, 0.200, 0.150, 1, 3800),
+    ("UNKNOWN PROCESS", "pid 1 is drawing outside the frame", "0x0118",
+     0.625, 0.720, 0.215, 0.150, 3, 3960),
+    ("PANEL UNRESPONSIVE", "the bar stopped greeting you", "0x011E",
+     0.080, 0.790, 0.230, 0.150, 0, 4110),
+    ("FACTORY COLOURS", "maroon rejected by the incoming palette", "0x0125",
+     0.895, 0.150, 0.215, 0.150, 2, 4250),
+    ("CLOCK OUT OF SYNC", "one second is missing", "0x012B",
+     0.395, 0.815, 0.200, 0.145, 4, 6050),
+    ("INDEX REBUILD", "every icon is being re-sorted", "0x0133",
+     0.680, 0.300, 0.190, 0.145, 1, 6280),
+    ("DESKTOP CORRUPTED", "the second pass could not repair the first", "0x0139",
+     0.195, 0.155, 0.220, 0.150, 5, 6500),
+    ("REALITY NOT FOUND", "retrying with a nicer one", "0x0140",
+     0.520, 0.555, 0.200, 0.145, 2, 6700),
+    ("AHIAN INITIALIZATION", "aesthetics 84% loaded", "0xA11A",
+     0.820, 0.590, 0.210, 0.185, 3, 6880),
+    ("SYSTEM FAILURE", "this is not an error any more", "0x014A",
+     0.300, 0.505, 0.185, 0.140, 0, 7040),
+    ("REALITY NOT FOUND", "searching a warmer universe", "0x0152",
+     0.700, 0.830, 0.195, 0.145, 2, 7190),
+    ("AHIAN INITIALIZATION", "do not look away", "0xA11A",
+     0.455, 0.365, 0.225, 0.185, 2, 7330),
+)
+
+# Act 1 screen effects: (start_ms, duration_ms, kind, amount).
+# "flash" lifts the frame, "split" separates the colour channels, "slice"
+# displaces one horizontal band, "noise" grains the frame and "scan" sweeps a
+# soft line down the screen.  They are sparse at first, denser near the end.
+GLITCH_TABLE = (
+    (1350, 70, "flash", 0.16),
+    (2180, 110, "split", 2.5),
+    (2960, 90, "slice", 14.0),
+    (3520, 60, "flash", 0.22),
+    (4020, 120, "noise", 0.35),
+    (4460, 100, "split", 4.0),
+    (4980, 80, "slice", 26.0),
+    (5320, 90, "flash", 0.30),
+    (5620, 130, "noise", 0.55),
+    (5980, 110, "split", 7.0),
+    (6300, 70, "scan", 0.9),
+    (6620, 140, "slice", 38.0),
+    (6900, 90, "flash", 0.42),
+    (7180, 150, "noise", 0.75),
+    (7460, 120, "split", 10.0),
+    (7720, 90, "slice", 52.0),
+    (7960, 70, "flash", 0.55),
+    (8180, 140, "scan", 1.0),
+    (8420, 160, "noise", 0.95),
+    (8680, 120, "split", 13.0),
+    (8930, 100, "slice", 66.0),
+    (9180, 90, "flash", 0.62),
+    (9420, 150, "noise", 1.1),
+    (9660, 110, "split", 16.0),
+    (9840, 120, "slice", 80.0),
+)
+
+# Act 2 and 3 effects, deliberately restrained.
+CALM_GLITCH_TABLE = (
+    (400, 90, "split", 2.0),
+    (2450, 120, "slice", 10.0),
+    (3600, 80, "scan", 0.8),
+    (5200, 90, "split", 2.4),
+    (6900, 130, "noise", 0.45),
+    (8200, 100, "slice", 8.0),
+    (8600, 90, "split", 2.2),
+)
+
+
+# The 5x7 dot glyphs used for the SMTH wordmark and the desktop clock.
+BRAND_GLYPHS = {
+    "S": (15, 16, 16, 14, 1, 1, 30),
+    "M": (17, 27, 21, 21, 17, 17, 17),
+    "T": (31, 4, 4, 4, 4, 4, 4),
+    "H": (17, 17, 17, 31, 17, 17, 17),
+    "A": (14, 17, 17, 31, 17, 17, 17),
+    "I": (14, 4, 4, 4, 4, 4, 14),
+    "N": (17, 25, 21, 19, 17, 17, 17),
+    " ": (0, 0, 0, 0, 0, 0, 0),
+}
+DIGIT_GLYPHS = {
+    "0": (14, 17, 19, 21, 25, 17, 14), "1": (4, 12, 4, 4, 4, 4, 14),
+    "2": (14, 17, 1, 2, 4, 8, 31), "3": (30, 1, 1, 14, 1, 1, 30),
+    "4": (2, 6, 10, 18, 31, 2, 2), "5": (31, 16, 30, 1, 1, 17, 14),
+    "6": (6, 8, 16, 30, 17, 17, 14), "7": (31, 1, 2, 4, 8, 8, 8),
+    "8": (14, 17, 17, 14, 17, 17, 14), "9": (14, 17, 17, 15, 1, 2, 12),
+    ":": (0, 4, 4, 0, 4, 4, 0), " ": (0, 0, 0, 0, 0, 0, 0),
+}
+
+
+def glyph_dots(text, glyphs, spacing=6):
+    """(col, row, order) for every lit dot, laid out on a 5x7 grid."""
+    dots = []
+    for index, char in enumerate(text.upper()):
+        rows = glyphs.get(char, glyphs.get(" "))
+        for row in range(7):
+            bits = rows[row]
+            for col in range(5):
+                if bits >> (4 - col) & 1:
+                    x = index * spacing + col
+                    dots.append((x, row))
+    return tuple(dots)
 
 
 # ---- scene specs ------------------------------------------------------------
 @dataclass(frozen=True)
-class ParticleSpec:
-    x: float          # normalized origin
-    y: float
-    vx: float         # normalized drift per second
-    vy: float
-    size: float       # normalized radius
-    phase: float
-    colour: tuple
-    layer: int
-
-
-@dataclass(frozen=True)
-class TileSpec:
+class ErrorSpec:
     key: str
-    rect: Rect
+    title: str
+    body: str
+    code: str
+    cx: float
+    cy: float
+    wf: float
+    hf: float
+    accent: int
     start_ms: int
-    duration_ms: int
-    mix: float        # 0 purple .. 1 teal
-    dots: int
+
+    @property
+    def is_ahian(self):
+        return self.code == "0xA11A"
+
+
+ERRORS = tuple(
+    ErrorSpec(key=f"err-{index:02d}", title=row[0], body=row[1], code=row[2],
+              cx=row[3], cy=row[4], wf=row[5], hf=row[6], accent=row[7],
+              start_ms=row[8])
+    for index, row in enumerate(ERROR_TABLE))
 
 
 @dataclass(frozen=True)
-class RingSpec:
-    start_ms: int
-    duration_ms: int
-    mix: float
-
-
-@dataclass(frozen=True)
-class SegmentSpec:
-    key: str
-    rect: Rect
-    start_ms: int
-    duration_ms: int
-    accent: tuple
-
-
-@dataclass(frozen=True)
-class ElementSpec:
+class IconSpec:
     key: str
     label: str
-    kind: str
+    glyph: str
     rect: Rect
-    start_ms: int
-    duration_ms: int
     accent: tuple
-    end_ms: int = 0   # 0 = stays for the final frame
 
 
 @dataclass(frozen=True)
-class ParticleFrame:
-    x: float
-    y: float
-    r: float
-    alpha: float
-    colour: tuple
-
-
-@dataclass(frozen=True)
-class TileFrame:
-    spec: TileSpec
+class CardFrame:
+    spec: ErrorSpec
+    rect: Rect
     progress: float
     alpha: float
-    scale: float
+    flash: float
 
 
 @dataclass(frozen=True)
-class RingFrame:
-    x: float
-    y: float
-    r: float
+class GlitchFrame:
+    dx: float = 0.0
+    dy: float = 0.0
+    brightness: float = 1.0
+    flash: float = 0.0
+    split: float = 0.0
+    slice_y: float = -1.0
+    slice_shift: float = 0.0
+    noise: float = 0.0
+    scan_y: float = -1.0
+
+    @property
+    def active(self):
+        return (self.split or self.flash or self.noise or self.slice_y >= 0
+                or self.scan_y >= 0 or self.brightness != 1.0
+                or abs(self.dx) > 0.01 or abs(self.dy) > 0.01)
+
+
+@dataclass(frozen=True)
+class BlueFrame:
+    open: float
     alpha: float
-    colour: tuple
+    countdown: int
+    tick: float
+    progress: float
+    head: str
+    sub: str
+    accent: tuple
 
 
 @dataclass(frozen=True)
-class SegmentFrame:
-    spec: SegmentSpec
-    progress: float
-
-
-@dataclass(frozen=True)
-class ElementFrame:
-    spec: ElementSpec
-    progress: float
-    alpha: float
+class TransformFrame:
+    open: float
+    wallpaper: float
+    brand: float
+    brand_alpha: float
+    brand_scale: float
+    brand_x: float
+    brand_y: float
+    panel: float
+    icons: tuple
+    widgets: float
+    toast: float
+    shimmer: float
+    phase: float
 
 
 @dataclass(frozen=True)
 class Frame:
     t_ms: float
     phase: str
-    particles: tuple
-    tiles: tuple
-    rings: tuple
-    segments: tuple
-    items: tuple
-    wallpaper_alpha: float
+    cards: tuple
+    glitch: GlitchFrame
+    blue: BlueFrame
+    transform: TransformFrame
+    desktop_dim: float
     overlay_alpha: float
     done: bool
     reduced: bool
 
 
+# ---- layout -----------------------------------------------------------------
 class StartupScene:
-    """Resolution-independent AHIAN reconstruction scene."""
+    """Resolution-independent AHIAN takeover scene."""
 
     def __init__(self, width, height, reduced=False, profile="linux"):
         if profile not in PROFILES:
             raise ValueError(f"unknown profile {profile!r}")
         self.profile = profile
-        self.width = max(640.0, float(width))
-        self.height = max(480.0, float(height))
+        self.width = max(480.0, float(width))
+        self.height = max(360.0, float(height))
         self.reduced = bool(reduced)
         self.portrait = self.height >= self.width * 0.95
+        self.u = ui_scale(self.width, self.height)
         self.layout = self._layout()
-        self.tiles = self._tiles()
-        self.particles = () if self.reduced else self._particles()
-        self.rings = () if self.reduced else tuple(
-            RingSpec(start, RING_DURATION_MS, (i / 3.0))
-            for i, start in enumerate(RING_STARTS))
-        self.segments = () if self.reduced else self._segments()
-        self.items = () if self.reduced else self._items()
+        self.icons = self.layout["icons"]
+        self.errors = self._errors()
+        self.glitches = GLITCH_TABLE
+        self.calm_glitches = CALM_GLITCH_TABLE
+        self.brand_dots = glyph_dots("SMTH", BRAND_GLYPHS)
+        self.brand_columns = 23
 
     # ---- layout -------------------------------------------------------------
     def _layout(self):
-        w, h = self.width, self.height
-        margin = max(12.0, w * 0.018)
+        w, h, u = self.width, self.height, self.u
         if self.profile == "linux":
-            # Mirrors home.py: Waybar across the top, shortcuts flowing in the
-            # top-left, clock bottom-left and glance rings bottom-right.
-            bar = Rect(0, 0, w, 38)
-            clock = Rect(margin + 10, h - 104, min(240.0, w * 0.24), 46)
-            rings = Rect(w - margin - 250, h - 116, 236, 84)
-            window = Rect(w * 0.40, h * 0.20, w * 0.52, h * 0.50)
-            if self.portrait:
-                cols, rows = 2, 6
-            elif w >= 1100:
-                cols, rows = 4, 3
-            else:
-                cols, rows = 3, 4
-            icon_w, icon_h = 78.0, 82.0
-            icon_x, icon_y = margin + 8, bar.h + 14
-            gap_x, gap_y = 10.0, 8.0
+            bar = Rect(0, 0, w, 38 * u)
+            clock = Rect(30 * u, h - 142 * u, 96 * u, 62 * u)
+            rings = Rect(w - 30 * u - 236 * u, h - 156 * u, 236 * u, 78 * u)
+            cols, rows = 2, 7
+            cell_w, cell_h = 112 * u, 90 * u
+            origin = (24 * u, 24 * u)
+            labels = ("FILES", "BROWSER", "STORE", "CAMERA", "GALLERY", "PAINT",
+                      "NOTES", "CALC", "PLAYER", "CLOCK", "TERMINAL", "SETTINGS")
+            glyphs = ("folder", "globe", "bag", "camera", "photo", "brush",
+                      "note", "calc", "play", "clock", "terminal", "gear")
         elif self.profile == "android":
-            # Mirrors MainActivity: wallpaper, shortcut column top-left and a
-            # floating taskbar 46 dp tall with 12 dp side margins.
-            bar = Rect(margin, h - 56, w - 2 * margin, 46)
-            clock = Rect(bar.right - 116, bar.y + 9, 104, 28)
+            bar = Rect(12 * u, h - 66 * u, w - 24 * u, 52 * u)
+            clock = Rect(bar.right - 118 * u, bar.y + 12 * u, 104 * u, 30 * u)
             rings = None
-            window = Rect(w * 0.28, h * 0.18, w * 0.44, h * 0.50)
             cols, rows = 1, 6
-            icon_w, icon_h = 92.0, 62.0
-            icon_x, icon_y = margin + 8, 18.0
-            gap_x, gap_y = 0.0, 4.0
-        else:  # windows
-            # Mirrors smth_launcher.py: shortcuts at x=44, taskbar 48 px bottom.
-            bar = Rect(0, h - 49, w, 48)
-            clock = Rect(w - 124, h - 44, 108, 32)
+            cell_w, cell_h = 108 * u, 78 * u
+            origin = (16 * u, 22 * u)
+            labels = ("TERMINAL", "CHROME", "PHONE", "MESSAGES", "CAMERA", "SETTINGS")
+            glyphs = ("terminal", "globe", "phone", "chat", "camera", "gear")
+        else:
+            bar = Rect(0, h - 48 * u, w, 48 * u)
+            clock = Rect(w - 140 * u, h - 44 * u, 124 * u, 34 * u)
             rings = None
-            window = Rect(w * 0.29, h * 0.17, w * 0.44, h * 0.52)
             cols, rows = 1, 6
-            icon_w, icon_h = 128.0, 60.0
-            icon_x, icon_y = 20.0, 26.0
-            gap_x, gap_y = 0.0, 14.0
+            cell_w, cell_h = 112 * u, 86 * u
+            origin = (24 * u, 24 * u)
+            labels = ("FILES", "BROWSER", "TERMINAL", "SETTINGS", "CALC", "PHOTOS")
+            glyphs = ("folder", "globe", "terminal", "gear", "calc", "photo")
 
         icons = []
-        for i in range(cols * rows):
-            col, row = i % cols, i // cols
-            x = icon_x + col * (icon_w + gap_x)
-            y = icon_y + row * (icon_h + gap_y)
-            icons.append(Rect(x, y, icon_w, icon_h).clamp_into(w, h))
+        for index in range(min(cols * rows, len(labels))):
+            col, row = index // rows, index % rows
+            rect = Rect(origin[0] + col * cell_w,
+                        origin[1] + row * cell_h,
+                        96 * u, 78 * u).clamp_into(w, h)
+            icons.append(IconSpec(
+                key=f"icon-{index}",
+                label=labels[index % len(labels)],
+                glyph=glyphs[index % len(glyphs)],
+                rect=rect,
+                accent=(MAROON, BLUSH, PURPLE, TEAL, PURPLE_SOFT, MAROON_DEEP)[index % 6],
+            ))
         return {
             "bar": bar,
             "clock": clock,
             "rings": rings,
-            "window": window,
             "icons": tuple(icons),
-            "icon_cols": cols,
-            "icon_rows": rows,
-            "focus": (w * (0.5 if self.profile != "linux" else 0.64), h * 0.48),
-            "margin": margin,
+            "margin": 24 * u,
+            "unit": u,
         }
 
-    # ---- wallpaper fragments ------------------------------------------------
-    def _tiles(self):
-        w, h = self.width, self.height
-        cols = int(clamp(round(w / 72.0), 10, 18))
-        rows = int(clamp(round(h / 90.0), 6, 12))
-        tile_w = w / cols
-        tile_h = h / rows
-        tiles = []
-        for row in range(rows):
-            for col in range(cols):
-                order = (col / max(1, cols - 1)) * 0.58 + (row / max(1, rows - 1)) * 0.42
-                start = WALL_START_MS + int(TILE_SPAN_MS * order)
-                rect = Rect(col * tile_w, row * tile_h,
-                            tile_w + 0.6, tile_h + 0.6)
-                # Dot-matrix density: 3x3 inside every tile, 4x4 on larger ones.
-                dots = 4 if min(tile_w, tile_h) > 96 else 3
-                tiles.append(TileSpec(
-                    key=f"tile-{row}-{col}",
-                    rect=rect,
-                    start_ms=start,
-                    duration_ms=TILE_DURATION_MS,
-                    # Colour is a pure left-to-right purple-to-teal gradient so
-                    # neighbouring fragments in a column match exactly and the
-                    # assembled wall has no visible tile seams.
-                    mix=col / max(1, cols - 1),
-                    dots=dots,
-                ))
-        return tuple(tiles)
+    # ---- act 2 layout anchors ----------------------------------------------
+    def blue_layout(self):
+        """Composition anchors for the AH1AN screen, in pixels."""
+        w, h, u = self.width, self.height, self.u
+        pad = 0.075 * w
+        head_size = min(0.066 * h, 0.036 * w)
+        return {
+            "pad": pad,
+            "mark": Rect(pad, 0.115 * h, 74 * u, 22 * u),
+            "headline": (pad, 0.300 * h),
+            "headline_size": head_size,
+            "subline": (pad, 0.300 * h + head_size * 1.55),
+            "subline_size": head_size * 0.40,
+            "rule": Rect(pad, 0.300 * h + head_size * 2.35,
+                         min(w - 2 * pad, 0.46 * w), max(1.0, 1.6 * u)),
+            "count_y": (0.500 if self.portrait else 0.605) * h,
+            "bar": Rect(pad, 0.780 * h, min(w - 2 * pad, 0.36 * w), max(2.0, 2.6 * u)),
+            "meta_y": (0.840 if self.portrait else 0.870) * h,
+        }
 
-    def _particles(self):
-        rng = random.Random(1107)
-        out = []
-        for i in range(42):
-            out.append(ParticleSpec(
-                x=rng.uniform(0.02, 0.98),
-                y=rng.uniform(0.02, 0.98),
-                vx=rng.uniform(-0.012, 0.012),
-                vy=rng.uniform(-0.020, -0.006),
-                size=rng.uniform(0.0016, 0.0048),
-                phase=rng.uniform(0.0, math.tau),
-                colour=PARTICLE_COLOURS[i % len(PARTICLE_COLOURS)],
-                layer=i % 3,
-            ))
-        return tuple(out)
+    # ---- act 1 cards --------------------------------------------------------
+    def _errors(self):
+        return ERRORS
 
-    # ---- structure ----------------------------------------------------------
-    def _segments(self):
-        bar = self.layout["bar"]
-        accents = (PURPLE, PURPLE_SOFT, TEAL, TEAL_BRIGHT, PURPLE, TEAL)
-        fractions = (0.085, 0.095, 0.095, 0.095, 0.11, 0.16)
-        segments = []
-        cursor = bar.x + 8
-        usable = bar.w - 16
-        for i, frac in enumerate(fractions):
-            width = max(18.0, usable * frac)
-            rect = Rect(cursor, bar.y + 8, width, max(6.0, bar.h - 16))
-            segments.append(SegmentSpec(
-                key=f"segment-{i}",
-                rect=rect.clamp_into(self.width, self.height),
-                start_ms=STRUCT_START_MS + i * 110,
-                duration_ms=360,
-                accent=accents[i],
-            ))
-            cursor += width + 8
-        return tuple(segments)
+    def card_size(self, spec):
+        """The pixel size of one error window, from its own proportions."""
+        u = self.u
+        lines = 1 if len(spec.body) <= 46 else 2
+        height = (30 + 9 + 6 + 17 + 5 + 13 * lines + 8 + 11) * u
+        if spec.is_ahian:
+            height += 15 * u
+        # The table's height fraction is a hint, never a stretched panel.
+        hint = spec.hf * self.height
+        return (max(spec.wf * self.width, 250 * u),
+                clamp(hint, height, height * 1.45))
 
-    def _items(self):
-        lay = self.layout
-        items = [
-            ElementSpec("bar", "TASKBAR", "taskbar", lay["bar"],
-                        STRUCT_START_MS, 620, TEAL),
-            ElementSpec("bar-edge", "TASKBAR", "edge",
-                        Rect(lay["bar"].x, lay["bar"].bottom - 1, lay["bar"].w, 1),
-                        STRUCT_START_MS + 180, 520, TEAL_BRIGHT),
-            ElementSpec("clock", "CLOCK", "clock", lay["clock"],
-                        STRUCT_START_MS + 420, 560, PURPLE_SOFT),
-            ElementSpec("window", "WINDOW", "window", lay["window"],
-                        ELEMENTS_START_MS + 280, 900, PURPLE,
-                        end_ms=6500),
-        ]
-        if lay["rings"] is not None:
-            items.append(ElementSpec("rings", "WIDGETS", "rings", lay["rings"],
-                                     STRUCT_START_MS + 620, 620, TEAL))
-        for i, rect in enumerate(lay["icons"]):
-            items.append(ElementSpec(
-                f"icon-{i}", f"APP {i + 1:02d}", "icon", rect,
-                ELEMENTS_START_MS + i * 140, 380,
-                (PURPLE, TEAL, PURPLE_SOFT, TEAL_BRIGHT, VIOLET,
-                 PURPLE)[i % 6]))
-        return tuple(items)
+    def card_rect(self, spec):
+        w, h = self.card_size(spec)
+        x = spec.cx * self.width - w / 2
+        y = spec.cy * self.height - h / 2
+        return Rect(x, y, w, h).clamp_into(self.width, self.height)
 
-    # ---- frame --------------------------------------------------------------
+    # ---- phases -------------------------------------------------------------
     def phase(self, t_ms):
         if self.reduced:
             return "reduced" if t_ms < REDUCED_MS else "done"
-        if t_ms < VOID_END_MS:
-            return "void"
-        if t_ms < WALL_END_MS:
-            return "wallpaper"
-        if t_ms < STRUCT_END_MS:
-            return "structure"
-        if t_ms < ELEMENTS_END_MS:
-            return "elements"
-        if t_ms < FADE_END_MS:
+        if t_ms < BLUE_START_MS:
+            return "outbreak"
+        if t_ms < BLUE_END_MS:
+            return "blue"
+        if t_ms < FADE_START_MS:
+            return "transform"
+        if t_ms < DURATION_MS:
             return "reveal"
         return "done"
 
-    def _particle_frames(self, t_ms):
-        if t_ms > PARTICLE_END_MS or not self.particles:
-            return ()
-        fade_in = clamp(t_ms / 420.0)
-        fade_out = clamp((PARTICLE_END_MS - t_ms) / 900.0)
-        alpha = clamp(fade_in * fade_out)
-        if alpha <= 0:
-            return ()
-        out = []
-        seconds = t_ms / 1000.0
-        for spec in self.particles:
-            x = (spec.x + spec.vx * seconds
-                 + 0.004 * math.sin(seconds * 1.7 + spec.phase)) % 1.0
-            y = (spec.y + spec.vy * seconds) % 1.0
-            pulse = 0.55 + 0.45 * math.sin(seconds * 2.4 + spec.phase)
-            out.append(ParticleFrame(
-                x=x * self.width,
-                y=y * self.height,
-                r=max(0.8, spec.size * min(self.width, self.height)),
-                alpha=alpha * (0.24 + 0.34 * pulse) * (0.6 + 0.4 * spec.layer / 2),
-                colour=spec.colour,
-            ))
-        return tuple(out)
+    def countdown(self, t_ms):
+        remaining = BLUE_END_MS - max(t_ms, BLUE_START_MS)
+        return int(clamp(math.ceil(remaining / 1000.0), 0, COUNTDOWN_FROM))
 
-    def _tile_frames(self, t_ms):
+    def _cards(self, t_ms):
         out = []
-        for spec in self.tiles:
-            progress = clamp((t_ms - spec.start_ms) / spec.duration_ms)
-            if progress <= 0:
+        for spec in self.errors:
+            if t_ms < spec.start_ms:
                 continue
-            out.append(TileFrame(
+            progress = ease(clamp((t_ms - spec.start_ms) / CARD_ENTER_MS))
+            flash = clamp(1.0 - (t_ms - spec.start_ms) / CARD_FLASH_MS)
+            rect = self.card_rect(spec)
+            # Entrances settle from 3% larger, and drift up by a few pixels.
+            scale = 1.0 + 0.035 * (1.0 - progress)
+            drift = (1.0 - progress) * 9.0 * self.u
+            out.append(CardFrame(
                 spec=spec,
+                rect=rect.scaled(scale).moved(0, drift),
                 progress=progress,
-                alpha=ease(progress),
-                scale=0.82 + 0.18 * ease(progress),
+                alpha=progress,
+                flash=flash,
             ))
         return tuple(out)
 
-    def _ring_frames(self, t_ms):
-        out = []
-        cx, cy = self.layout["focus"]
-        base = min(self.width, self.height)
-        for spec in self.rings:
-            progress = clamp((t_ms - spec.start_ms) / spec.duration_ms)
-            if progress <= 0 or progress >= 1:
+    # ---- act 1 glitches -----------------------------------------------------
+    def _glitch(self, t_ms):
+        if self.reduced:
+            return GlitchFrame()
+        # A slow building tremor, then nothing once the screen goes blue.
+        shake = 0.0
+        if t_ms < BLUE_START_MS:
+            shake = 2.4 * self.u * ease_in(clamp((t_ms - 2600) / 7200))
+        dx = math.sin(t_ms / 46.0) * shake
+        dy = math.cos(t_ms / 61.0) * shake * 0.55
+        state = {
+            "dx": dx, "dy": dy, "brightness": 1.0, "flash": 0.0, "split": 0.0,
+            "slice_y": -1.0, "slice_shift": 0.0, "noise": 0.0, "scan_y": -1.0,
+        }
+        table = self.glitches if t_ms < BLUE_START_MS else self.calm_glitches
+        offset = 0 if t_ms < BLUE_START_MS else BLUE_START_MS
+        for start, duration, kind, amount in table:
+            start += offset
+            if not start <= t_ms < start + duration:
                 continue
-            out.append(RingFrame(
-                x=cx, y=cy,
-                r=base * (0.05 + 0.42 * ease_in_out(progress)),
-                alpha=(1.0 - progress) * 0.42,
-                colour=mix_colour(PURPLE, TEAL, spec.mix),
-            ))
-        return tuple(out)
+            local = (t_ms - start) / duration
+            env = math.sin(local * math.pi)
+            if kind == "flash":
+                state["flash"] = max(state["flash"], amount * env)
+                state["brightness"] = max(state["brightness"], 1.0 + amount * 0.10)
+            elif kind == "split":
+                state["split"] = max(state["split"], amount * env)
+            elif kind == "slice":
+                state["slice_y"] = ((t_ms * 0.37) % 0.72) + 0.14
+                state["slice_shift"] = amount * env * (1 if int(t_ms) % 2 else -1)
+            elif kind == "noise":
+                state["noise"] = max(state["noise"], amount * env)
+            elif kind == "scan":
+                state["scan_y"] = local
+        # Persistent grain rises through the outbreak and rests low after it.
+        if t_ms < BLUE_START_MS:
+            state["noise"] = min(1.2, state["noise"] + 0.10 * ease(clamp(t_ms / 9000)))
+        else:
+            state["noise"] = min(1.0, state["noise"] + 0.06)
+        return GlitchFrame(**state)
 
-    def _segment_frames(self, t_ms):
-        out = []
-        for spec in self.segments:
-            progress = clamp((t_ms - spec.start_ms) / spec.duration_ms)
-            if progress > 0:
-                out.append(SegmentFrame(spec=spec, progress=ease(progress)))
-        return tuple(out)
+    # ---- act 2 --------------------------------------------------------------
+    def _blue(self, t_ms):
+        if t_ms < BLUE_OPEN_START_MS:
+            opened = 0.0
+        elif t_ms < BLUE_OPEN_START_MS + BLUE_OPEN_MS:
+            opened = ease_in_out((t_ms - BLUE_OPEN_START_MS) / BLUE_OPEN_MS)
+        else:
+            opened = 1.0
+        if t_ms >= BLUE_END_MS:
+            opened = 0.0
+        elif t_ms >= BLUE_END_MS - BLUE_CLOSE_MS:
+            closed = (t_ms - (BLUE_END_MS - BLUE_CLOSE_MS)) / BLUE_CLOSE_MS
+            opened = 1.0 - ease_in_out(closed)
+        countdown = self.countdown(t_ms)
+        since_tick = (BLUE_END_MS - t_ms) / 1000.0
+        tick = clamp(1.0 - (since_tick - int(since_tick)) / 0.28) if opened else 0.0
+        head = "AHIAN HAS TAKEN CONTROL"
+        sub = "AHIAN wants to make your life beautiful."
+        return BlueFrame(
+            open=opened,
+            alpha=ease(clamp((t_ms - BLUE_OPEN_START_MS) / 300.0)),
+            countdown=countdown,
+            tick=tick,
+            progress=clamp((t_ms - BLUE_START_MS) / (BLUE_END_MS - BLUE_START_MS)),
+            head=head,
+            sub=sub,
+            accent=TEAL_BRIGHT,
+        )
 
-    def _item_frames(self, t_ms):
-        out = []
-        for spec in self.items:
-            progress = clamp((t_ms - spec.start_ms) / spec.duration_ms)
-            if progress <= 0:
-                continue
-            alpha = 1.0
-            if spec.end_ms and t_ms > spec.end_ms:
-                alpha = clamp(1.0 - (t_ms - spec.end_ms) / 420.0)
-                if alpha <= 0:
-                    continue
-            out.append(ElementFrame(spec=spec, progress=progress, alpha=alpha))
-        return tuple(out)
+    # ---- act 3 --------------------------------------------------------------
+    def wallpaper_phase(self, t_ms):
+        """Live-wallpaper phase so the reveal resolves onto the running desktop."""
+        return ((BLUE_END_MS - t_ms) / 1000.0 * 0.022) % 1.0
 
+    def _transform(self, t_ms):
+        u = self.u
+        if t_ms < WALL_OPEN_START_MS:
+            opened = 0.0
+        elif t_ms < WALL_OPEN_START_MS + WALL_OPEN_MS:
+            opened = ease_in_out((t_ms - WALL_OPEN_START_MS) / WALL_OPEN_MS)
+        else:
+            opened = 1.0
+        brand = clamp((t_ms - BRAND_START_MS) / (BRAND_MS + 240.0))
+        settle = ease_in_out(clamp(
+            (t_ms - BRAND_SETTLE_MS) / (BRAND_SETTLED_MS - BRAND_SETTLE_MS)))
+        # The wordmark is the introduction, not decoration: it assembles dead
+        # centre, holds, then dissolves upward as the icons take over.
+        brand_alpha = 1.0 - settle
+        brand_scale = 1.0 - 0.06 * settle
+        brand_x = 0.5
+        brand_y = lerp(0.44, 0.395, settle)
+        panel = ease(clamp((t_ms - PANEL_START_MS) / PANEL_MS))
+        icons = tuple(
+            ease(clamp((t_ms - (ICON_START_MS + i * ICON_STEP_MS)) / ICON_MS))
+            for i in range(len(self.icons)))
+        widgets = ease(clamp((t_ms - WIDGET_START_MS) / WIDGET_MS))
+        toast_in = ease(clamp((t_ms - TOAST_START_MS) / TOAST_MS))
+        toast_out = clamp((t_ms - TOAST_END_MS) / 420.0)
+        toast = toast_in * (1.0 - toast_out)
+        shimmer = clamp((t_ms - SHIMMER_START_MS) / SHIMMER_MS)
+        if t_ms < SHIMMER_START_MS:
+            shimmer = 0.0
+        return TransformFrame(
+            open=opened,
+            wallpaper=opened,
+            brand=brand,
+            brand_alpha=brand_alpha,
+            brand_scale=brand_scale,
+            brand_x=brand_x,
+            brand_y=brand_y,
+            panel=panel,
+            icons=icons,
+            widgets=widgets,
+            toast=toast,
+            shimmer=shimmer,
+            phase=self.wallpaper_phase(t_ms),
+        )
+
+    # ---- frame --------------------------------------------------------------
     def frame(self, t_ms):
+        phase = self.phase(t_ms)
         if self.reduced:
             t_ms = clamp(t_ms, 0, REDUCED_MS)
-            overlay = clamp(1.0 - t_ms / REDUCED_MS)
-            final_tiles = tuple(
-                TileFrame(spec, 1.0, 1.0, 1.0) for spec in self.tiles)
-            final_items = tuple(
-                ElementFrame(spec, 1.0, 1.0)
-                for spec in self._final_items())
+            overlay = 1.0 - t_ms / REDUCED_MS
             return Frame(
-                t_ms=t_ms,
-                phase=self.phase(t_ms),
-                particles=(),
-                tiles=final_tiles,
-                rings=(),
-                segments=(),
-                items=final_items,
-                wallpaper_alpha=1.0,
-                overlay_alpha=overlay,
-                done=t_ms >= REDUCED_MS,
-                reduced=True,
+                t_ms=t_ms, phase=phase, cards=(), glitch=GlitchFrame(),
+                blue=BlueFrame(0.0, 0.0, 0, 0.0, 0.0, "", "", TEAL_BRIGHT),
+                transform=TransformFrame(
+                    open=1.0, wallpaper=1.0, brand=1.0, brand_alpha=0.22,
+                    brand_scale=0.30, brand_x=0.115, brand_y=0.155,
+                    panel=1.0, icons=tuple(1.0 for _ in self.icons),
+                    widgets=1.0, toast=0.0, shimmer=0.0, phase=0.0),
+                desktop_dim=0.0, overlay_alpha=overlay,
+                done=t_ms >= REDUCED_MS, reduced=True,
             )
 
-        t_ms = clamp(t_ms, 0, FADE_END_MS)
-        if t_ms < REVEAL_START_MS:
-            overlay = 1.0
+        t_ms = clamp(t_ms, 0, DURATION_MS)
+        collapse = 0.0
+        if BLUE_START_MS <= t_ms < BLUE_OPEN_START_MS:
+            collapse = ease_in((t_ms - BLUE_START_MS) / COLLAPSE_MS)
+        if t_ms >= BLUE_END_MS - BLUE_CLOSE_MS:
+            collapse = max(collapse, 0.0)
+        if FADE_START_MS <= t_ms:
+            overlay = clamp(1.0 - (t_ms - FADE_START_MS) / FADE_MS)
         else:
-            overlay = clamp(1.0 - (t_ms - REVEAL_START_MS)
-                            / (FADE_END_MS - REVEAL_START_MS))
-        wallpaper_alpha = ease(clamp(
-            (t_ms - WALL_START_MS) / max(1, WALL_END_MS - WALL_START_MS)))
+            overlay = 1.0
         return Frame(
             t_ms=t_ms,
-            phase=self.phase(t_ms),
-            particles=self._particle_frames(t_ms),
-            tiles=self._tile_frames(t_ms),
-            rings=self._ring_frames(t_ms),
-            segments=self._segment_frames(t_ms),
-            items=self._item_frames(t_ms),
-            wallpaper_alpha=wallpaper_alpha,
+            phase=phase,
+            cards=self._cards(t_ms) if t_ms < BLUE_START_MS else (),
+            glitch=self._glitch(t_ms),
+            blue=self._blue(t_ms),
+            transform=self._transform(t_ms),
+            desktop_dim=ease(clamp(t_ms / OUTBREAK_MS)) * 0.46,
             overlay_alpha=overlay,
-            done=t_ms >= FADE_END_MS,
+            done=t_ms >= DURATION_MS,
             reduced=False,
         )
 
-    def _final_items(self):
-        """Items that remain in the final frame (no transient window)."""
-        return tuple(spec for spec in self.items if not spec.end_ms)
 
-
-# Backwards/alias names for compatibility with normal startup naming.
+# Backwards/alias names.
 AhianScene = StartupScene
 AhianStartupScene = StartupScene
 Scene = StartupScene
 AhianStartupModel = StartupScene
 
 
-# Allow `python ahian_startup_model.py --print-plan`
 if __name__ == "__main__":
     import sys
     if "--print-plan" in sys.argv:
         scene = StartupScene(1920, 1080)
-        frame = scene.frame(5500)
-        print(f"phase={frame.phase} particles={len(frame.particles)} "
-              f"tiles={len(frame.tiles)} segments={len(frame.segments)} "
-              f"items={len(frame.items)} duration={DURATION_MS}ms")
+        for t in (0, 2400, 5200, 8600, 12000, 15000, 18600, 19800, 22000, 25000):
+            frame = scene.frame(t)
+            print(f"{t:>6} ms  {frame.phase:<9} cards={len(frame.cards):>2} "
+                  f"count={frame.blue.countdown} open={frame.transform.open:.2f} "
+                  f"icon={max(frame.transform.icons or (0,)):.2f}")
+        print(f"duration={DURATION_MS}ms")
         sys.exit(0)
