@@ -1143,6 +1143,12 @@ class AhianConstructionIntro:
                     self.win.destroy()
                 except tk.TclError:
                     pass
+                # Reveal the live launcher only after the cursor-built scene
+                # has completed and its overlay has faded away.
+                try:
+                    self.parent.load_wallpaper()
+                except (tk.TclError, OSError):
+                    pass
                 return
             try:
                 self.win.attributes("-alpha", max(0.0, 1.0 - step / 6.0))
