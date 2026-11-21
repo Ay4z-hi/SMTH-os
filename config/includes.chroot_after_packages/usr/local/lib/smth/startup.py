@@ -126,7 +126,7 @@ class Renderer:
         if frame.logo_alpha <= 0.001:
             return
         cx, cy = w / 2, h / 2
-        target = min(w * 0.32, h * 0.30, 300.0)
+        target = min(w * 0.24, h * 0.23, 220.0)
         if self.logo is not None:
             iw, ih = self.logo.get_width(), self.logo.get_height()
         else:
