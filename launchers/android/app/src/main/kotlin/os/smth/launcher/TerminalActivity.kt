@@ -45,6 +45,7 @@ class TerminalActivity : android.app.Activity() {
     private var ahianActive = false
     private var ahianOverlay: AhianConstructionView? = null
     private var maximized = false
+    private var snapMode = 0 // 0=free, 1=left, 2=right, 3=maximized
     private var normalWidth = 0
     private var normalHeight = 0
     private val density by lazy { resources.displayMetrics.density }
@@ -142,12 +143,28 @@ class TerminalActivity : android.app.Activity() {
             imm.showSoftInput(terminalView.commandInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
         })
         val maximize = control("□", {
-            maximized = !maximized
-            if (maximized) {
-                window.setLayout(screen.widthPixels - dp(20), screen.heightPixels - dp(40))
-            } else {
-                window.setLayout(normalWidth, normalHeight)
+            // Cycle through Windows-style snap zones: free, left half,
+            // right half, maximized, then back to the saved free size.
+            snapMode = (snapMode + 1) % 4
+            maximized = snapMode != 0
+            val attrs = window.attributes.apply {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                when (snapMode) {
+                    1 -> { x = 0; y = 0 }
+                    2 -> { x = screen.widthPixels / 2; y = 0 }
+                    3 -> { x = 0; y = 0 }
+                    else -> {
+                        x = (screen.widthPixels - normalWidth) / 2
+                        y = (screen.heightPixels - normalHeight) / 2
+                    }
+                }
             }
+            when (snapMode) {
+                1, 2 -> window.setLayout(screen.widthPixels / 2, screen.heightPixels - dp(40))
+                3 -> window.setLayout(screen.widthPixels - dp(20), screen.heightPixels - dp(40))
+                else -> window.setLayout(normalWidth, normalHeight)
+            }
+            window.attributes = attrs
         })
         closeButton = control("×", { finish() }, Color.parseColor("#FF7185"))
         titleBar.addView(minimize, LinearLayout.LayoutParams(dp(34), dp(28)))
