@@ -1,81 +1,170 @@
 package os.smth.launcher
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Typeface
+import android.provider.Settings
 import android.view.View
 import android.view.animation.LinearInterpolator
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
+import kotlin.random.Random
 
 /**
- * AHIAN desktop reconstruction: a real View (not a video) that draws the
- * purple/teal desktop being assembled by several independent cursors, then
- * fades out. Honours Reduce Motion by skipping (caller checks animator scale).
+ * AHIAN desktop reconstruction reveal (about 9 seconds).
+ *
+ * The desktop rebuilds itself: purple/teal fragments drift in, the wallpaper
+ * assembles from geometric dot-matrix tiles, the taskbar draws itself, then the
+ * desktop icons materialise in their real positions and the overlay fades into
+ * the live launcher. There are no cursors anywhere in this sequence.
+ *
+ * The final frame is drawn with exactly the same crop, scrim and gradient tint
+ * as the live launcher, so the fade reveals the desktop that is already there
+ * instead of reloading a second wallpaper.
+ *
+ * Reduce Motion (system animator scale 0) collapses this to a short fade of the
+ * finished scene. A rendering failure in the caller must still leave a usable
+ * desktop: this view never blocks touch after it completes.
  */
 class AhianConstructionView(context: Context) : View(context) {
+    companion object {
+        private const val DURATION_MS = 9000L
+        private const val REDUCED_MS = 600L
+        private const val VOID_END = 1000f
+        private const val WALL_START = 1000f
+        private const val WALL_END = 3000f
+        private const val STRUCT_START = 3000f
+        private const val STRUCT_END = 5000f
+        private const val ELEMENTS_START = 5000f
+        private const val ELEMENTS_END = 7000f
+        private const val REVEAL_START = 7600f
+        private const val FADE_END = 9000f
+        private const val TILE_SPAN = 1400f
+        private const val TILE_DURATION = 480f
+        private const val PARTICLE_END = 3400f
+
+        private val ICON_LABELS = arrayOf(
+            "TERMINAL", "CHROME", "PHONE", "MESSAGES", "CAMERA", "SETTINGS",
+        )
+        private val RING_STARTS = floatArrayOf(1050f, 1400f, 1750f, 2100f)
+        private const val RING_DURATION = 1250f
+        private val SEGMENT_FRACTIONS = floatArrayOf(0.085f, 0.095f, 0.095f, 0.095f, 0.11f, 0.16f)
+        private const val ICON_COUNT = 6
+    }
+
     private val density = context.resources.displayMetrics.density
     private fun dp(v: Float) = v * density
 
+    private val dark = Color.parseColor("#07060D")
+    private val obsidian = Color.parseColor("#09090B")
+    private val panel = Color.parseColor("#120A24")
     private val purple = Color.parseColor("#7C4DFF")
-    private val teal = Color.parseColor("#00C2A8")
-    private val softPurple = Color.parseColor("#9E75FF")
-    private val brightTeal = Color.parseColor("#33E5CC")
+    private val teal = Color.parseColor("#2BD9C4")
+    private val purpleSoft = Color.parseColor("#9E75FF")
+    private val tealBright = Color.parseColor("#33E5CC")
     private val violet = Color.parseColor("#5738A0")
-    private val white = Color.WHITE
+    private val ink = Color.parseColor("#EDE7FF")
+    private val grey = Color.parseColor("#8C879C")
 
-    private val cursorColors = intArrayOf(purple, teal, softPurple, brightTeal, violet, brightTeal, softPurple)
-
-    // Normalized paths (x,y in 0..1) for 7 cursors, entering from different edges.
-    private val paths = arrayOf(
-        arrayOf(Pair(0.05f, 0.0f), Pair(0.38f, 0.55f), Pair(0.02f, 0.02f), Pair(0.35f, 0.25f), Pair(0.85f, 0.8f), Pair(1.06f, 0.94f)),
-        arrayOf(Pair(0.52f, -0.05f), Pair(0.5f, 0.08f), Pair(0.08f, 0.3f), Pair(0.9f, 0.62f), Pair(0.7f, 0.5f), Pair(0.52f, -0.08f)),
-        arrayOf(Pair(1.04f, 0.18f), Pair(0.95f, 0.35f), Pair(0.7f, 0.25f), Pair(0.5f, 0.5f), Pair(0.3f, 0.55f), Pair(1.06f, 0.48f)),
-        arrayOf(Pair(-0.04f, 0.45f), Pair(0.85f, 0.25f), Pair(0.25f, 0.7f), Pair(0.2f, 0.5f), Pair(0.55f, 0.85f), Pair(-0.06f, 0.92f)),
-        arrayOf(Pair(0.7f, -0.04f), Pair(0.5f, 0.4f), Pair(0.45f, 0.5f), Pair(0.35f, 0.5f), Pair(0.2f, 0.85f), Pair(0.72f, 1.06f)),
-        arrayOf(Pair(-0.04f, 0.9f), Pair(0.5f, 0.75f), Pair(0.55f, 0.4f), Pair(0.18f, 0.75f), Pair(0.48f, 0.35f), Pair(-0.06f, 0.36f)),
-        arrayOf(Pair(1.04f, 0.95f), Pair(0.7f, 0.5f), Pair(0.9f, 0.5f), Pair(0.7f, 0.2f), Pair(0.55f, -0.05f))
-    )
-
-    private val cursorPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(1.5f) }
-    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-    private var progress = 0f
-    private var animator: ValueAnimator? = null
-
-    init {
-        setBackgroundColor(Color.BLACK)
-        textPaint.textSize = dp(10f)
-        textPaint.typeface = android.graphics.Typeface.MONOSPACE
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(1f)
+    }
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Typeface.MONOSPACE
+        textAlign = Paint.Align.LEFT
     }
 
-    fun start(onProgress: ((Float) -> Unit)? = null, onComplete: (() -> Unit)? = null) {
+    private val wallpaper: Bitmap? = try {
+        BitmapFactory.decodeResource(resources, R.drawable.smth_wallpaper)
+    } catch (e: Exception) {
+        null
+    }
+
+    private var wallShader: LinearGradient? = null
+    private var scrimShader: LinearGradient? = null
+    private var shaderWidth = 0
+    private var shaderHeight = 0
+    private var dest = RectF()
+
+    private data class Fragment(
+        val x: Float, val y: Float, val vx: Float, val vy: Float,
+        val r: Float, val phase: Float, val colour: Int,
+    )
+
+    private val fragments: List<Fragment> by lazy {
+        val rng = Random(1107)
+        val colours = intArrayOf(purple, teal, purpleSoft, tealBright, violet)
+        List(42) { i ->
+            Fragment(
+                x = 0.02f + rng.nextFloat() * 0.96f,
+                y = 0.02f + rng.nextFloat() * 0.96f,
+                vx = -0.012f + rng.nextFloat() * 0.024f,
+                vy = -0.020f + rng.nextFloat() * 0.014f,
+                r = 0.0016f + rng.nextFloat() * 0.0032f,
+                phase = rng.nextFloat() * 6.2832f,
+                colour = colours[i % colours.size],
+            )
+        }
+    }
+
+    private var elapsed = 0f
+    private var animator: ValueAnimator? = null
+    private var reduced = false
+
+    init {
+        setBackgroundColor(dark)
+        contentDescription = "AHIAN desktop reconstruction; tap to skip"
+        isClickable = true
+        setOnClickListener { finish() }
+    }
+
+    /** Reads the system animator scale so Reduce Motion skips the long sequence. */
+    private fun reducedMotion(): Boolean = try {
+        Settings.Global.getFloat(
+            context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
+        ) == 0f
+    } catch (e: Exception) {
+        false
+    }
+
+    fun start(onComplete: (() -> Unit)? = null) {
         animator?.cancel()
-        val a = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 10000
+        reduced = reducedMotion()
+        val duration = if (reduced) REDUCED_MS else DURATION_MS
+        val anim = ValueAnimator.ofFloat(0f, duration.toFloat()).apply {
+            this.duration = duration
             interpolator = LinearInterpolator()
-            addUpdateListener { anim ->
-                progress = anim.animatedValue as Float
-                // Let MainActivity reveal its actual desktop children in step
-                // with the construction cursors.
-                onProgress?.invoke(progress)
-                alpha = if (progress > 0.86f) ((1f - progress) / 0.14f).coerceIn(0f, 1f) else 1f
+            addUpdateListener { value ->
+                elapsed = value.animatedValue as Float
+                alpha = overlayAlpha(elapsed)
                 invalidate()
             }
-            addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) {
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
                     onComplete?.invoke()
                 }
             })
         }
-        animator = a
-        a.start()
+        animator = anim
+        alpha = 1f
+        anim.start()
     }
 
     fun stop() {
@@ -83,214 +172,352 @@ class AhianConstructionView(context: Context) : View(context) {
         animator = null
     }
 
+    private fun finish() {
+        if (animator?.isRunning == true) {
+            animator?.end()
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        animator?.cancel()
+        super.onDetachedFromWindow()
+    }
+
+    private fun overlayAlpha(t: Float): Float {
+        if (reduced) return (1f - t / REDUCED_MS.toFloat()).coerceIn(0f, 1f)
+        return if (t < REVEAL_START) 1f
+        else (1f - (t - REVEAL_START) / (FADE_END - REVEAL_START)).coerceIn(0f, 1f)
+    }
+
+    // ---- helpers ------------------------------------------------------------
+    private fun ease(v: Float): Float {
+        val x = v.coerceIn(0f, 1f)
+        return 1f - (1f - x) * (1f - x) * (1f - x)
+    }
+
+    private fun easeInOut(v: Float): Float {
+        val x = v.coerceIn(0f, 1f)
+        return x * x * (3f - 2f * x)
+    }
+
+    private fun mix(a: Int, b: Int, t: Float): Int {
+        val k = t.coerceIn(0f, 1f)
+        return Color.rgb(
+            (Color.red(a) + (Color.red(b) - Color.red(a)) * k).toInt(),
+            (Color.green(a) + (Color.green(b) - Color.green(a)) * k).toInt(),
+            (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * k).toInt(),
+        )
+    }
+
+    private fun withAlpha(colour: Int, a: Float): Int {
+        val alpha = (a.coerceIn(0f, 1f) * 255f).toInt().coerceIn(0, 255)
+        return (colour and 0x00FFFFFF) or (alpha shl 24)
+    }
+
+    private fun buildShaders(w: Int, h: Int) {
+        if (w == shaderWidth && h == shaderHeight) return
+        shaderWidth = w
+        shaderHeight = h
+        wallShader = LinearGradient(
+            0f, 0f, w.toFloat(), h.toFloat(),
+            intArrayOf(purple, teal), null, Shader.TileMode.CLAMP,
+        )
+        scrimShader = LinearGradient(
+            0f, 0f, 0f, h.toFloat(),
+            intArrayOf(
+                withAlpha(obsidian, 0.58f),
+                withAlpha(obsidian, 0.18f),
+                withAlpha(obsidian, 0.66f),
+            ),
+            floatArrayOf(0f, 0.45f, 1f), Shader.TileMode.CLAMP,
+        )
+        val bmp = wallpaper
+        if (bmp == null) {
+            dest = RectF(0f, 0f, w.toFloat(), h.toFloat())
+        } else {
+            val scale = max(w.toFloat() / bmp.width, h.toFloat() / bmp.height)
+            val dw = bmp.width * scale
+            val dh = bmp.height * scale
+            dest = RectF((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f)
+        }
+    }
+
+    // ---- draw ---------------------------------------------------------------
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
-        if (w <= 0 || h <= 0) return
+        if (w <= 0f || h <= 0f) return
+        buildShaders(width, height)
+        val t = elapsed.coerceIn(0f, (if (reduced) REDUCED_MS else DURATION_MS).toFloat())
+        canvas.drawColor(dark)
+        drawWallpaper(canvas, w, h, t)
+        drawRings(canvas, w, h, t)
+        drawFragments(canvas, w, h, t)
+        drawStructure(canvas, w, h, t)
+        drawWindow(canvas, w, h, t)
+    }
 
-        // dark base
-        canvas.drawColor(Color.BLACK)
-
-        // Reveal the actual AHIAN purple-to-teal wallpaper before assembling UI.
-        val wallAlpha = (progress * 1.35f).coerceIn(0f, 1f)
-        fillPaint.shader = LinearGradient(0f, 0f, w, h, purple, teal, Shader.TileMode.CLAMP)
-        fillPaint.alpha = (wallAlpha * 210f).toInt().coerceIn(0, 210)
-        canvas.drawRect(0f, 0f, w, h, fillPaint)
-        fillPaint.shader = null
-        fillPaint.alpha = 255
-        val spacing = (minOf(w, h) / 24f).coerceAtLeast(20f)
-        fillPaint.style = Paint.Style.FILL
-        var y = spacing
-        while (y < h - spacing) {
-            var x = spacing
-            while (x < w - spacing) {
-                val hot = ((x / spacing).toInt() + (y / spacing).toInt()) % 9 == 0
-                fillPaint.color = if (hot) adjustAlpha(teal, wallAlpha * 0.6f) else adjustAlpha(purple, wallAlpha * 0.08f)
-                canvas.drawCircle(x, y, dp(1f), fillPaint)
-                x += spacing
+    private fun drawWallpaper(canvas: Canvas, w: Float, h: Float, t: Float) {
+        val cols = if (w >= h) 14 else 8
+        val rows = if (w >= h) 8 else 14
+        val tileW = w / cols
+        val tileH = h / rows
+        val detail = (1f - (t - 2400f) / 900f).coerceIn(0f, 1f)
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                val order = (col.toFloat() / (cols - 1)) * 0.58f +
+                    (row.toFloat() / (rows - 1)) * 0.42f
+                val start = WALL_START + order * TILE_SPAN
+                val progress = ((t - start) / TILE_DURATION).coerceIn(0f, 1f)
+                if (progress <= 0f) continue
+                val a = if (reduced) 1f else ease(progress)
+                val scale = 0.82f + 0.18f * a
+                val cx = col * tileW + tileW / 2f
+                val cy = row * tileH + tileH / 2f
+                canvas.save()
+                canvas.translate(cx, cy)
+                canvas.scale(scale, scale)
+                canvas.translate(-cx, -cy)
+                val left = col * tileW
+                val top = row * tileH
+                canvas.clipRect(left, top, left + tileW + 0.6f, top + tileH + 0.6f)
+                // Fragment resolves to the near-black plate of the real desktop.
+                fill.shader = null
+                fill.color = withAlpha(obsidian, a)
+                canvas.drawRect(left, top, left + tileW + 0.6f, top + tileH + 0.6f, fill)
+                val art = wallpaper
+                if (art != null) {
+                    fill.color = Color.WHITE
+                    fill.alpha = (a * 255f).toInt().coerceIn(0, 255)
+                    canvas.drawBitmap(art, null, dest, fill)
+                }
+                // The same centre scrim the live wallpaper uses.
+                fill.shader = scrimShader
+                fill.alpha = (a * 255f).toInt().coerceIn(0, 255)
+                canvas.drawRect(left, top, left + tileW + 0.6f, top + tileH + 0.6f, fill)
+                // The AHIAN purple-to-teal tint, at the launcher's own 0.86.
+                fill.shader = wallShader
+                fill.alpha = (0.86f * a * 255f).toInt().coerceIn(0, 255)
+                canvas.drawRect(left, top, left + tileW + 0.6f, top + tileH + 0.6f, fill)
+                fill.alpha = 255
+                // Dot-matrix construction detail, gone once the wall is assembled.
+                if (detail > 0.01f) {
+                    val tint = mix(purple, teal, order)
+                    val n = 3
+                    val sx = tileW / (n + 1)
+                    val sy = tileH / (n + 1)
+                    fill.shader = null
+                    fill.color = withAlpha(tint, 0.55f * a * detail)
+                    for (r in 0 until n) {
+                        for (c in 0 until n) {
+                            canvas.drawCircle(
+                                left + sx * (c + 1), top + sy * (r + 1),
+                                max(1f, min(sx, sy) * 0.08f), fill,
+                            )
+                        }
+                    }
+                }
+                canvas.restore()
             }
-            y += spacing
         }
+    }
 
-        // selection boxes
-        if (progress > 0.18f) {
-            val boxes = listOf(
-                Triple(0.02f, 0.88f, 0.96f to 0.08f), // status-ish bottom
+    private fun drawRings(canvas: Canvas, w: Float, h: Float, t: Float) {
+        if (reduced) return
+        val base = min(w, h)
+        val cx = w * 0.5f
+        val cy = h * 0.48f
+        RING_STARTS.forEachIndexed { index, start ->
+            val progress = ((t - start) / RING_DURATION).coerceIn(0f, 1f)
+            if (progress <= 0f || progress >= 1f) return@forEachIndexed
+            stroke.color = withAlpha(mix(purple, teal, index / 3f), (1f - progress) * 0.42f)
+            stroke.strokeWidth = dp(1.2f)
+            canvas.drawCircle(cx, cy, base * (0.05f + 0.42f * easeInOut(progress)), stroke)
+        }
+    }
+
+    private fun drawFragments(canvas: Canvas, w: Float, h: Float, t: Float) {
+        if (reduced || t > PARTICLE_END) return
+        val alpha = (t / 420f).coerceIn(0f, 1f) *
+            ((PARTICLE_END - t) / 900f).coerceIn(0f, 1f)
+        if (alpha <= 0f) return
+        val seconds = t / 1000f
+        fill.shader = null
+        for (f in fragments) {
+            val x = wrap(f.x + f.vx * seconds + 0.004f * sin(seconds * 1.7f + f.phase))
+            val y = wrap(f.y + f.vy * seconds)
+            val pulse = 0.55f + 0.45f * sin(seconds * 2.4f + f.phase)
+            fill.color = withAlpha(f.colour, alpha * (0.24f + 0.34f * pulse))
+            canvas.drawCircle(x * w, y * h, max(1f, f.r * min(w, h)), fill)
+        }
+    }
+
+    private fun wrap(v: Float): Float {
+        val m = v % 1f
+        return if (m < 0f) m + 1f else m
+    }
+
+    private fun drawStructure(canvas: Canvas, w: Float, h: Float, t: Float) {
+        val barLeft = dp(12f)
+        val barTop = h - dp(56f)
+        val barRight = w - dp(12f)
+        val barBottom = h - dp(10f)
+        val bar = RectF(barLeft, barTop, barRight, barBottom)
+        val barProgress = ((t - STRUCT_START) / 620f).coerceIn(0f, 1f)
+        val a = if (reduced) 1f else ease(barProgress)
+        if (a > 0f) {
+            fill.shader = null
+            fill.color = withAlpha(panel, 0.92f * a)
+            canvas.drawRoundRect(bar, dp(13f), dp(13f), fill)
+            stroke.color = withAlpha(teal, 0.42f * a)
+            stroke.strokeWidth = dp(1f)
+            canvas.drawRoundRect(bar, dp(13f), dp(13f), stroke)
+            text.color = withAlpha(ink, a)
+            text.textSize = dp(10f)
+            canvas.drawText("SMTH", barLeft + dp(14f), barTop + dp(28f), text)
+            val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            text.color = withAlpha(tealBright, a)
+            text.textAlign = Paint.Align.RIGHT
+            canvas.drawText(time, barRight - dp(14f), barTop + dp(21f), text)
+            text.color = withAlpha(ink, 0.58f * a)
+            text.textSize = dp(8f)
+            canvas.drawText(
+                SimpleDateFormat("EEE dd MMM", Locale.getDefault()).format(Date()).uppercase(),
+                barRight - dp(14f), barTop + dp(35f), text,
             )
-            // Draw a few guides
-            val guideAlpha = (((0.88f - progress) / 0.14f).coerceIn(0f, 1f) * ((progress - 0.18f) / 0.4f).coerceIn(0f, 1f))
-            boxPaint.color = adjustAlpha(teal, guideAlpha)
-            // taskbar guide
-            canvas.drawRect(dp(8f), h - dp(56f), w - dp(8f), h - dp(8f), boxPaint)
-            // window guide
-            val p2 = ((progress - 0.28f) / 0.4f).coerceIn(0f, 1f) * ((0.88f - progress) / 0.14f).coerceIn(0f, 1f)
-            if (p2 > 0) {
-                boxPaint.color = adjustAlpha(purple, p2)
-                canvas.drawRect(w * 0.37f, h * 0.17f, w * 0.37f + w * 0.56f * p2, h * 0.17f + h * 0.58f * p2, boxPaint)
-            }
-            val p3 = ((progress - 0.22f) / 0.4f).coerceIn(0f, 1f) * ((0.88f - progress) / 0.14f).coerceIn(0f, 1f)
-            if (p3 > 0) {
-                boxPaint.color = adjustAlpha(teal, p3)
-                canvas.drawRect(dp(44f), dp(44f), dp(44f) + (w * 0.32f) * p3, dp(44f) + (h - 210f) * p3, boxPaint)
-            }
+            text.textAlign = Paint.Align.LEFT
         }
-
-        // panels wipe (simple rectangles)
-        if (progress > 0.3f) {
-            val pp = ((progress - 0.3f) / 0.5f).coerceIn(0f, 1f)
-            fillPaint.style = Paint.Style.FILL
-            fillPaint.color = adjustAlpha(Color.parseColor("#120A24"), 0.85f * pp)
-            // window panel
-            canvas.drawRoundRect(w * 0.37f, h * 0.17f, w * 0.37f + w * 0.56f, h * 0.17f + h * 0.58f, dp(4f), dp(4f), fillPaint)
-            // grid panel
-            canvas.drawRoundRect(dp(44f), dp(44f), dp(44f) + w * 0.32f, dp(44f) + h - 210f, dp(4f), dp(4f), fillPaint)
-            // taskbar
-            canvas.drawRoundRect(dp(8f), h - dp(56f), w - dp(8f), h - dp(8f), dp(12f), dp(12f), fillPaint)
-
-            // The window is built as a real-looking app surface: titlebar,
-            // controls, content cards and a small live chart appear in sequence.
-            if (pp > 0.12f) {
-                val reveal = ((pp - 0.12f) / 0.58f).coerceIn(0f, 1f)
-                val left = w * 0.37f
-                val top = h * 0.17f
-                val right = left + w * 0.56f
-                val bottom = top + h * 0.58f
-                fillPaint.color = adjustAlpha(Color.parseColor("#21133D"), reveal)
-                canvas.drawRoundRect(left, top, right, top + dp(34f), dp(7f), dp(7f), fillPaint)
-                textPaint.color = adjustAlpha(white, reveal)
-                textPaint.textSize = dp(9f)
-                canvas.drawText("AHIAN / SPATIAL DESKTOP", left + dp(12f), top + dp(22f), textPaint)
-                for (i in 0..2) {
-                    fillPaint.color = adjustAlpha(if (i == 0) teal else purple, reveal)
-                    canvas.drawCircle(right - dp(42f) + i * dp(13f), top + dp(17f), dp(3f), fillPaint)
-                }
-                // Content cards grow from left to right.
-                for (i in 0..2) {
-                    val cardTop = top + dp(48f) + i * dp(40f)
-                    val cardRight = left + dp(110f) * reveal
-                    fillPaint.color = adjustAlpha(Color.parseColor("#30234C"), reveal * 0.9f)
-                    canvas.drawRoundRect(left + dp(12f), cardTop, cardRight, cardTop + dp(29f),
-                        dp(5f), dp(5f), fillPaint)
-                    if (reveal > 0.35f) {
-                        fillPaint.color = adjustAlpha(if (i % 2 == 0) teal else softPurple, reveal)
-                        canvas.drawCircle(left + dp(24f), cardTop + dp(14f), dp(4f), fillPaint)
-                        fillPaint.color = adjustAlpha(white, reveal * 0.45f)
-                        canvas.drawRect(left + dp(36f), cardTop + dp(10f),
-                            left + dp(82f), cardTop + dp(12f), fillPaint)
+        // Taskbar segments assemble one after another.
+        if (!reduced) {
+            val usable = bar.width() - dp(16f)
+            var x = barLeft + dp(8f)
+            SEGMENT_FRACTIONS.forEachIndexed { i, frac ->
+                val width = max(dp(18f), usable * frac)
+                val progress = ((t - (STRUCT_START + i * 110f)) / 360f).coerceIn(0f, 1f)
+                if (progress > 0f) {
+                    val accent = when (i % 3) {
+                        0 -> purple
+                        1 -> teal
+                        else -> purpleSoft
                     }
+                    fill.shader = null
+                    fill.color = withAlpha(accent, 0.22f * progress)
+                    canvas.drawRoundRect(
+                        x, barTop + dp(9f), x + width * progress, barBottom - dp(9f),
+                        dp(2f), dp(2f), fill,
+                    )
                 }
-                // Spatial widget on the right, with a chart trace.
-                if (reveal > 0.42f) {
-                    val wx = left + w * 0.30f
-                    val wy = top + dp(48f)
-                    fillPaint.color = adjustAlpha(Color.parseColor("#17102B"), reveal)
-                    canvas.drawRoundRect(wx, wy, right - dp(12f), bottom - dp(12f),
-                        dp(8f), dp(8f), fillPaint)
-                    boxPaint.color = adjustAlpha(teal, reveal)
-                    val chart = Path().apply {
-                        moveTo(wx + dp(10f), wy + dp(62f))
-                        lineTo(wx + dp(30f), wy + dp(48f))
-                        lineTo(wx + dp(48f), wy + dp(54f))
-                        lineTo(wx + dp(70f), wy + dp(24f))
-                        lineTo(wx + dp(88f), wy + dp(34f))
-                    }
-                    canvas.drawPath(chart, boxPaint)
-                }
-            }
-
-            // App icons are placed individually by the moving cursors.
-            if (pp > 0.22f) {
-                val reveal = ((pp - 0.22f) / 0.52f).coerceIn(0f, 1f)
-                for (i in 0..5) {
-                    val col = i % 3
-                    val row = i / 3
-                    val x = dp(54f) + col * dp(48f)
-                    val y = dp(62f) + row * dp(54f)
-                    fillPaint.color = adjustAlpha(if (i % 2 == 0) purple else teal, reveal)
-                    canvas.drawRoundRect(x, y, x + dp(24f), y + dp(24f),
-                        dp(6f), dp(6f), fillPaint)
-                    fillPaint.color = adjustAlpha(white, reveal * 0.8f)
-                    canvas.drawCircle(x + dp(12f), y + dp(12f), dp(3f), fillPaint)
-                }
-            }
-
-            // Taskbar controls and pinned app dots are assembled last.
-            if (pp > 0.5f) {
-                val reveal = ((pp - 0.5f) / 0.3f).coerceIn(0f, 1f)
-                for (i in 0..5) {
-                    fillPaint.color = adjustAlpha(if (i % 2 == 0) purple else teal, reveal)
-                    canvas.drawRoundRect(dp(24f) + i * dp(25f), h - dp(42f),
-                        dp(38f) + i * dp(25f), h - dp(24f), dp(4f), dp(4f), fillPaint)
-                }
+                x += width + dp(8f)
             }
         }
-
-        // cursors
-        val t = progress
-        for (i in paths.indices) {
-            val pts = paths[i]
-            val start = 0.08f + i * 0.02f
-            val end = 0.82f + i * 0.02f
-            if (t < start || t > end + 0.08f) continue
-            val p = ((t - start) / (end - start)).coerceIn(0f, 1f)
-            val segCount = pts.size - 1
-            val seg = (p * segCount).toInt().coerceIn(0, segCount - 1)
-            val local = (p * segCount - seg).coerceIn(0f, 1f)
-            val ax = pts[seg].first * w
-            val ay = pts[seg].second * h
-            val bx = pts[seg + 1].first * w
-            val by = pts[seg + 1].second * h
-            val x = ax + (bx - ax) * (1 - (1 - local) * (1 - local) * (1 - local))
-            val y = ay + (by - ay) * (1 - (1 - local) * (1 - local) * (1 - local))
-            val wobble = (sin(p * Math.PI * 2 * 2.2 + i * 0.37) * 3.2).toFloat()
-            val cx = x + wobble
-            val cy = y - wobble * 0.6f
-            val alpha = ( (if (t < start + 0.05f) (t - start) / 0.05f else 1f) *
-                          (if (t > end - 0.08f) (1f - (t - (end - 0.08f)) / 0.2f) else 1f) ).coerceIn(0f, 1f)
-            // trail
-            for (k in 0 until 3) {
-                val ta = (alpha * (0.20f - k * 0.045f)).coerceAtLeast(0f)
-                fillPaint.color = adjustAlpha(cursorColors[i], ta)
-                canvas.drawCircle(cx - k * 4f, cy - k * 3f, dp(4f - k * 0.7f), fillPaint)
+        // Desktop icons materialise in place, in the launcher's own positions.
+        for (i in 0 until ICON_COUNT) {
+            val start = ELEMENTS_START + i * 140f
+            val progress = ((t - start) / 380f).coerceIn(0f, 1f)
+            if (progress <= 0f) continue
+            val scale = 0.72f + 0.28f * ease(progress)
+            val cx = dp(20f) + dp(44f)
+            val cy = dp(18f) + dp(30f) + i * dp(66f)
+            canvas.save()
+            canvas.translate(cx, cy)
+            canvas.scale(scale, scale)
+            canvas.translate(-cx, -cy)
+            val rect = RectF(cx - dp(42f), cy - dp(28f), cx + dp(42f), cy + dp(28f))
+            val accent = when (i % 6) {
+                0 -> purple
+                1 -> teal
+                2 -> purpleSoft
+                3 -> tealBright
+                4 -> violet
+                else -> purple
             }
-            // cursor shape
-            val path = Path()
-            path.moveTo(cx, cy)
-            path.lineTo(cx, cy + dp(22f))
-            path.lineTo(cx + dp(5.8f), cy + dp(16.4f))
-            path.lineTo(cx + dp(9.2f), cy + dp(24f))
-            path.lineTo(cx + dp(12.2f), cy + dp(22f))
-            path.lineTo(cx + dp(9.0f), cy + dp(15f))
-            path.lineTo(cx + dp(17f), cy + dp(15f))
-            path.close()
-            cursorPaint.style = Paint.Style.STROKE
-            cursorPaint.strokeWidth = dp(1.2f)
-            cursorPaint.color = adjustAlpha(Color.WHITE, alpha * 0.9f)
-            canvas.drawPath(path, cursorPaint)
-            cursorPaint.style = Paint.Style.FILL
-            cursorPaint.color = adjustAlpha(Color.BLACK, alpha * 0.92f)
-            canvas.drawPath(path, cursorPaint)
-            cursorPaint.color = adjustAlpha(cursorColors[i], alpha)
-            canvas.drawPath(path, cursorPaint)
-            textPaint.color = adjustAlpha(cursorColors[i], alpha)
-            textPaint.setShadowLayer(dp(3f), 0f, dp(1f), Color.BLACK)
-            canvas.drawText(arrayOf("AHIAN", "PURPLE", "TEAL", "SPATIAL", "DEPTH", "PANEL", "BUILD")[i],
-                cx + dp(21f), cy + dp(22f), textPaint)
-            textPaint.clearShadowLayer()
-        }
-
-        // click ripple occasionally
-        // settle: outlines fade
-        if (progress > 0.82f) {
-            // nothing extra
+            fill.shader = null
+            fill.color = withAlpha(panel, 0.55f * progress)
+            canvas.drawRoundRect(rect, dp(6f), dp(6f), fill)
+            stroke.color = withAlpha(accent, 0.75f * progress)
+            stroke.strokeWidth = dp(1f)
+            canvas.drawRoundRect(rect, dp(6f), dp(6f), stroke)
+            // 3x3 dot-matrix app mark.
+            val dot = dp(3f)
+            val gx = cx - dot * 2.4f
+            val gy = cy - dp(12f)
+            fill.color = withAlpha(accent, 0.9f * progress)
+            for (r in 0 until 3) {
+                for (c in 0 until 3) {
+                    if ((r + c + i) % 4 == 3) continue
+                    canvas.drawCircle(gx + c * dot * 1.6f, gy + r * dot * 1.6f, dot * 0.44f, fill)
+                }
+            }
+            text.color = withAlpha(ink, progress)
+            text.textSize = dp(8.5f)
+            text.textAlign = Paint.Align.CENTER
+            canvas.drawText(ICON_LABELS[i], cx, cy + dp(24f), text)
+            text.textAlign = Paint.Align.LEFT
+            canvas.restore()
         }
     }
 
-    private fun adjustAlpha(color: Int, alpha: Float): Int {
-        val a = (Color.alpha(color) * alpha).toInt().coerceIn(0, 255)
-        return (color and 0x00FFFFFF) or (a shl 24)
+    private fun drawWindow(canvas: Canvas, w: Float, h: Float, t: Float) {
+        val start = ELEMENTS_START + 280f
+        val progress = ((t - start) / 900f).coerceIn(0f, 1f)
+        if (progress <= 0f) return
+        val fade = if (t > 6500f) (1f - (t - 6500f) / 420f).coerceIn(0f, 1f) else 1f
+        if (fade <= 0f) return
+        if (reduced) return
+        val a = ease(progress) * fade
+        val rect = RectF(w * 0.28f, h * 0.18f, w * 0.72f, h * 0.68f)
+        fill.shader = null
+        fill.color = withAlpha(panel, 0.82f * a)
+        canvas.drawRoundRect(rect, dp(8f), dp(8f), fill)
+        stroke.color = withAlpha(purple, 0.6f * a)
+        stroke.strokeWidth = dp(1f)
+        canvas.drawRoundRect(rect, dp(8f), dp(8f), stroke)
+        val barH = dp(28f)
+        fill.color = withAlpha(Color.BLACK, 0.55f * a)
+        canvas.drawRoundRect(
+            RectF(rect.left, rect.top, rect.right, rect.top + barH),
+            dp(8f), dp(8f), fill,
+        )
+        val dots = intArrayOf(purple, teal, purpleSoft)
+        dots.forEachIndexed { i, colour ->
+            fill.color = withAlpha(colour, 0.95f * a)
+            canvas.drawCircle(rect.left + dp(16f) + i * dp(14f), rect.top + barH / 2f, dp(3f), fill)
+        }
+        text.color = withAlpha(ink, a)
+        text.textSize = dp(9f)
+        canvas.drawText("SMTH / WINDOW", rect.left + dp(66f), rect.top + dp(19f), text)
+        text.textSize = dp(10f)
+        canvas.drawText("DESKTOP RECONSTRUCTION", rect.left + dp(18f), rect.top + dp(56f), text)
+        val lineW = rect.width() - dp(36f)
+        for (i in 0 until 4) {
+            val y = rect.top + dp(76f) + i * dp(20f)
+            if (y > rect.bottom - dp(70f)) break
+            fill.color = withAlpha(if (i == 0) teal else purple, (if (i == 0) 0.5f else 0.22f) * a)
+            canvas.drawRect(
+                rect.left + dp(18f), y,
+                rect.left + dp(18f) + lineW * (0.78f - i * 0.12f), y + dp(4f), fill,
+            )
+        }
+        val base = rect.bottom - dp(18f)
+        val bars = 14
+        for (i in 0 until bars) {
+            val height = dp(56f) * (0.22f + 0.7f * ((i * 7) % 11) / 10f)
+            fill.color = withAlpha(
+                if (i % 3 == 0) teal else purpleSoft,
+                (if (i % 3 == 0) 0.55f else 0.25f) * a,
+            )
+            val bx = rect.left + dp(18f) + i * (lineW / 16f)
+            canvas.drawRect(bx, base - height, bx + lineW / 26f, base, fill)
+        }
     }
 
-    private fun minOf(a: Float, b: Float) = if (a < b) a else b
+    // Keep the affordance honest: a tap skips, and completion is guaranteed.
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.action == android.view.MotionEvent.ACTION_DOWN) {
+            finish()
+            return true
+        }
+        return super.onTouchEvent(event)
+    }
 }

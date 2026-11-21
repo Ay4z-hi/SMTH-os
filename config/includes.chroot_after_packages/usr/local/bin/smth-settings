@@ -209,7 +209,7 @@ def accessibility(win):
             open(anim_path, "w").write("0\n")
     anim_switch.connect("notify::active", set_anim); anim.add(anim_switch)
     preview = Adw.ActionRow(title="Preview animation", subtitle="Runs the construction overlay over the current desktop")
-    preview.add_suffix(btn("Preview", lambda: subprocess.Popen(["smth-startup", "--force"])))
+    preview.add_suffix(btn("Preview", lambda: subprocess.Popen(["smth-session-startup", "--force"])))
     anim.add(preview)
     c = Group(p, "Display")
     c.add(Adw.ActionRow(title="High contrast", subtitle="Black surfaces, white text, grey neutrals and the red accent"))

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Choose the one desktop reveal for this session.
+#
+# AHIAN mode enabled -> the 9 second AHIAN reconstruction reveal.
+# Otherwise          -> the regular SMTH startup construction.
+#
+# Every platform runs its reveal exactly once per desktop startup; typing
+# `ahian` later asks for the AHIAN reveal again explicitly.
+set -u
+if [ -e "${HOME}/.config/smth/ahian" ]; then
+  exec python3 /usr/local/lib/smth/ahian_startup.py "$@"
+fi
+exec python3 /usr/local/lib/smth/startup.py "$@"

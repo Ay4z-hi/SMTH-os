@@ -228,6 +228,7 @@ class SMTHLauncher:
             os.environ.get("APPDATA", os.path.expanduser("~")),
             "SMTH", "ahian-mode"
         )
+        self.reveal_pending = self._ahian_state()
 
         self.canvas = tk.Canvas(root, bg=OBSIDIAN, highlightthickness=0, bd=0)
         self.canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -236,6 +237,10 @@ class SMTHLauncher:
 
         self.build_taskbar()
         self.build_start()
+        if self.reveal_pending:
+            # No live taskbar may appear before the reconstruction starts.
+            self.taskbar.place_forget()
+            self.taskbar_edge.place_forget()
 
         # Start the overlay before loading any wallpaper. Loading it first
         # exposed the finished wallpaper for a frame before AHIAN cursors ran.
@@ -263,22 +268,23 @@ class SMTHLauncher:
         c = self.canvas
         c.delete("desktop")
         w, h = max(1, c.winfo_width()), max(1, c.winfo_height())
-        if self.wallpaper is not None:
+        if self.reveal_pending:
+            # Nothing of the live desktop may show before the reveal starts.
+            c.create_rectangle(0, 0, w, h, fill=AHIAN_VOID, outline="", tags="desktop")
+            c.tag_lower("desktop")
+            return
+        if self.ahian_mode:
+            paint_ahian_wallpaper(c, w, h, tags=("desktop",))
+        elif self.wallpaper is not None:
             # Tk scales by integer subsampling; crop the overflow to the window.
             factor = max(1, min(self.wallpaper.width() // w, self.wallpaper.height() // h) or 1)
             self._wall = self.wallpaper.subsample(factor, factor) if factor > 1 else self.wallpaper
-            img_w, img_h = self._wall.width(), self._wall.height()
             c.create_image(w // 2, h // 2, image=self._wall, tags="desktop")
             # A quiet obsidian band keeps labels legible wherever the art falls.
             c.create_rectangle(0, 0, w, h, fill="", outline="", tags="desktop")
         else:
             c.create_rectangle(0, 0, w, h, fill=OBSIDIAN, outline="", tags="desktop")
             c.create_polygon(0, h, w, h * 0.55, w, h * 0.72, 0, h, fill=MAROON_DEEP, outline="", tags="desktop")
-        if self.ahian_mode:
-            c.create_rectangle(0, 0, w, h, fill="#241344", stipple="gray50",
-                               outline="", tags="desktop")
-            c.create_polygon(0, h * 0.68, w * 0.42, h, w, h * 0.55, w, h,
-                             fill="#063E3A", stipple="gray50", outline="", tags="desktop")
         self.draw_shortcuts(w, h)
         c.tag_lower("desktop")
         if self.start_open:
@@ -362,6 +368,8 @@ class SMTHLauncher:
         bar.place(relx=0, rely=1.0, relwidth=1.0, y=-48, height=48)
         edge = tk.Frame(self.root, bg=MAROON, height=1)
         edge.place(relx=0, rely=1.0, relwidth=1.0, y=-49, height=1)
+        self.taskbar = bar
+        self.taskbar_edge = edge
 
         start = tk.Frame(bar, bg=SURFACE, cursor="hand2")
         start.pack(side="left", padx=(10, 4), pady=7)
@@ -672,37 +680,55 @@ class SMTHLauncher:
             pass
         return ""
 
+    def _ahian_state(self):
+        try:
+            with open(self.ahian_state_file, encoding="utf-8") as handle:
+                return handle.read().strip().lower() in ("1", "on", "true", "yes")
+        except OSError:
+            return False
+
+    def finish_reveal(self):
+        """Put the live desktop (and its taskbar) back under the overlay."""
+        self.reveal_pending = False
+        if self.ahian_mode:
+            try:
+                self.taskbar.place(relx=0, rely=1.0, relwidth=1.0, y=-48, height=48)
+                self.taskbar_edge.place(relx=0, rely=1.0, relwidth=1.0, y=-49, height=1)
+                self.taskbar.lift()
+                self.taskbar_edge.lift()
+            except (AttributeError, tk.TclError):
+                pass
+        self.paint_desktop()
+
     def start_intro(self):
-        if "--no-animation" in sys.argv:
-            return
+        disabled = "--no-animation" in sys.argv
         if os.environ.get("SMTH_NO_STARTUP_ANIMATION", "").strip().lower() in ("1", "on", "true", "yes"):
-            return
+            disabled = True
         config = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "SMTH", "startup-animation")
         try:
             with open(config, encoding="utf-8") as handle:
                 if handle.read().strip().lower() in ("0", "off", "false", "no"):
-                    return
+                    disabled = True
         except OSError:
             pass
+        self.ahian_mode = self._ahian_state()
+        if disabled:
+            self.reveal_pending = False
+            if not self.ahian_mode:
+                self.load_wallpaper()
+            self.finish_reveal()
+            return
         try:
-            # Persist AHIAN after its first activation and reconstruct on every
-            # subsequent launcher entry.
-            try:
-                with open(self.ahian_state_file, encoding="utf-8") as handle:
-                    self.ahian_mode = handle.read().strip().lower() in ("1", "on", "true", "yes")
-            except OSError:
-                self.ahian_mode = False
             if self.ahian_mode:
-                os.makedirs(os.path.dirname(self.ahian_state_file), exist_ok=True)
-                # Keep the real desktop black/hidden until the cursor-built
-                # reconstruction has finished; the overlay paints its own
-                # progressive purple/teal wallpaper.
+                self.reveal_pending = True
+                self.paint_desktop()
                 self.intro = AhianConstructionIntro(self)
             else:
                 self.load_wallpaper()
                 self.intro = ConstructionIntro(self.root, self.display, self.mono)
         except (tk.TclError, OSError):
             self.intro = None
+            self.finish_reveal()
 
 
 class ConstructionIntro:
@@ -1012,7 +1038,7 @@ class TerminalWindow:
         try:
             os.makedirs(os.path.dirname(launcher.ahian_state_file), exist_ok=True)
             with open(launcher.ahian_state_file, "w", encoding="utf-8") as handle:
-                handle.write("1\\n")
+                handle.write("1\n")
         except OSError:
             pass
         launcher.paint_desktop()
@@ -1031,7 +1057,7 @@ class TerminalWindow:
             except Exception:
                 launcher._ahian_intro = None
 
-        root.after(2500, begin_construction)
+        root.after(120, begin_construction)
 
     def exit_ahian(self):
         if not self.ahian_active:
@@ -1063,41 +1089,106 @@ class TerminalWindow:
 
 
 
-class AhianConstructionIntro:
-    """AHIAN desktop reconstruction overlay (~10s)."""
+def _mix(a, b, t):
+    """Blend two #rrggbb colours; used instead of alpha for Tk canvases."""
+    t = max(0.0, min(1.0, t))
+    ar, ag, ab = int(a[1:3], 16), int(a[3:5], 16), int(a[5:7], 16)
+    br, bg, bb = int(b[1:3], 16), int(b[3:5], 16), int(b[5:7], 16)
+    return "#%02x%02x%02x" % (
+        int(ar + (br - ar) * t), int(ag + (bg - ag) * t), int(ab + (bb - ab) * t))
 
-    DURATION = 10.0
+
+AHIAN_VOID = "#07060D"
+AHIAN_PANEL = "#150F25"
+AH_WALL_PURPLE = "#2A174D"
+AH_WALL_TEAL = "#054740"
+AHIAN_INK = "#EDE7FF"
+AHIAN_COLS = 8
+AHIAN_ROWS = 5
+
+
+def ahian_tint(col, cols=AHIAN_COLS):
+    return _mix(AHIAN_PURPLE, AHIAN_TEAL, (col + 0.5) / max(1, cols))
+
+
+def paint_ahian_wallpaper(canvas, w, h, tags=()):
+    """The live AHIAN wallpaper: purple-to-teal gradient plus a dot matrix.
+
+    Shared by the desktop canvas and the reconstruction overlay so the final
+    animation frame is pixel-identical to the desktop it reveals.
+    """
+    tile_w = max(1.0, w / AHIAN_COLS)
+    tile_h = max(1.0, h / AHIAN_ROWS)
+    for row in range(AHIAN_ROWS):
+        for col in range(AHIAN_COLS):
+            tint = ahian_tint(col)
+            wall = _mix(AH_WALL_PURPLE, AH_WALL_TEAL, (col + 0.5) / AHIAN_COLS)
+            x0, y0 = col * tile_w, row * tile_h
+            canvas.create_rectangle(
+                x0, y0, x0 + tile_w + 1, y0 + tile_h + 1,
+                fill=wall, outline="", tags=tags)
+            sx, sy = tile_w / 4.0, tile_h / 4.0
+            dot = _mix(AHIAN_VOID, tint, 0.55)
+            for r in range(3):
+                for c in range(3):
+                    x = x0 + sx * (c + 1)
+                    y = y0 + sy * (r + 1)
+                    canvas.create_oval(x - 1, y - 1, x + 1, y + 1,
+                                       fill=dot, outline="", tags=tags)
+
+
+class AhianConstructionIntro:
+    """AHIAN desktop reconstruction overlay (~9 s), the same timeline as the
+    Linux ISO and the Android launcher.
+
+    0-1 s  dark field with purple/teal fragments
+    1-3 s  the wallpaper assembles from dot-matrix geometric tiles
+    3-5 s  taskbar segments, clock and widgets draw themselves in
+    5-7 s  desktop icons materialise in their real positions, a window builds
+           and dissolves again
+    7-9 s  the finished desktop is revealed; the overlay is already sitting on
+           the real launcher, so nothing reloads or flashes behind it.
+
+    There are no cursors in this sequence.
+    """
+
+    DURATION = 9.0
+    ICONS = (("Files", "folder"), ("Browser", "globe"), ("Terminal", "terminal"),
+             ("Settings", "gear"), ("Calculator", "calc"), ("Photos", "photo"))
+    RING_STARTS = (1.05, 1.40, 1.75, 2.10)
 
     def __init__(self, parent_launcher):
         self.parent = parent_launcher
         self.root = parent_launcher.root
         self.mono = parent_launcher.mono
+        self.closed = True
         if os.environ.get("SMTH_REDUCE_MOTION", "").strip().lower() in ("1", "on", "true", "yes"):
-            self.closed = True
+            try:
+                parent_launcher.finish_reveal()
+            except Exception:
+                pass
             return
         self.win = tk.Toplevel(self.root)
         self.win.overrideredirect(True)
-        self.win.configure(bg="#000000")
+        self.win.configure(bg=AHIAN_VOID)
         try:
             self.win.attributes("-topmost", True)
             self.win.attributes("-alpha", 1.0)
         except tk.TclError:
             pass
-        self.canvas = tk.Canvas(self.win, bg="#000000", highlightthickness=0, bd=0)
+        self.canvas = tk.Canvas(self.win, bg=AHIAN_VOID, highlightthickness=0, bd=0)
         self.canvas.pack(fill="both", expand=True)
         self.started = time.monotonic()
         self.after_id = None
         self.closed = False
-        self.paths = [
-            [(0.05, 0.0), (0.38, 0.55), (0.02, 0.02), (0.35, 0.25), (0.85, 0.8), (1.06, 0.94)],
-            [(0.52, -0.05), (0.5, 0.08), (0.08, 0.3), (0.9, 0.62), (0.7, 0.5), (0.52, -0.08)],
-            [(1.04, 0.18), (0.95, 0.35), (0.7, 0.25), (0.5, 0.5), (0.3, 0.55), (1.06, 0.48)],
-            [(-0.04, 0.45), (0.85, 0.25), (0.25, 0.7), (0.2, 0.5), (0.55, 0.85), (-0.06, 0.92)],
-            [(0.7, -0.04), (0.5, 0.4), (0.45, 0.5), (0.35, 0.5), (0.2, 0.85), (0.72, 1.06)],
-            [(-0.04, 0.9), (0.5, 0.75), (0.55, 0.4), (0.18, 0.75), (0.48, 0.35), (-0.06, 0.36)],
-            [(1.04, 0.95), (0.7, 0.5), (0.9, 0.5), (0.7, 0.2), (0.55, -0.05)],
+        # Deterministic fragments, so the reveal looks designed, not random.
+        rng = __import__("random").Random(1107)
+        self.fragments = [
+            (rng.uniform(0.02, 0.98), rng.uniform(0.02, 0.98),
+             rng.uniform(-0.012, 0.012), rng.uniform(-0.020, -0.006),
+             rng.choice((AHIAN_PURPLE, AHIAN_TEAL, "#9E75FF", "#33E5CC")))
+            for _ in range(36)
         ]
-        self.colors = ["#7C4DFF", "#2BD9C4", "#9E75FF", "#33E5CC", "#5738A0", "#33E5CC", "#9E75FF"]
         self.root.bind("<Configure>", self.reposition, add="+")
         self.reposition()
         self.tick()
@@ -1120,8 +1211,7 @@ class AhianConstructionIntro:
         if self.closed:
             return
         elapsed = time.monotonic() - self.started
-        progress = min(1.0, elapsed / self.DURATION)
-        self.draw(progress)
+        self.draw(min(1.0, elapsed / self.DURATION))
         if elapsed >= self.DURATION:
             self.close()
         else:
@@ -1137,158 +1227,208 @@ class AhianConstructionIntro:
             except tk.TclError:
                 pass
 
+        try:
+            self.parent.finish_reveal()
+        except Exception:
+            pass
+
         def fade(step=0):
-            if step >= 6:
+            if step >= 8:
                 try:
                     self.win.destroy()
                 except tk.TclError:
                     pass
-                # Reveal the live launcher only after the cursor-built scene
-                # has completed and its overlay has faded away.
                 try:
-                    self.parent.load_wallpaper()
-                except (tk.TclError, OSError):
+                    self.parent.finish_reveal()
+                except Exception:
                     pass
                 return
             try:
-                self.win.attributes("-alpha", max(0.0, 1.0 - step / 6.0))
+                self.win.attributes("-alpha", max(0.0, 1.0 - step / 8.0))
             except tk.TclError:
                 try:
                     self.win.destroy()
                 except tk.TclError:
                     pass
                 return
-            self.root.after(40, lambda: fade(step + 1))
+            self.root.after(36, lambda: fade(step + 1))
 
+        try:
+            self.parent.finish_reveal()
+        except Exception:
+            pass
         fade()
+
+    # ---- helpers ------------------------------------------------------------
+    @staticmethod
+    def _ease(v):
+        v = max(0.0, min(1.0, v))
+        return 1.0 - (1.0 - v) ** 3
+
+    def _draw_wallpaper(self, c, w, h, t):
+        tile_w = w / AHIAN_COLS
+        tile_h = h / AHIAN_ROWS
+        for row in range(AHIAN_ROWS):
+            for col in range(AHIAN_COLS):
+                order = (col / max(1, AHIAN_COLS - 1)) * 0.58 + \
+                        (row / max(1, AHIAN_ROWS - 1)) * 0.42
+                start = 1.0 + order * 1.4
+                progress = (t - start) / 0.48
+                if progress <= 0:
+                    continue
+                a = self._ease(progress)
+                tint = ahian_tint(col)
+                wall = _mix(AH_WALL_PURPLE, AH_WALL_TEAL, (col + 0.5) / AHIAN_COLS)
+                x0, y0 = col * tile_w, row * tile_h
+                c.create_rectangle(
+                    x0, y0, x0 + tile_w + 1, y0 + tile_h + 1,
+                    fill=_mix(AHIAN_VOID, wall, a), outline="")
+                if a > 0.55:
+                    sx, sy = tile_w / 4.0, tile_h / 4.0
+                    dot = _mix(AHIAN_VOID, tint, 0.55 * a)
+                    for r in range(3):
+                        for cc in range(3):
+                            x = x0 + sx * (cc + 1)
+                            y = y0 + sy * (r + 1)
+                            c.create_oval(x - 1, y - 1, x + 1, y + 1,
+                                          fill=dot, outline="")
+
+    def _draw_rings(self, c, w, h, t):
+        cx, cy = w * 0.5, h * 0.48
+        base = min(w, h)
+        for i, start in enumerate(self.RING_STARTS):
+            progress = (t - start) / 1.25
+            if progress <= 0 or progress >= 1:
+                continue
+            radius = base * (0.05 + 0.42 * (progress * progress * (3 - 2 * progress)))
+            outline = _mix(AHIAN_VOID, _mix(AHIAN_PURPLE, AHIAN_TEAL, i / 3.0),
+                           (1 - progress) * 0.42)
+            c.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
+                          outline=outline, width=1)
+
+    def _draw_fragments(self, c, w, h, t):
+        if t > 3.4:
+            return
+        alpha = max(0.0, min(1.0, t / 0.42)) * max(0.0, min(1.0, (3.4 - t) / 0.9))
+        for fx, fy, vx, vy, colour in self.fragments:
+            x = (fx + vx * t) % 1.0
+            y = (fy + vy * t) % 1.0
+            c.create_oval(x * w - 2, y * h - 2, x * w + 2, y * h + 2,
+                          fill=_mix(AHIAN_VOID, colour, 0.5 * alpha), outline="")
+
+    def _draw_chrome(self, c, w, h, t):
+        # ---- taskbar -------------------------------------------------------
+        bar_top = h - 49
+        progress = self._ease((t - 3.0) / 0.62)
+        if progress > 0:
+            c.create_rectangle(0, bar_top, w, h,
+                               fill=_mix(AHIAN_VOID, AHIAN_PANEL, 0.92 * progress),
+                               outline="")
+            c.create_line(0, bar_top, w * progress, bar_top,
+                          fill=_mix(AHIAN_VOID, AHIAN_PURPLE, 0.9))
+            # text
+            c.create_text(14, bar_top + 24, text="SMTH", anchor="w",
+                          fill=_mix(AHIAN_VOID, AHIAN_INK, progress),
+                          font=(self.mono, 9))
+            c.create_text(w - 14, bar_top + 16,
+                          text=datetime.datetime.now().strftime("%H:%M"), anchor="e",
+                          fill=_mix(AHIAN_VOID, AHIAN_TEAL, progress),
+                          font=(self.mono, 9))
+            c.create_text(w - 14, bar_top + 32,
+                          text=datetime.datetime.now().strftime("%a %d %b").upper(),
+                          anchor="e", fill=_mix(AHIAN_VOID, "#8C879C", progress),
+                          font=(self.mono, 7))
+            # segments assemble in order
+            fractions = (0.085, 0.095, 0.095, 0.095, 0.11, 0.16)
+            x = 8
+            usable = w - 16
+            for i, fraction in enumerate(fractions):
+                seg = max(18, usable * fraction)
+                seg_progress = max(0.0, min(1.0, (t - (3.0 + i * 0.11)) / 0.36))
+                if seg_progress > 0:
+                    colour = (AHIAN_PURPLE, AHIAN_TEAL, "#9E75FF")[i % 3]
+                    c.create_rectangle(
+                        x, bar_top + 9, x + seg * seg_progress, h - 9,
+                        fill=_mix(AHIAN_VOID, colour, 0.55 * seg_progress),
+                        outline="")
+                x += seg + 8
+        # ---- desktop icons, at the launcher's real positions ----------------
+        for i, (name, _glyph) in enumerate(self.ICONS):
+            start = 5.0 + i * 0.14
+            local = max(0.0, min(1.0, (t - start) / 0.38))
+            if local <= 0:
+                continue
+            a = self._ease(local)
+            # Same grid as draw_shortcuts(), so the icons land exactly where
+            # the live desktop draws them when the overlay fades.
+            cols = max(1, (max(1, w) - 48) // 112)
+            x = 24 + (i % cols) * 112
+            y = 24 + (i // cols) * 84
+            tint = (AHIAN_PURPLE, AHIAN_TEAL, "#9E75FF",
+                    "#33E5CC", "#5738A0", AHIAN_PURPLE)[i % 6]
+            # dot-matrix app mark
+            for r in range(3):
+                for cc in range(3):
+                    if (r + cc + i) % 4 == 3:
+                        continue
+                    gx = x - 5 + cc * 5
+                    yy = y + 8 + r * 5
+                    c.create_oval(gx - 1, yy - 1, gx + 1, yy + 1,
+                                  fill=_mix(AHIAN_VOID, tint, 0.9 * a), outline="")
+            c.create_text(x + 20, y + 46, text=name, anchor="w",
+                          fill=_mix(AHIAN_VOID, AHIAN_INK, a),
+                          font=(self.mono, 9))
+        # ---- one window builds itself, then dissolves ----------------------
+        local = max(0.0, min(1.0, (t - 5.28) / 0.9))
+        fade = max(0.0, min(1.0, (6.9 - t) / 0.42)) if t > 6.5 else 1.0
+        if local > 0 and fade > 0:
+            a = self._ease(local) * fade
+            x0, y0 = w * 0.29, h * 0.17
+            x1, y1 = w * 0.73, h * 0.69
+            c.create_rectangle(x0, y0, x1, y1,
+                               fill=_mix(AHIAN_VOID, AHIAN_PANEL, 0.9 * a),
+                               outline=_mix(AHIAN_VOID, AHIAN_PURPLE, 0.6 * a))
+            c.create_rectangle(x0, y0, x1, y0 + 28,
+                               fill=_mix(AHIAN_VOID, "#000000", 0.55 * a), outline="")
+            for i, colour in enumerate((AHIAN_PURPLE, AHIAN_TEAL, "#9E75FF")):
+                c.create_oval(x0 + 14 + i * 14 - 3, y0 + 11,
+                              x0 + 14 + i * 14 + 3, y0 + 17,
+                              fill=_mix(AHIAN_VOID, colour, a), outline="")
+            c.create_text(x0 + 66, y0 + 14, text="SMTH / WINDOW", anchor="w",
+                          fill=_mix(AHIAN_VOID, AHIAN_INK, a),
+                          font=(self.mono, 8))
+            c.create_text(x0 + 18, y0 + 52, text="DESKTOP RECONSTRUCTION", anchor="w",
+                          fill=_mix(AHIAN_VOID, AHIAN_INK, a),
+                          font=(self.mono, 9))
+            for i in range(4):
+                yy = y0 + 74 + i * 20
+                if yy > y1 - 70:
+                    break
+                c.create_rectangle(
+                    x0 + 18, yy, x0 + 18 + (x1 - x0 - 36) * (0.78 - i * 0.12), yy + 4,
+                    fill=_mix(AHIAN_VOID, AHIAN_TEAL if i == 0 else AHIAN_PURPLE,
+                              (0.5 if i == 0 else 0.22) * a), outline="")
+            base = y1 - 18
+            for i in range(14):
+                height = 56 * (0.22 + 0.7 * ((i * 7) % 11) / 10)
+                bx = x0 + 18 + i * ((x1 - x0 - 36) / 16)
+                c.create_rectangle(
+                    bx, base - height, bx + (x1 - x0 - 36) / 26,
+                    base, fill=_mix(AHIAN_VOID,
+                                    AHIAN_TEAL if i % 3 == 0 else "#9E75FF",
+                                    (0.55 if i % 3 == 0 else 0.25) * a), outline="")
 
     def draw(self, p):
         c = self.canvas
         c.delete("all")
-        w = c.winfo_width()
-        h = c.winfo_height()
+        w, h = c.winfo_width(), c.winfo_height()
         if w <= 1 or h <= 1:
             return
-        c.create_rectangle(0, 0, w, h, fill="#000000", outline="")
-        # Build the purple-to-teal wallpaper as a progressive tile reveal.
-        # It must not exist fully formed at the start of the animation.
-        reveal = min(1.0, max(0.0, (p - 0.06) / 0.62))
-        tile = max(18, int(min(w, h) / 30))
-        cols = max(1, (w + tile - 1) // tile)
-        rows = max(1, (h + tile - 1) // tile)
-        total = cols * rows
-        built = int(total * reveal)
-        for n in range(built):
-            row, col = divmod(n, cols)
-            x, y = col * tile, row * tile
-            mix = min(1.0, max(0.0, (x / max(1, w) * 0.58 + y / max(1, h) * 0.42)))
-            pr, pg, pb = (124, 77, 255)
-            tr, tg, tb = (0, 194, 168)
-            rgb = tuple(round(a * (1 - mix) + b * mix) for a, b in ((pr, tr), (pg, tg), (pb, tb)))
-            c.create_rectangle(x, y, x + tile + 1, y + tile + 1,
-                               fill="#%02X%02X%02X" % rgb, outline="")
-        step = max(20, int(min(w, h) / 24))
-        if reveal > 0.18:
-            for y in range(step, h, step):
-                for x in range(step, w, step):
-                    hot = ((x // step) + (y // step)) % 9 == 0
-                    color = "#2BD9C4" if hot else "#1A1030"
-                    c.create_oval(x - 1, y - 1, x + 1, y + 1, fill=color, outline="")
-        # Construction guides fade away before the finished desktop is revealed.
-        guide_mix = max(0.0, min(1.0, (0.94 - p) / 0.12))
-        teal_guide = self._fade_colour("#2BD9C4", "#000000", guide_mix)
-        purple_guide = self._fade_colour("#7C4DFF", "#000000", guide_mix)
-        if guide_mix > 0.01 and p > 0.18:
-            c.create_rectangle(8, h - 56, w - 8, h - 8, outline=teal_guide, width=1)
-        if guide_mix > 0.01 and p > 0.22:
-            pa = min(1.0, (p - 0.22) / 0.4)
-            c.create_rectangle(44, 44, 44 + int(w * 0.32 * pa), 44 + int((h - 210) * pa),
-                              outline=teal_guide, width=1)
-        if guide_mix > 0.01 and p > 0.28:
-            pa = min(1.0, (p - 0.28) / 0.4)
-            c.create_rectangle(int(w * 0.37), int(h * 0.17),
-                              int(w * 0.37 + w * 0.56 * pa), int(h * 0.17 + h * 0.58 * pa),
-                              outline=purple_guide, width=1)
-        # panels
-        if p > 0.3:
-            pp = min(1.0, (p - 0.3) / 0.5)
-            # window
-            c.create_rectangle(int(w * 0.37), int(h * 0.17), int(w * 0.37 + w * 0.56),
-                              int(h * 0.17 + h * 0.58), fill="#120A24", outline="")
-            # grid
-            c.create_rectangle(44, 44, 44 + int(w * 0.32), 44 + int(h - 210),
-                              fill="#120A24", outline="")
-            # taskbar
-            c.create_rectangle(8, h - 56, w - 8, h - 8, fill="#120A24", outline="")
-            # Build visible window chrome and content rather than empty rectangles.
-            if pp > 0.12:
-                q = min(1.0, (pp - 0.12) / 0.55)
-                left, top = int(w * 0.37), int(h * 0.17)
-                right, bottom = int(w * 0.93), int(h * 0.75)
-                c.create_rectangle(left, top, right, top + 32, fill="#21133D", outline="#7C4DFF")
-                c.create_text(left + 12, top + 17, text="AHIAN / SPATIAL DESKTOP",
-                              fill="#EDE7FF", anchor="w", font=(self.mono, 8))
-                for j, colour in enumerate(("#7C4DFF", "#2BD9C4", "#9E75FF")):
-                    c.create_oval(right - 44 + j * 13, top + 13, right - 38 + j * 13,
-                                  top + 19, fill=colour, outline="")
-                for j in range(3):
-                    cy = top + 48 + j * 40
-                    c.create_rectangle(left + 12, cy, left + 122, cy + 28,
-                                       fill="#30234C", outline="#5738A0")
-                    c.create_oval(left + 20, cy + 9, left + 28, cy + 17,
-                                  fill=("#2BD9C4", "#9E75FF")[j % 2], outline="")
-                    c.create_line(left + 38, cy + 13, left + 94, cy + 13,
-                                  fill="#8F80B5", width=2)
-                if q > 0.35:
-                    wx = left + int(w * 0.30)
-                    wy = top + 48
-                    c.create_rectangle(wx, wy, right - 12, bottom - 12,
-                                       fill="#17102B", outline="#2BD9C4")
-                    chart = [(wx + 12, wy + 60), (wx + 32, wy + 45),
-                             (wx + 52, wy + 53), (wx + 72, wy + 22),
-                             (wx + 92, wy + 32)]
-                    c.create_line(*[v for point in chart for v in point],
-                                  fill="#2BD9C4", width=2, smooth=True)
-            if pp > 0.25:
-                q = min(1.0, (pp - 0.25) / 0.48)
-                for j in range(6):
-                    x = 54 + (j % 3) * 48
-                    y = 62 + (j // 3) * 54
-                    c.create_rectangle(x, y, x + 24, y + 24,
-                                       fill=("#7C4DFF", "#2BD9C4")[j % 2], outline="")
-                    c.create_oval(x + 8, y + 8, x + 16, y + 16,
-                                  fill="#F1EDFF", outline="")
-            if pp > 0.5:
-                for j in range(6):
-                    x = 24 + j * 25
-                    c.create_rectangle(x, h - 42, x + 14, h - 24,
-                                       fill=("#7C4DFF", "#2BD9C4")[j % 2], outline="")
-        # cursors
-        import math as _math
-        for i, pts in enumerate(self.paths):
-            start = 0.08 + i * 0.02
-            end = 0.82 + i * 0.02
-            if p < start or p > end + 0.08:
-                continue
-            prog = min(1.0, max(0.0, (p - start) / (end - start)))
-            segc = len(pts) - 1
-            seg = min(segc - 1, int(prog * segc))
-            local = prog * segc - seg
-            local = 1 - (1 - local) ** 3
-            ax, ay = pts[seg]
-            bx, by = pts[seg + 1]
-            x = (ax + (bx - ax) * local) * w
-            y = (ay + (by - ay) * local) * h
-            wob = _math.sin(prog * _math.tau * 2.2 + i * 0.37) * 3.2
-            cx = x + wob
-            cy = y - wob * 0.6
-            # trail
-            for k in range(3):
-                c.create_oval(cx - k * 4 - 2, cy - k * 3 - 2, cx - k * 4 + 2, cy - k * 3 + 2,
-                              fill=self.colors[i], outline="")
-            # cursor triangle
-            c.create_polygon(cx, cy, cx, cy + 22, cx + 5.8, cy + 16.4, cx + 9.2, cy + 24,
-                            cx + 12.2, cy + 22, cx + 9.0, cy + 15, cx + 17, cy + 15,
-                            fill=self.colors[i], outline="#FFFFFF", width=1.2)
-            c.create_text(cx + 21, cy + 22, text=("AHIAN", "PURPLE", "TEAL", "SPATIAL", "DEPTH", "PANEL", "BUILD")[i],
-                          anchor="nw", fill=self.colors[i], font=(self.mono, 7))
+        t = p * self.DURATION
+        c.create_rectangle(0, 0, w, h, fill=AHIAN_VOID, outline="")
+        self._draw_wallpaper(c, w, h, t)
+        self._draw_rings(c, w, h, t)
+        self._draw_fragments(c, w, h, t)
+        self._draw_chrome(c, w, h, t)
+
+

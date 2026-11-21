@@ -108,6 +108,11 @@ class MainActivity : Activity() {
     private var animation: ValueAnimator? = null
     private var ahianIntro: AhianConstructionView? = null
 
+    companion object {
+        // The reconstruction belongs to desktop startup, not every resume.
+        @Volatile private var ahianRevealPlayed = false
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.TRANSPARENT
@@ -121,19 +126,15 @@ class MainActivity : Activity() {
         val returningFromAhianCommand = intent.getBooleanExtra("show_ahian_construction", false)
         val ahianEnabled = getSharedPreferences("smth", MODE_PRIVATE)
             .getBoolean("ahian_mode", false)
-        // AHIAN persists after first activation. Every fresh launcher entry
-        // reconstructs the desktop with cursors instead of the generic intro.
-        if (!returningFromAhianCommand) {
-            root.post {
-                if (ahianEnabled) showAhianConstruction() else showStartupConstruction()
+        // AHIAN persists after first activation. Its reconstruction plays once
+        // per launcher process, and again whenever `ahian` explicitly asks.
+        when {
+            returningFromAhianCommand -> {
+                intent.removeExtra("show_ahian_construction")
+                root.post { showAhianConstruction() }
             }
-        }
-        if (returningFromAhianCommand) {
-            intent.removeExtra("show_ahian_construction")
-            root.postDelayed({
-                if (getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false))
-                    showAhianConstruction()
-            }, 2500L)
+            ahianEnabled && !ahianRevealPlayed -> root.post { showAhianConstruction() }
+            !ahianEnabled -> root.post { showStartupConstruction() }
         }
     }
 
@@ -142,7 +143,7 @@ class MainActivity : Activity() {
         setIntent(intent)
         if (intent.getBooleanExtra("show_ahian_construction", false)) {
             intent.removeExtra("show_ahian_construction")
-            root.postDelayed({ showAhianConstruction() }, 2500L)
+            root.post { showAhianConstruction() }
         }
     }
 
@@ -158,45 +159,19 @@ class MainActivity : Activity() {
 
     private fun showAhianConstruction() {
         if (!::root.isInitialized || isFinishing) return
+        ahianRevealPlayed = true
         ahianIntro?.let { root.removeView(it); it.stop() }
-        // Hide every live layer before placing the construction overlay.
-        // Otherwise the normal wallpaper flashes underneath the cursor scene.
-        if (root.childCount > 0) root.getChildAt(0).alpha = 0f // normal wallpaper
-        if (root.childCount > 1) root.getChildAt(1).alpha = 0f // AHIAN tint
-        for (i in 0 until desktop.childCount) {
-            desktop.getChildAt(i).apply { alpha = 0f; translationY = dpf(12f) }
-        }
-        taskbarView.alpha = 0f
+        // The reconstruction is fully opaque, so the live wallpaper, tint,
+        // icons and taskbar stay in place underneath it. Its own fade uncovers
+        // exactly that desktop: no flash, no reload, no second wallpaper.
         val intro = AhianConstructionView(this)
         ahianIntro = intro
         root.addView(intro, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        intro.start(onProgress = { progress -> revealAhianDesktop(progress) }) {
-            for (i in 0 until desktop.childCount) {
-                desktop.getChildAt(i).apply { alpha = 1f; translationY = 0f }
-            }
-            taskbarView.alpha = 1f
-            if (root.childCount > 0) root.getChildAt(0).alpha = 1f
-            if (root.childCount > 1) root.getChildAt(1).alpha =
-                if (getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false)) 1f else 0f
+        intro.start {
             root.removeView(intro)
             if (ahianIntro === intro) ahianIntro = null
         }
-    }
-
-    private fun revealAhianDesktop(progress: Float) {
-        // Each real desktop shortcut enters in sequence, following the cursors.
-        val count = desktop.childCount.coerceAtLeast(1)
-        for (i in 0 until desktop.childCount) {
-            val start = 0.34f + (i.toFloat() / count) * 0.30f
-            val alpha = ((progress - start) / 0.16f).coerceIn(0f, 1f)
-            desktop.getChildAt(i).apply {
-                this.alpha = alpha
-                translationY = dpf(12f) * (1f - alpha)
-            }
-        }
-        // The real taskbar assembles after the icons, not as a painted fake.
-        taskbarView.alpha = ((progress - 0.62f) / 0.22f).coerceIn(0f, 1f)
     }
 
     override fun onResume() {

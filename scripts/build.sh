@@ -41,6 +41,8 @@ python3 -m py_compile tools/*.py
 python3 tools/check_wiring.py
 python3 tools/test_palette.py
 python3 tools/test_startup.py
+python3 tools/test_ahian_startup.py
+python3 tools/test_ahian_renderers.py
 
 echo "-- Rust core: format, lint, test"
 ( cd core && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings )

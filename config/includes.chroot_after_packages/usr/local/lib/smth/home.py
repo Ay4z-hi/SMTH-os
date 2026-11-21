@@ -88,7 +88,11 @@ class BlackHole:
 
     def draw(self, cr, w, h, t, mx, my):
         sc = h / 1080; cx, cy, R = w * 0.66, h * 0.5, h * 0.105
-        cr.set_source_rgb(0.035, 0.035, 0.043); cr.paint()
+        # The deep AHIAN purple-to-teal wall the reconstruction reveal ends on.
+        g = cairo.LinearGradient(0, 0, w, h)
+        g.add_color_stop_rgb(0, 0.165, 0.090, 0.302)
+        g.add_color_stop_rgb(1, 0.020, 0.278, 0.251)
+        cr.set_source(g); cr.rectangle(0, 0, w, h); cr.fill()
         buckets = [[], [], [], []]
         for sx, sy, sd in self.stars:
             x = (sx * w + (mx - 0.5) * 46 * sd) % w; y = (sy * h + (my - 0.5) * 26 * sd) % h
@@ -111,7 +115,7 @@ class BlackHole:
             cr.set_source_rgb(*(CY, VI)[i])
             for X, Y, r in lst: cr.new_sub_path(); cr.arc(X, Y, r, 0, TAU)
             cr.fill()
-        cr.set_source_rgb(0.035, 0.035, 0.043); cr.arc(cx, cy, R, 0, TAU); cr.fill()
+        cr.set_source_rgb(0.020, 0.014, 0.040); cr.arc(cx, cy, R, 0, TAU); cr.fill()
         pulse = 0.65 + 0.35 * math.sin(t * 2.2)
         cr.set_source_rgb(*CY); cr.set_line_width((1.2 + 1.8 * pulse) * sc); cr.arc(cx, cy, R * 1.08, 0, TAU); cr.stroke()
 
