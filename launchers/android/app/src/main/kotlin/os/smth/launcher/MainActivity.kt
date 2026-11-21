@@ -159,8 +159,10 @@ class MainActivity : Activity() {
     private fun showAhianConstruction() {
         if (!::root.isInitialized || isFinishing) return
         ahianIntro?.let { root.removeView(it); it.stop() }
-        // The live launcher elements are what get revealed; the construction
-        // view only supplies cursors, guides and the transition surface.
+        // Hide every live layer before placing the construction overlay.
+        // Otherwise the normal wallpaper flashes underneath the cursor scene.
+        if (root.childCount > 0) root.getChildAt(0).alpha = 0f // normal wallpaper
+        if (root.childCount > 1) root.getChildAt(1).alpha = 0f // AHIAN tint
         for (i in 0 until desktop.childCount) {
             desktop.getChildAt(i).apply { alpha = 0f; translationY = dpf(12f) }
         }
@@ -174,6 +176,9 @@ class MainActivity : Activity() {
                 desktop.getChildAt(i).apply { alpha = 1f; translationY = 0f }
             }
             taskbarView.alpha = 1f
+            if (root.childCount > 0) root.getChildAt(0).alpha = 1f
+            if (root.childCount > 1) root.getChildAt(1).alpha =
+                if (getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false)) 1f else 0f
             root.removeView(intro)
             if (ahianIntro === intro) ahianIntro = null
         }
