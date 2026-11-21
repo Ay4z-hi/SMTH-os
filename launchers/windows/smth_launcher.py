@@ -224,6 +224,10 @@ class SMTHLauncher:
         self.shortcut_positions = {}
         self.drag_state = None
         self.ahian_mode = False
+        self.ahian_state_file = os.path.join(
+            os.environ.get("APPDATA", os.path.expanduser("~")),
+            "SMTH", "ahian-mode"
+        )
 
         self.canvas = tk.Canvas(root, bg=OBSIDIAN, highlightthickness=0, bd=0)
         self.canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -680,8 +684,20 @@ class SMTHLauncher:
         except OSError:
             pass
         try:
-            self.intro = ConstructionIntro(self.root, self.display, self.mono)
-        except tk.TclError:
+            # Persist AHIAN after its first activation and reconstruct on every
+            # subsequent launcher entry.
+            try:
+                with open(self.ahian_state_file, encoding="utf-8") as handle:
+                    self.ahian_mode = handle.read().strip().lower() in ("1", "on", "true", "yes")
+            except OSError:
+                self.ahian_mode = False
+            if self.ahian_mode:
+                os.makedirs(os.path.dirname(self.ahian_state_file), exist_ok=True)
+                self.paint_desktop()
+                self.intro = AhianConstructionIntro(self)
+            else:
+                self.intro = ConstructionIntro(self.root, self.display, self.mono)
+        except (tk.TclError, OSError):
             self.intro = None
 
 
@@ -989,6 +1005,12 @@ class TerminalWindow:
         launcher = self.parent
         root = launcher.root
         launcher.ahian_mode = True
+        try:
+            os.makedirs(os.path.dirname(launcher.ahian_state_file), exist_ok=True)
+            with open(launcher.ahian_state_file, "w", encoding="utf-8") as handle:
+                handle.write("1\\n")
+        except OSError:
+            pass
         launcher.paint_desktop()
         # Remove the terminal immediately. The reconstruction starts only after
         # a 2.5-second clean pause, with no terminal or text-entry widget visible.
@@ -1022,6 +1044,10 @@ class TerminalWindow:
         self.parent._ahian_intro = None
         self._ahian_intro = None
         self.parent.ahian_mode = False
+        try:
+            os.remove(self.parent.ahian_state_file)
+        except OSError:
+            pass
         self.parent.paint_desktop()
         self.win.configure(bg=OBSIDIAN)
         self.output.configure(bg=OBSIDIAN, fg=BLUSH)
