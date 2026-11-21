@@ -542,7 +542,7 @@ def main(argv):
 
     # Keep the full AHIAN cursor-built desktop as the session startup after
     # the user activates AHIAN once. This is the normal ISO startup entry point.
-    if _flag(CONFIG / "ahian") and "--normal" not in argv:
+    if (CONFIG / "ahian").exists() and "--normal" not in argv:
         import ahian_startup
         forwarded = [arg for arg in argv if arg != "--normal"]
         return ahian_startup.main(forwarded)
