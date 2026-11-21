@@ -100,6 +100,27 @@ def wallpaper_colour(t):
     return mix_colour(WALLPAPER_PURPLE, WALLPAPER_TEAL, clamp(t))
 
 
+def flow_colour(u, v, phase=0.0):
+    """A paced flowing-gradient sample for the live AHIAN wallpaper.
+
+    ``u``/``v`` are normalised screen coordinates and ``phase`` completes one
+    full cycle at 1.0, so the final reveal frame (phase 1.0) is identical to
+    the live desktop (phase 0.0).  Two slow diagonal waves bend a purple to
+    teal ramp, and a narrow band lifts it toward the bright AHIAN inks.  The
+    result is deliberately low contrast: it is a wallpaper, not a light show.
+    """
+    u = clamp(u)
+    v = clamp(v)
+    angle = (u * 1.0 + v * 0.62) * math.tau
+    wave = math.sin(angle + phase * math.tau) * 0.075
+    wave += math.sin((u * 1.7 - v * 1.1) * math.tau - phase * math.tau * 2) * 0.035
+    band = 0.5 + 0.5 * math.sin((u * 0.8 - v * 0.55) * math.tau - phase * math.tau)
+    wall = mix_colour(WALLPAPER_PURPLE, WALLPAPER_TEAL,
+                      ease_in_out(clamp(u * 0.58 + v * 0.42 + wave)))
+    accent = mix_colour(PURPLE_SOFT, TEAL_BRIGHT, clamp(u * 0.7 + v * 0.3))
+    return mix_colour(wall, accent, 0.035 + 0.075 * band)
+
+
 @dataclass(frozen=True)
 class Rect:
     x: float

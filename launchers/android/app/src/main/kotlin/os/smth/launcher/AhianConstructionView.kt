@@ -282,23 +282,14 @@ class AhianConstructionView(context: Context) : View(context) {
                 val left = col * tileW
                 val top = row * tileH
                 canvas.clipRect(left, top, left + tileW + 0.6f, top + tileH + 0.6f)
-                // Fragment resolves to the near-black plate of the real desktop.
+                // The same flowing gradient the live wallpaper draws, sampled
+                // at this tile. Phase 1 (final frame) equals live phase 0.
                 fill.shader = null
-                fill.color = withAlpha(obsidian, a)
-                canvas.drawRect(left, top, left + tileW + 0.6f, top + tileH + 0.6f, fill)
-                val art = wallpaper
-                if (art != null) {
-                    fill.color = Color.WHITE
-                    fill.alpha = (a * 255f).toInt().coerceIn(0, 255)
-                    canvas.drawBitmap(art, null, dest, fill)
-                }
-                // The same centre scrim the live wallpaper uses.
-                fill.shader = scrimShader
-                fill.alpha = (a * 255f).toInt().coerceIn(0, 255)
-                canvas.drawRect(left, top, left + tileW + 0.6f, top + tileH + 0.6f, fill)
-                // The AHIAN purple-to-teal tint, at the launcher's own 0.86.
-                fill.shader = wallShader
-                fill.alpha = (0.86f * a * 255f).toInt().coerceIn(0, 255)
+                fill.color = withAlpha(
+                    AhianFlow.color((col + 0.5f) / cols, (row + 0.5f) / rows,
+                        if (reduced) 0f else (t / DURATION_MS.toFloat())),
+                    a,
+                )
                 canvas.drawRect(left, top, left + tileW + 0.6f, top + tileH + 0.6f, fill)
                 fill.alpha = 255
                 // Dot-matrix construction detail, gone once the wall is assembled.

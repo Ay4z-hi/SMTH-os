@@ -125,12 +125,29 @@ class Renderer:
         # One continuous gradient under every fragment: the tiles reveal it,
         # the assembled wall has no seams, and the live desktop matches.
         gradient = None
+        phase = M.clamp(frame.t_ms / M.DURATION_MS)
         if frame.tiles:
             gradient = __import__("cairo").LinearGradient(0, 0, w, h)
-            gradient.add_color_stop_rgba(0, *M.WALLPAPER_PURPLE, 1.0)
-            gradient.add_color_stop_rgba(1, *M.WALLPAPER_TEAL, 1.0)
+            # Five flowing stops make the wall read as one slow moving sheet;
+            # both ends land on the same sample the live desktop uses.
+            for i in range(5):
+                stop = i / 4.0
+                gradient.add_color_stop_rgba(
+                    stop, *M.flow_colour(stop, stop * 0.82, phase), 1.0)
         for tile in frame.tiles:
             self._draw_tile(cr, frame, tile, gradient)
+        # Two soft light bands drift across the assembled wall, the same idea
+        # as the flowing-gradient shader on the live desktop.
+        if frame.wallpaper_alpha > 0.01:
+            for i, colour in enumerate((M.PURPLE_SOFT, M.TEAL_BRIGHT)):
+                y = h * (0.34 + 0.26 * i) + math.sin(frame.t_ms / 5200 + i * 2.1) * h * 0.06
+                band = __import__("cairo").LinearGradient(0, y - h * 0.22, w, y + h * 0.22)
+                band.add_color_stop_rgba(0, *colour, 0.0)
+                band.add_color_stop_rgba(0.5, *colour, 0.10 * frame.wallpaper_alpha)
+                band.add_color_stop_rgba(1, *colour, 0.0)
+                cr.set_source(band)
+                cr.rectangle(0, 0, w, h)
+                cr.fill()
         # The AHIAN gradient wash: strongest while the fragments assemble, then
         # settling into the same quiet tint the live desktop keeps.
         if frame.wallpaper_alpha > 0:

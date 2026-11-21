@@ -45,6 +45,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import kotlin.math.roundToInt
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -86,7 +87,7 @@ class MainActivity : Activity() {
         }
     }
     private lateinit var root: FrameLayout
-    private lateinit var ahianTint: View
+    private lateinit var ahianTint: AhianWallpaperView
     private lateinit var desktop: FrameLayout
     private lateinit var taskbarView: View
     private lateinit var pinnedRow: LinearLayout
@@ -164,6 +165,9 @@ class MainActivity : Activity() {
         // The reconstruction is fully opaque, so the live wallpaper, tint,
         // icons and taskbar stay in place underneath it. Its own fade uncovers
         // exactly that desktop: no flash, no reload, no second wallpaper.
+        // Freeze the live wall on the reveal's final phase so the fade
+        // uncovers an identical frame, then let the flow resume.
+        ahianTint.freezeAt(1f)
         val intro = AhianConstructionView(this)
         ahianIntro = intro
         root.addView(intro, FrameLayout.LayoutParams(
@@ -171,6 +175,8 @@ class MainActivity : Activity() {
         intro.start {
             root.removeView(intro)
             if (ahianIntro === intro) ahianIntro = null
+            if (getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false))
+                ahianTint.resumeFlow()
         }
     }
 
@@ -186,6 +192,12 @@ class MainActivity : Activity() {
         if (!::ahianTint.isInitialized) return
         val on = getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false)
         ahianTint.visibility = if (on) View.VISIBLE else View.GONE
+        if (on) {
+            // During the reveal the wallpaper stays frozen on phase 1.
+            if (ahianIntro == null) ahianTint.resumeFlow()
+        } else {
+            ahianTint.pauseFlow()
+        }
     }
 
     override fun onBackPressed() {
@@ -230,14 +242,10 @@ class MainActivity : Activity() {
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
         ))
 
-        // AHIAN improved-mode wallpaper. Sits above the artwork and below the
-        // desktop so shortcuts, taskbar and the Start menu keep working.
-        ahianTint = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TL_BR,
-                intArrayOf(Color.parseColor("#7C4DFF"), Color.parseColor("#2BD9C4")),
-            )
-            alpha = 0.86f
+        // AHIAN improved-mode wallpaper: the same flowing gradient and dot
+        // matrix the reconstruction ends on. Sits above the artwork and below
+        // the desktop so shortcuts, taskbar and the Start menu keep working.
+        ahianTint = AhianWallpaperView(this).apply {
             visibility = View.GONE
         }
         root.addView(ahianTint, FrameLayout.LayoutParams(
@@ -544,13 +552,43 @@ class MainActivity : Activity() {
 
     private fun rebuildDesktop() {
         desktop.removeAllViews()
+        // Invisible 96 x 82 cells. A shortcut always lands in one cell, and a
+        // cell already holding another shortcut is skipped.
+        val cellW = dp(96)
+        val cellH = dp(82)
+        val originX = dp(16)
+        val originY = dp(16)
+        val width = resources.displayMetrics.widthPixels
+        val height = resources.displayMetrics.heightPixels - dp(56)
+        val cols = maxOf(1, (width - originX) / cellW)
+        val rows = maxOf(1, (height - originY - dp(86)) / cellH)
+        val prefs = getSharedPreferences("smth_desktop", MODE_PRIVATE)
+        val occupied = mutableSetOf<Pair<Int, Int>>()
         for ((index, entry) in desktopShortcuts().withIndex()) {
+            val storedX = prefs.getInt(entry.packageName + "_x", originX)
+            val storedY = prefs.getInt(entry.packageName + "_y", originY + index * cellH)
+            var col = ((storedX - originX).toFloat() / cellW).roundToInt().coerceIn(0, cols - 1)
+            var row = ((storedY - originY).toFloat() / cellH).roundToInt().coerceIn(0, rows - 1)
+            val start = row * cols + col
+            for (offset in 0 until cols * rows) {
+                val cell = (start + offset) % (cols * rows)
+                val candidate = cell % cols to cell / cols
+                if (candidate !in occupied) {
+                    col = candidate.first
+                    row = candidate.second
+                    break
+                }
+            }
+            occupied.add(col to row)
+            val left = originX + col * cellW
+            val top = originY + row * cellH
+            prefs.edit().putInt(entry.packageName + "_x", left)
+                .putInt(entry.packageName + "_y", top).apply()
             val icon = desktopIcon(entry, index)
             val params = FrameLayout.LayoutParams(dp(88), dp(76)).apply {
                 gravity = Gravity.TOP or Gravity.START
-                val prefs = getSharedPreferences("smth_desktop", MODE_PRIVATE)
-                leftMargin = prefs.getInt(entry.packageName + "_x", dp(18))
-                topMargin = prefs.getInt(entry.packageName + "_y", dp(18 + index * 72))
+                leftMargin = left
+                topMargin = top
             }
             desktop.addView(icon, params)
         }
@@ -610,10 +648,15 @@ class MainActivity : Activity() {
                     }
                     MotionEvent.ACTION_UP -> {
                         if (moved) {
+                            val (cellX, cellY) = snapDesktopCell(view)
+                            val lp = view.layoutParams as FrameLayout.LayoutParams
+                            lp.leftMargin = cellX
+                            lp.topMargin = cellY
+                            view.layoutParams = lp
                             val prefs = getSharedPreferences("smth_desktop", MODE_PRIVATE)
                             prefs.edit()
-                                .putInt(entry.packageName + "_x", view.x.toInt())
-                                .putInt(entry.packageName + "_y", view.y.toInt())
+                                .putInt(entry.packageName + "_x", cellX)
+                                .putInt(entry.packageName + "_y", cellY)
                                 .apply()
                         } else {
                             view.performClick()
@@ -626,6 +669,40 @@ class MainActivity : Activity() {
             }
             suppressPointer(this)
         }
+
+    /** Resolve a dropped shortcut to the nearest free 96 x 82 cell. */
+    private fun snapDesktopCell(moving: View): Pair<Int, Int> {
+        val cellW = dp(96)
+        val cellH = dp(82)
+        val originX = dp(16)
+        val originY = dp(16)
+        val cols = maxOf(1, (desktop.width - originX) / cellW)
+        val rows = maxOf(1, (desktop.height - originY - dp(86)) / cellH)
+        val lp = moving.layoutParams as FrameLayout.LayoutParams
+        var col = ((lp.leftMargin - originX).toFloat() / cellW).roundToInt().coerceIn(0, cols - 1)
+        var row = ((lp.topMargin - originY).toFloat() / cellH).roundToInt().coerceIn(0, rows - 1)
+        val occupied = mutableSetOf<Pair<Int, Int>>()
+        for (i in 0 until desktop.childCount) {
+            val child = desktop.getChildAt(i)
+            if (child === moving) continue
+            val other = child.layoutParams as FrameLayout.LayoutParams
+            occupied.add(
+                ((other.leftMargin - originX).toFloat() / cellW).roundToInt() to
+                    ((other.topMargin - originY).toFloat() / cellH).roundToInt(),
+            )
+        }
+        val start = row * cols + col
+        for (offset in 0 until cols * rows) {
+            val cell = (start + offset) % (cols * rows)
+            val candidate = cell % cols to cell / cols
+            if (candidate !in occupied) {
+                col = candidate.first
+                row = candidate.second
+                break
+            }
+        }
+        return originX + col * cellW to originY + row * cellH
+    }
 
     private fun pressFeedback(view: View) {
         view.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90).withEndAction {

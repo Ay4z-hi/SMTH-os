@@ -49,6 +49,8 @@ def get_terminal_response(command):
 
 import ctypes
 import datetime
+import json
+import math
 import os
 import subprocess
 import sys
@@ -222,6 +224,19 @@ class SMTHLauncher:
         self.recent = []
         self.start_open = False
         self.shortcut_positions = {}
+        self.layout_file = os.path.join(
+            os.environ.get("APPDATA", os.path.expanduser("~")),
+            "SMTH", "desktop-layout.json"
+        )
+        try:
+            with open(self.layout_file, encoding="utf-8") as handle:
+                saved = json.load(handle)
+            if isinstance(saved, dict):
+                for name, pos in saved.items():
+                    if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+                        self.shortcut_positions[str(name)] = (float(pos[0]), float(pos[1]))
+        except (OSError, ValueError, TypeError):
+            pass
         self.drag_state = None
         self.ahian_mode = False
         self.ahian_state_file = os.path.join(
@@ -290,6 +305,48 @@ class SMTHLauncher:
         if self.start_open:
             self.raise_start()
 
+    def _grid_metrics(self):
+        """The invisible desktop grid: 112 x 84 cells from (24, 24)."""
+        cell_w, cell_h, origin_x, origin_y = 112, 84, 24, 24
+        width = max(1, self.canvas.winfo_width())
+        height = max(1, self.canvas.winfo_height())
+        cols = max(1, int(max(1, width - origin_x - 96) // cell_w) + 1)
+        rows = max(1, int(max(1, height - origin_y - 72 - 78) // cell_h) + 1)
+        return cell_w, cell_h, origin_x, origin_y, cols, rows
+
+    def snap_shortcut(self, name, x, y):
+        """Resolve a drag to one free cell; occupied cells are never reused."""
+        cell_w, cell_h, origin_x, origin_y, cols, rows = self._grid_metrics()
+        x = max(origin_x, min(origin_x + (cols - 1) * cell_w, float(x)))
+        y = max(origin_y, min(origin_y + (rows - 1) * cell_h, float(y)))
+        col = max(0, min(cols - 1, round((x - origin_x) / cell_w)))
+        row = max(0, min(rows - 1, round((y - origin_y) / cell_h)))
+        occupied = set()
+        for other, (ox, oy) in self.shortcut_positions.items():
+            if other == name:
+                continue
+            occupied.add((round((ox - origin_x) / cell_w),
+                          round((oy - origin_y) / cell_h)))
+        start = row * cols + col
+        for offset in range(cols * rows):
+            cell = (start + offset) % (cols * rows)
+            candidate = (cell % cols, cell // cols)
+            if candidate not in occupied:
+                col, row = candidate
+                break
+        return origin_x + col * cell_w, origin_y + row * cell_h
+
+    def save_shortcuts(self):
+        try:
+            os.makedirs(os.path.dirname(self.layout_file), exist_ok=True)
+            temp = self.layout_file + ".tmp"
+            with open(temp, "w", encoding="utf-8") as handle:
+                json.dump({n: list(p) for n, p in self.shortcut_positions.items()},
+                          handle, indent=2)
+            os.replace(temp, self.layout_file)
+        except OSError:
+            pass
+
     def draw_shortcuts(self, w, h):
         c = self.canvas
         entries = [a for a in APPS if a[0] in PINNED][:6]
@@ -297,6 +354,7 @@ class SMTHLauncher:
             cols = max(1, (max(1, w) - 48) // 112)
             default_position = (24 + (i % cols) * 112, 24 + (i // cols) * 84)
             x, y = self.shortcut_positions.get(name, default_position)
+            x, y = self.snap_shortcut(name, x, y)
             self.shortcut_positions[name] = (x, y)
             tag = f"shortcut-{i}"
             accent = "#B9A0FF" if self.ahian_mode else BLUSH
@@ -337,28 +395,13 @@ class SMTHLauncher:
         if state and state["moved"]:
             name = state["name"]
             x, y = self.shortcut_positions.get(name, (44, 34))
-            cell_w, cell_h, origin_x, origin_y = 112, 84, 24, 24
-            cols = max(1, (max(1, self.canvas.winfo_width()) - origin_x) // cell_w)
-            rows = max(1, (max(1, self.canvas.winfo_height()) - origin_y - 60) // cell_h)
-            col = max(0, min(cols - 1, round((x - origin_x) / cell_w)))
-            row = max(0, min(rows - 1, round((y - origin_y) / cell_h)))
-            occupied = set()
-            for other, (ox, oy) in self.shortcut_positions.items():
-                if other != name:
-                    occupied.add((round((ox - origin_x) / cell_w), round((oy - origin_y) / cell_h)))
-            start = row * cols + col
-            for offset in range(cols * rows):
-                cell = (start + offset) % (cols * rows)
-                candidate = (cell % cols, cell // cols)
-                if candidate not in occupied:
-                    col, row = candidate
-                    break
-            nx, ny = origin_x + col * cell_w, origin_y + row * cell_h
+            nx, ny = self.snap_shortcut(name, x, y)
             tag = next((f"shortcut-{i}" for i, app in enumerate([a for a in APPS if a[0] in PINNED][:6])
                         if app[0] == name), None)
             if tag:
                 self.canvas.move(tag, nx - x, ny - y)
             self.shortcut_positions[name] = (nx, ny)
+            self.save_shortcuts()
         elif state and not state["moved"]:
             self.launch(target, kind, fallbacks)
         return "break"
@@ -1111,8 +1154,28 @@ def ahian_tint(col, cols=AHIAN_COLS):
     return _mix(AHIAN_PURPLE, AHIAN_TEAL, (col + 0.5) / max(1, cols))
 
 
-def paint_ahian_wallpaper(canvas, w, h, tags=()):
-    """The live AHIAN wallpaper: purple-to-teal gradient plus a dot matrix.
+def _flow(u, v, phase=0.0):
+    """One sample of the flowing AHIAN gradient, in #rrggbb.
+
+    Mirrors ``flow_colour`` in the shared model: two slow diagonal waves bend a
+    purple-to-teal ramp and a narrow band lifts it toward the bright inks.
+    Phase 1.0 completes exactly one cycle, so the reveal's last frame matches
+    the live desktop at phase 0.
+    """
+    u = max(0.0, min(1.0, u))
+    v = max(0.0, min(1.0, v))
+    wave = math.sin((u + v * 0.62) * math.tau + phase * math.tau) * 0.075
+    wave += math.sin((u * 1.7 - v * 1.1) * math.tau - phase * math.tau * 2) * 0.035
+    band = 0.5 + 0.5 * math.sin((u * 0.8 - v * 0.55) * math.tau - phase * math.tau)
+    d = max(0.0, min(1.0, u * 0.58 + v * 0.42 + wave))
+    d = d * d * (3 - 2 * d)
+    wall = _mix(AH_WALL_PURPLE, AH_WALL_TEAL, d)
+    accent = _mix(AHIAN_PURPLE, AHIAN_TEAL, max(0.0, min(1.0, u * 0.7 + v * 0.3)))
+    return _mix(wall, accent, 0.035 + 0.075 * band)
+
+
+def paint_ahian_wallpaper(canvas, w, h, tags=(), phase=0.0):
+    """The live AHIAN wallpaper: flowing gradient plus a dot matrix.
 
     Shared by the desktop canvas and the reconstruction overlay so the final
     animation frame is pixel-identical to the desktop it reveals.
@@ -1122,7 +1185,7 @@ def paint_ahian_wallpaper(canvas, w, h, tags=()):
     for row in range(AHIAN_ROWS):
         for col in range(AHIAN_COLS):
             tint = ahian_tint(col)
-            wall = _mix(AH_WALL_PURPLE, AH_WALL_TEAL, (col + 0.5) / AHIAN_COLS)
+            wall = _flow((col + 0.5) / AHIAN_COLS, (row + 0.5) / AHIAN_ROWS, phase)
             x0, y0 = col * tile_w, row * tile_h
             canvas.create_rectangle(
                 x0, y0, x0 + tile_w + 1, y0 + tile_h + 1,
@@ -1278,7 +1341,8 @@ class AhianConstructionIntro:
                     continue
                 a = self._ease(progress)
                 tint = ahian_tint(col)
-                wall = _mix(AH_WALL_PURPLE, AH_WALL_TEAL, (col + 0.5) / AHIAN_COLS)
+                wall = _flow((col + 0.5) / AHIAN_COLS, (row + 0.5) / AHIAN_ROWS,
+                             min(1.0, t / self.DURATION))
                 x0, y0 = col * tile_w, row * tile_h
                 c.create_rectangle(
                     x0, y0, x0 + tile_w + 1, y0 + tile_h + 1,

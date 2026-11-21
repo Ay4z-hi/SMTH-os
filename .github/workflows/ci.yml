@@ -67,6 +67,10 @@ jobs:
         run: python3 tools/test_ahian_startup.py
       - name: AHIAN renderer draw paths
         run: python3 tools/test_ahian_renderers.py
+      - name: AHIAN flowing wallpaper
+        run: python3 tools/test_ahian_flow.py
+      - name: Desktop grid placement
+        run: python3 tools/test_desktop_grid.py
       - name: Generated tokens are committed
         run: |
           git diff --exit-code -- \

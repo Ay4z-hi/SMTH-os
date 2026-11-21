@@ -13,6 +13,7 @@ gi.require_version("Gtk", "4.0"); gi.require_version("Gdk", "4.0"); gi.require_v
 from gi.repository import Gdk, Gio, GLib, Gtk
 from gi.repository import Gtk4LayerShell as LS
 import smthdot as D
+import ahian_startup_model as AM
 
 FLAG = os.path.expanduser("~/.config/smth/ahian")
 REDUCE_MOTION = os.path.expanduser("~/.config/smth/reduce-motion")
@@ -88,11 +89,22 @@ class BlackHole:
 
     def draw(self, cr, w, h, t, mx, my):
         sc = h / 1080; cx, cy, R = w * 0.66, h * 0.5, h * 0.105
-        # The deep AHIAN purple-to-teal wall the reconstruction reveal ends on.
+        # The flowing AHIAN wall the reconstruction reveal resolves into.
+        # Sampling the shared model keeps the live desktop and the animation
+        # on the same gradient at every resolution.
+        phase = (t * 0.022) % 1.0
         g = cairo.LinearGradient(0, 0, w, h)
-        g.add_color_stop_rgb(0, 0.165, 0.090, 0.302)
-        g.add_color_stop_rgb(1, 0.020, 0.278, 0.251)
+        for i in range(6):
+            stop = i / 5.0
+            g.add_color_stop_rgb(stop, *AM.flow_colour(stop, stop * 0.82, phase))
         cr.set_source(g); cr.rectangle(0, 0, w, h); cr.fill()
+        for i, colour in enumerate((AM.PURPLE_SOFT, AM.TEAL_BRIGHT, AM.PURPLE)):
+            y = h * (0.26 + 0.22 * i) + math.sin(t * 0.20 + i * 1.9) * h * 0.055
+            band = cairo.LinearGradient(0, y - h * 0.20, w, y + h * 0.20)
+            band.add_color_stop_rgba(0, *colour, 0.0)
+            band.add_color_stop_rgba(0.5, *colour, 0.085)
+            band.add_color_stop_rgba(1, *colour, 0.0)
+            cr.set_source(band); cr.rectangle(0, 0, w, h); cr.fill()
         buckets = [[], [], [], []]
         for sx, sy, sd in self.stars:
             x = (sx * w + (mx - 0.5) * 46 * sd) % w; y = (sy * h + (my - 0.5) * 26 * sd) % h
@@ -208,8 +220,12 @@ def on_activate(app):
         geometry = monitor.get_geometry() if monitor else None
         area_w = icons.get_width() if icons.get_width() > 1 else (geometry.width if geometry else 1280)
         area_h = icons.get_height() if icons.get_height() > 1 else (geometry.height if geometry else 800)
-        cols = max(1, int(max(1, area_w - GRID_X) // CELL_W))
-        rows = max(1, int(max(1, area_h - GRID_Y) // CELL_H))
+        # One invisible cell is CELL_W x CELL_H; a dropped icon always lands on
+        # the nearest free cell, never between cells and never on top of one.
+        cols = max(1, int(max(1, area_w - GRID_X - ICON_W) // CELL_W) + 1)
+        rows = max(1, int(max(1, area_h - GRID_Y - ICON_H) // CELL_H) + 1)
+        x = max(GRID_X, min(area_w - ICON_W, float(x)))
+        y = max(GRID_Y, min(area_h - ICON_H, float(y)))
         col = max(0, min(cols - 1, round((x - GRID_X) / CELL_W)))
         row = max(0, min(rows - 1, round((y - GRID_Y) / CELL_H)))
         occupied = set()
@@ -247,7 +263,8 @@ def on_activate(app):
     for index, n in enumerate(APPS):
         b = icon_button(n)
         if not b: continue
-        pos = icon_positions.get(n, [26 + (index // 7) * 112, 24 + (index % 7) * 82])
+        pos = icon_positions.get(n, [GRID_X + (index // 7) * CELL_W,
+                                     GRID_Y + (index % 7) * CELL_H])
         try: x, y = float(pos[0]), float(pos[1])
         except (TypeError, ValueError, IndexError): x, y = 24.0, 24.0
         x, y = snap_to_free(n, x, y)
