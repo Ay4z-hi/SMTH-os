@@ -728,7 +728,7 @@ class ConstructionIntro:
             _logo = os.path.join(ASSETS, "logo.png")
             if os.path.isfile(_logo):
                 original_logo = tk.PhotoImage(file=_logo)
-                self.logo_photo = original_logo.subsample(2, 2)
+                self.logo_photo = original_logo.subsample(3, 3)
         except tk.TclError:
             self.logo_photo = None
         self.win.bind("<Button-1>", lambda *_: self.close())
