@@ -81,10 +81,12 @@ class TerminalActivity : android.app.Activity() {
 
     private fun build() {
         root = FrameLayout(this).apply {
+            // Translucent smoked-glass terminal surface. Android 12+ supplies
+            // the real backdrop blur; older versions retain the glass tint.
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(OBSIDIAN)
+                setColor(Color.argb(222, 8, 8, 12))
                 cornerRadius = dp(14).toFloat()
-                setStroke(dp(1), maroon(0.72f))
+                setStroke(dp(1), Color.argb(150, 190, 178, 210))
             }
             clipToOutline = true
         }
@@ -95,8 +97,11 @@ class TerminalActivity : android.app.Activity() {
         normalHeight = (screen.heightPixels * 0.78f).toInt().coerceAtLeast(dp(260))
         window.setBackgroundDrawableResource(android.R.color.transparent)
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            window.setBackgroundBlurRadius(dp(30))
+        }
         window.attributes = window.attributes.apply {
-            dimAmount = 0.18f
+            dimAmount = 0.24f
             gravity = android.view.Gravity.TOP or android.view.Gravity.START
             x = (screen.widthPixels - normalWidth) / 2
             y = (screen.heightPixels - normalHeight) / 2
@@ -107,7 +112,7 @@ class TerminalActivity : android.app.Activity() {
         titleBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(12), dp(8), dp(8), dp(8))
-            setBackgroundColor(obsidian(0.92f))
+            setBackgroundColor(Color.argb(204, 12, 10, 16))
         }
         titleText = TextView(this).apply {
             text = "Terminal"
@@ -176,7 +181,7 @@ class TerminalActivity : android.app.Activity() {
 
         // Terminal view
         terminalView = TerminalView(this, resources.displayMetrics.density, dot, mono).apply {
-            setBackgroundColor(OBSIDIAN)
+            setBackgroundColor(Color.argb(218, 8, 8, 12))
         }
         root.addView(terminalView, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
