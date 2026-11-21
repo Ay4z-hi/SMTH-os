@@ -119,11 +119,21 @@ class MainActivity : Activity() {
         startClock()
         applyAhianTheme()
         val returningFromAhianCommand = intent.getBooleanExtra("show_ahian_construction", false)
-        // The normal boot reconstruction is shown on ordinary launches only.
-        if (!returningFromAhianCommand) root.post { showStartupConstruction() }
+        val ahianEnabled = getSharedPreferences("smth", MODE_PRIVATE)
+            .getBoolean("ahian_mode", false)
+        // AHIAN persists after first activation. Every fresh launcher entry
+        // reconstructs the desktop with cursors instead of the generic intro.
+        if (!returningFromAhianCommand) {
+            root.post {
+                if (ahianEnabled) showAhianConstruction() else showStartupConstruction()
+            }
+        }
         if (returningFromAhianCommand) {
             intent.removeExtra("show_ahian_construction")
-            root.postDelayed({ if (getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false)) showAhianConstruction() }, 2500L)
+            root.postDelayed({
+                if (getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false))
+                    showAhianConstruction()
+            }, 2500L)
         }
     }
 
