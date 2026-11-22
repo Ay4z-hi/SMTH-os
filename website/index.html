@@ -12,6 +12,72 @@
 .pixel{position:absolute;width:25%;height:25%;opacity:0;pointer-events:none;z-index:5}
 @media(max-width:760px){.hero{padding:8px}.frame{height:94svh;min-height:620px}.media{mask:none;-webkit-mask:none;border-radius:2px}.nav{padding:22px 20px}.navlinks{display:none}.cta{padding:10px 12px;font-size:8px}.copy{left:7%;top:30%;width:86%}.card h1{font-size:clamp(58px,16vw,90px)}.desc{font-size:12px}.actions{gap:17px;flex-wrap:wrap}.intro{padding:72px 8%;grid-template-columns:1fr;gap:18px}.section{padding:75px 8%}.heading{display:block;margin-bottom:35px}.aside{margin-top:22px}.grid{grid-template-columns:1fr}.feature{min-height:330px}.ahian{grid-template-columns:1fr;gap:45px}.ahian h2{font-size:64px}.terminalbody{padding:24px 18px}.row{grid-template-columns:1.3fr .6fr 1.1fr;gap:8px}.row strong{font-size:13px}.status{font-size:7px;letter-spacing:.06em}.bottomline{align-items:flex-start;gap:20px;flex-direction:column}.footer{padding:28px 8%;gap:17px;flex-wrap:wrap}.footer span{font-size:7px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* Persistent hero atmosphere + liquid-glass content cards */
+html{background:#100b0d}
+body{background:#100b0d;color:#f7edf0}
+.hero{background:transparent}
+.frame{isolation:isolate}
+.media{position:fixed;inset:8px;z-index:-1;mask:none;-webkit-mask:none;border-radius:4px}
+.media video{opacity:.58;filter:sepia(.25) saturate(.8) hue-rotate(290deg)}
+.tint{background:linear-gradient(90deg,rgba(16,8,12,.76),rgba(50,14,28,.18) 65%,rgba(16,8,12,.46)),linear-gradient(0deg,rgba(16,8,12,.72),transparent 64%)}
+.hero .copy{z-index:2}
+.card,.intro,.heading,.feature,.ahian>div,.terminal,.list,.bottomline,.footer{
+  border:1px solid rgba(255,235,241,.22);
+  background:linear-gradient(135deg,rgba(255,242,247,.16),rgba(255,242,247,.055) 48%,rgba(90,24,45,.17));
+  -webkit-backdrop-filter:blur(28px) saturate(175%);
+  backdrop-filter:blur(28px) saturate(175%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -1px 0 rgba(255,255,255,.06),0 22px 70px rgba(0,0,0,.22);
+  border-radius:26px;
+}
+.card{padding:28px 30px 25px;margin-top:20px;max-width:630px}
+.intro{margin:64px 9% 30px;padding:38px 42px;grid-template-columns:1fr 2fr 1.1fr;background:linear-gradient(135deg,rgba(255,235,241,.20),rgba(255,235,241,.075));color:#fff}
+.intro .big{color:#fff}.intro .big em{color:#f0c9cf}.note{color:rgba(255,244,247,.76)}
+.section{padding:55px 9% 75px}
+.heading{padding:30px 34px;margin-bottom:24px;color:#fff}
+.heading .aside{color:rgba(255,242,247,.72)}
+.heading h2 em{color:#f0c9cf}
+.feature{min-height:390px;background:linear-gradient(145deg,rgba(255,241,246,.17),rgba(255,241,246,.055) 65%,rgba(89,27,43,.25));color:#fff}
+.f2{background:linear-gradient(145deg,rgba(123,43,64,.62),rgba(255,235,241,.10))}
+.f3{background:linear-gradient(145deg,rgba(240,201,207,.20),rgba(255,255,255,.06))}
+.feature p{color:rgba(255,245,248,.78);opacity:1}
+.ahian{background:transparent;color:#fff}
+.ahian>div{padding:34px}
+.ahian .copytext{color:rgba(255,244,247,.76)}
+.terminal{background:linear-gradient(145deg,rgba(27,13,19,.82),rgba(75,25,42,.46))}
+.releases{background:transparent;color:#fff}
+.list{padding:10px 22px}
+.row{border-bottom:1px solid rgba(255,235,241,.14);color:#fff}
+.row span:nth-child(2){color:rgba(255,242,247,.7)}
+.row.head{color:#e7c4cd}
+.status{color:#f0c9cf}
+.bottomline{padding:20px 24px;margin-top:22px}
+.bottomline p{color:rgba(255,242,247,.68)}
+.footer{margin:24px 9% 18px;padding:28px 34px;background:rgba(17,9,13,.72)}
+.button{border-radius:999px;box-shadow:0 8px 25px rgba(0,0,0,.18)}
+.cta{border-radius:999px;backdrop-filter:blur(14px)}
+/* Side-entry scroll reveals */
+.reveal{opacity:0;transform:translate3d(var(--reveal-x,54px),24px,0) scale(.985);transition:opacity .8s ease,transform .9s cubic-bezier(.2,.75,.2,1);will-change:transform,opacity}
+.reveal.from-left{--reveal-x:-64px}
+.reveal.from-right{--reveal-x:64px}
+.reveal.is-visible{opacity:1;transform:translate3d(0,0,0) scale(1)}
+@media(max-width:760px){
+ .media{inset:8px;border-radius:3px}
+ .card{padding:23px 20px;border-radius:22px}
+ .intro{margin:26px 5% 18px;padding:28px 23px;grid-template-columns:1fr;border-radius:22px}
+ .section{padding:28px 5% 40px}
+ .heading{padding:25px 22px;border-radius:22px}
+ .feature{min-height:330px;border-radius:22px}
+ .ahian>div{padding:25px 22px;border-radius:22px}
+ .list{padding:8px 14px;border-radius:22px}
+ .row{padding:18px 2px}
+ .bottomline{padding:20px;border-radius:22px}
+ .footer{margin:16px 5%;padding:24px 20px;border-radius:22px}
+ .reveal{transform:translate3d(var(--reveal-x,32px),18px,0) scale(.99)}
+ .reveal.from-left{--reveal-x:-36px}.reveal.from-right{--reveal-x:36px}
+}
+@media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+
 </style>
 </head>
 <body>
@@ -22,5 +88,16 @@
 <section class="section ahian" id="ahian"><div><p class="eyebrow">03 — THE EASTER EGG</p><h2>Enter the<br><em>unknown.</em></h2><p class="copytext">AHIAN begins where a normal terminal session ends. A hidden sequence of escalating system messages, a deliberate interruption, and a reveal that changes the desktop's atmosphere.</p><p class="footnote">A TERMINAL SECRET. NOT A SETTINGS TOGGLE.</p></div><div class="terminal"><div class="terminalbar"><span>SMTH TERMINAL</span><span>● ● ●</span></div><div class="terminalbody"><p><span>smth@system</span>:~$ ahian</p><p class="muted">initialising sequence...</p><p class="red">[!] desktop process interrupted</p><p class="muted">rebuilding environment_</p><div class="progress"><i></i></div><p class="bottom">AHIAN // SYSTEM REVEAL</p></div></div></section>
 <section class="section releases" id="releases"><div class="heading"><div><p class="eyebrow dark">04 — DEVELOPMENT</p><h2>Built in the open.<br><em>Still becoming.</em></h2></div><p class="aside">Follow the work, inspect the code, and see what is taking shape.</p></div><div class="list"><div class="row head"><span>PLATFORM</span><span>FORMAT</span><span>STATUS</span></div><div class="row"><strong>Android</strong><span>APK</span><span class="status"><i></i> IN DEVELOPMENT</span></div><div class="row"><strong>Windows</strong><span>EXE</span><span class="status"><i></i> IN DEVELOPMENT</span></div><div class="row"><strong>Linux · AMD64</strong><span>ISO</span><span class="status"><i></i> IN DEVELOPMENT</span></div><div class="row"><strong>Linux · ARM64</strong><span>ISO</span><span class="status"><i></i> IN DEVELOPMENT</span></div></div><div class="bottomline"><p>NO FALSE PROMISES. JUST WORK IN PROGRESS.</p><a class="button darkbtn" href="https://github.com/Ay4z-hi/SMTH-os" target="_blank" rel="noreferrer">EXPLORE THE REPOSITORY ↗</a></div></section></main>
 <footer class="footer"><a class="brand" href="#top"><b>S</b>SMTH<i>.</i></a><span>AN OPERATING SYSTEM EXPERIMENT</span><span>© 2026 SMTH PROJECT</span></footer>
-<script>const card=document.querySelector('.card');card.addEventListener('mouseleave',()=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const colors=['#8d344b','#f0c9cf','#100b0d'];const els=[];for(let i=0;i<16;i++){const p=document.createElement('i');p.className='pixel';p.style.left=(i%4*25)+'%';p.style.top=(Math.floor(i/4)*25)+'%';p.style.background=colors[i%3];card.appendChild(p);els.push(p)}els.forEach((p,i)=>{p.animate([{opacity:0,transform:'scale(.82)'},{opacity:.18,transform:'scale(1)'},{opacity:0,transform:'scale(1)'}],{duration:760,delay:i*18,easing:'ease-out'}).onfinish=()=>p.remove()})});</script>
+<script>const card=document.querySelector('.card');card.addEventListener('mouseleave',()=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const colors=['#8d344b','#f0c9cf','#100b0d'];const els=[];for(let i=0;i<16;i++){const p=document.createElement('i');p.className='pixel';p.style.left=(i%4*25)+'%';p.style.top=(Math.floor(i/4)*25)+'%';p.style.background=colors[i%3];card.appendChild(p);els.push(p)}els.forEach((p,i)=>{p.animate([{opacity:0,transform:'scale(.82)'},{opacity:.18,transform:'scale(1)'},{opacity:0,transform:'scale(1)'}],{duration:760,delay:i*18,easing:'ease-out'}).onfinish=()=>p.remove()})});
+/* Reveal each text card from alternating sides as it enters the viewport. */
+const revealTargets=[...document.querySelectorAll('.intro,.heading,.feature,.ahian>div,.terminal,.list,.bottomline')];
+revealTargets.forEach((el,i)=>{el.classList.add('reveal',i%2?'from-right':'from-left')});
+if('IntersectionObserver' in window){
+ const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{
+  if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target)}
+ }),{threshold:.14,rootMargin:'0px 0px -7% 0px'});
+ revealTargets.forEach(el=>observer.observe(el));
+}else{revealTargets.forEach(el=>el.classList.add('is-visible'))}
+
+</script>
 </body></html>
