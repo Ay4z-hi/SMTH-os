@@ -479,6 +479,7 @@ class SceneRenderer:
         self._settled = None
         self._settled_key = None
         self._blue_bg = None
+        self._blue_grid = None
         self._wall = {}
         self._noise = None
         self._vignette_cache = None
@@ -719,12 +720,12 @@ class SceneRenderer:
             active=ahian,
         )
         if isinstance(panel, tuple):
-            panel, shadow, shadow_xy = panel
-            self._paste(img, shadow, shadow_xy)
+            panel, shadow, _ = panel
+            self._paste(img, shadow, (cx - size / 2 - self.px(3),
+                                      top - self.px(4)))
             self._paste(img, panel, (cx - size / 2, top))
         else:
             self._paste(img, panel, (cx - size / 2, top))
-            panel = getattr(panel, 'convert', lambda mode: panel)('RGBA') if False else panel
         draw = self._d(img)
         glyph_colour = palette["ink"] if p > 0.999 else palette["muted"]
         self._glyph(draw, spec.glyph, cx, top + size / 2, size * 0.52,
@@ -806,8 +807,8 @@ class SceneRenderer:
             glow=ahian,
         )
         if isinstance(bar_panel, tuple):
-            bp, bs, bsy = bar_panel
-            self._paste(img, bs, bsy)
+            bp, bs, _ = bar_panel
+            self._paste(img, bs, (left - self.px(3), top - self.px(4)))
             self._paste(img, bp, (left, top))
         else:
             draw.rounded_rectangle((left, top, right, bottom),
@@ -826,8 +827,8 @@ class SceneRenderer:
             glow=ahian,
         )
         if isinstance(marker, tuple):
-            mp, ms, msy = marker
-            self._paste(img, ms, msy)
+            mp, ms, _ = marker
+            self._paste(img, ms, (cx - self.px(20), cy - self.px(21)))
             self._paste(img, mp, (cx - self.px(17), cy - self.px(17)))
         else:
             draw.rounded_rectangle((cx - self.px(17), cy - self.px(17),
@@ -871,8 +872,8 @@ class SceneRenderer:
             glow=ahian,
         )
         if isinstance(clock_panel, tuple):
-            cp, cs, csy = clock_panel
-            self._paste(img, cs, csy)
+            cp, cs, _ = clock_panel
+            self._paste(img, cs, (rect.x - self.px(3), rect.y + rise - self.px(4)))
             self._paste(img, cp, (rect.x, rect.y + rise))
         else:
             img.paste(clock_panel, (int(rect.x), int(rect.y + rise)))
@@ -920,8 +921,8 @@ class SceneRenderer:
             glow=ahian,
         )
         if isinstance(glance_panel, tuple):
-            gp, gs, gsy = glance_panel
-            self._paste(img, gs, gsy)
+            gp, gs, _ = glance_panel
+            self._paste(img, gs, (box.x - self.px(3), box.y - self.px(4)))
             self._paste(img, gp, (box.x, box.y))
         else:
             img.paste(glance_panel, (int(box.x), int(box.y)))
@@ -1117,165 +1118,135 @@ class SceneRenderer:
         return cached
 
     # ---- error card layouts -------------------------------------------------
-    # Each layout is a self-contained glass card builder.  All 22 windows share
-    # the same glass language but a different header geometry, so no two windows
-    # look like a templated popup.
-
     def _card_palette(self, spec):
-        """Return a coherent cold-glass status palette for one card."""
-        pal_all = status_accent(spec)
-        keys = list(pal_all.keys())
-        rail = pal_all[keys[0]]
-        border = pal_all[keys[1]]
-        glow = pal_all[keys[2]]
-        ink = pal_all[keys[3]]
-        muted = pal_all[keys[4]]
-        chrome = pal_all[keys[5]]
+        family, accent, soft, chrome = STATUS_FAMILY[
+            spec.accent % len(STATUS_FAMILY)]
         return {
-            "rail": rail,
-            "border": border,
-            "glow": glow,
-            "ink": ink,
-            "muted": muted,
-            "chrome": chrome,
-            "status": {
-                0: "alert",
-                1: "blue",
-                2: "amber",
-                3: "red",
-                4: "blue",
-                5: "red",
-            }.get(spec.accent % 6, "amber"),
+            "status": {"alert": "amber", "io": "blue", "state": "amber",
+                       "mem": "red", "diag": "blue", "halt": "red"}.get(
+                           family, "amber"),
+            "accent": accent,
+            "soft": soft,
+            "ink": FROST,
+            "muted": MUTED_INK,
+            "ghost": GHOST_INK,
         }
 
-    def _card_header_a(self, draw, spec, spec_rect, px, u):
-        """Classic alert header: dot-matrix tag, big tracked title, status rail."""
-        pal = self._card_palette(spec)
-        left = px(14)
-        # Top status rail band.
-        rail_h = px(2.0)
-        draw.rectangle((left, px(1.2), px(spec_rect.w) - left, px(1.2) + rail_h),
-                       fill=rgba(pal["rail"], 220))
-        # Dot-matrix subsystem tag on the left of the header.
-        self._dot_matrix(draw, "SMTH", left + px(6), px(9),
-                         max(1.3, px(1.35)), rgba(pal["chrome"], 205),
-                         tracking=0)
-        tag_font = self.fonts.get(7.0 * u)
-        put_text(draw, (left + px(30), px(8.4)), "SYSTEM", tag_font,
-                 rgba(pal["muted"], 170), tracking=px(0.8))
-        # Title: big, bold, tracked frosty ink.
-        title_font = self.fonts.get(13.0 * u)
-        put_text(draw, (left + px(2), px(20)), spec.title, title_font,
-                 rgba(pal["ink"]), tracking=px(0.4), bold=True)
-        return left, px(30)
+    def _card_face(self, img, spec, pal):
+        """Chrome and copy for one error window, drawn on its glass body."""
+        w, h = img.size
+        u, px = self.u, self.px
+        ahian = spec.is_ahian
+        readout = (not ahian) and spec.accent % 2 == 1
+        accent = pal["accent"]
+        draw = self._d(img)
+        draw.backdrop = ink(GLASS_PANEL)
+        pad = px(15)
+        right = w - px(13)
+        bar_h = px(24)
 
-    def _card_header_b(self, draw, spec, spec_rect, px, u):
-        """Readout header: monospaced diagnostic tag on the left, large code
-        on the right, thin rule under the header row."""
-        pal = self._card_palette(spec)
-        left = px(14)
-        right = px(spec_rect.w) - left
-        # Left tag.
-        tag_font = self.fonts.get(7.2 * u, family=self.fonts.MONO, weight="bold")
-        put_text(draw, (left, px(9)), "DIAGNOSTIC", tag_font,
-                 rgba(pal["chrome"]), tracking=px(1.4))
-        # Right code pill: monospaced, recessed, status-tinted.
-        code_font = self.fonts.get(8.4 * u, family=self.fonts.MONO)
-        code_w = measure(code_font, spec.code, px(0.6)) + px(16)
-        code_x = right - code_w
-        code_y = px(5)
-        draw.rounded_rectangle((code_x, code_y,
-                                code_x + code_w, code_y + px(14)),
-                               radius=px(2.6),
-                               fill=rgba(GLASS_PANEL_RAISED, 200),
-                               outline=rgba(pal["rail"], 120), width=1)
-        put_text(draw, (code_x + px(8), code_y + px(9.6)), spec.code,
-                 code_font, rgba(pal["ink"], 245), tracking=px(0.6),
-                 anchor="ls")
-        # Header rule: frosted line with a short status tick on the left.
-        rule_y = px(20)
-        draw.line((left, rule_y, right, rule_y), fill=rgba(pal["chrome"], 70),
-                  width=max(1, int(u * 0.6)))
-        tick_w = px(1.2)
-        draw.rectangle((left, rule_y - tick_w, left + px(12), rule_y + tick_w),
-                       fill=rgba(pal["rail"], 235))
-        return left, right, code_y + px(14)
+        def mono(size, weight="regular"):
+            return self.fonts.get(size * u, family=self.fonts.MONO,
+                                  weight=weight)
 
-    def _card_header_c(self, draw, spec, spec_rect, px, u):
-        """Minimal HUD header: huge monospaced code on the left, one status dot,
-        small tracked label on the right."""
-        pal = self._card_palette(spec)
-        left = px(14)
-        right = px(spec_rect.w) - left
-        # Large code, left aligned, monospaced bold.
-        code_font = self.fonts.get(15.0 * u, family=self.fonts.MONO,
-                                    weight="bold")
-        put_text(draw, (left, px(18)), spec.code, code_font,
-                 rgba(pal["rail"]), tracking=px(0.5))
-        # Right: small tracked label.
-        lab_font = self.fonts.get(7.6 * u)
-        lab = spec.title.upper()
-        put_text(draw, (right, px(11)), lab, lab_font, rgba(pal["muted"]),
-                 tracking=px(1.6), anchor="ra")
-        # Status dot: pulsing amber dot in the right margin.
-        dot_r = px(2.4)
-        dot_x = right - px(18)
-        dot_y = px(22)
-        draw.ellipse((dot_x - dot_r, dot_y - dot_r, dot_x + dot_r, dot_y + dot_r),
-                     fill=rgba(pal["rail"], 245))
-        # Thin header rule.
-        rule_y = px(30)
-        draw.line((left, rule_y, right, rule_y), fill=rgba(pal["chrome"], 60),
-                  width=max(1, int(u * 0.5)))
-        return left, px(38)
+        def sans(size, weight="regular"):
+            return self.fonts.get(size * u, family=self.fonts.SANS,
+                                  weight=weight)
 
-    def _card_header_d(self, draw, spec, spec_rect, px, u):
-        """AH1AN intent card: the takeover itself speaking. A frosted wordmark
-        tag, a calm headline, a subtle teal-blue glow rather than a loud accent."""
-        pal = self._card_palette(spec)
-        left = px(16)
-        # Wordmark-style subsystem tag.
-        tag_font = self.fonts.get(7.4 * u, family=self.fonts.MONO, weight="bold")
-        put_text(draw, (left, px(9.5)), "AHIAN INIT", tag_font,
-                 rgba(BLUE_COLD, 225), tracking=px(1.2))
-        # Headline: calm, not alarmed.
-        title_font = self.fonts.get(12.6 * u)
-        put_text(draw, (left + px(2), px(22)), spec.title, title_font,
-                 rgba(pal["ink"]), tracking=px(0.3), bold=True)
-        # Subtle glow bar under the headline.
-        glow_y = px(38)
-        draw.rectangle((left, glow_y, px(spec_rect.w) - left, glow_y + px(1.0)),
-                       fill=rgba(BLUE_COLD, 120))
-        return left, px(52)
+        # ---- title bar (dialogs) or a diagnostic header (readouts)
+        if readout:
+            tag_font = mono(7.0, "bold")
+            put_text(draw, (pad, px(14)), "DIAGNOSTIC READOUT", tag_font,
+                     rgba(mix_colour(accent, FROST, 0.25), 230),
+                     tracking=px(1.4))
+            put_text(draw, (right, px(14)), spec.code, mono(8.0, "bold"),
+                     rgba(accent, 245), tracking=px(0.6), anchor="right")
+            draw.line((pad, px(20), right, px(20)), fill=rgba(FROST, 26),
+                      width=max(1, int(px(0.6))))
+            title_y = px(38)
+            body_y = px(54)
+        else:
+            bar_fill = ((0.130, 0.110, 0.080) if ahian
+                        else (0.100, 0.112, 0.146))
+            draw.rectangle((0, 0, w, bar_h), fill=ink(bar_fill))
+            draw.line((0, bar_h, w, bar_h), fill=rgba((0, 0, 0), 120),
+                      width=max(1, int(px(0.7))))
+            draw.line((0, bar_h + 1, w, bar_h + 1), fill=rgba(FROST, 14),
+                      width=1)
+            # Status lozenge: the same mark on every SMTH window.
+            glyph = px(3.2)
+            gx, gy = pad + glyph, bar_h / 2
+            draw.polygon([(gx, gy - glyph), (gx + glyph, gy),
+                          (gx, gy + glyph), (gx - glyph, gy)],
+                         fill=rgba(accent, 245))
+            label_font = mono(6.9, "bold")
+            name = "AH1AN" if ahian else "SMTH OS"
+            put_text(draw, (pad + px(11), bar_h / 2 + px(2.5)), name,
+                     label_font, rgba(FROST, 245), tracking=px(1.2))
+            tag_x = (pad + px(11) + measure(label_font, name, px(1.2))
+                     + px(9))
+            put_text(draw, (tag_x, bar_h / 2 + px(2.5)), "SYSTEM",
+                     label_font, rgba(GHOST_INK, 215), tracking=px(1.2))
+            cy = bar_h / 2
+            if ahian:
+                put_text(draw, (right, cy + px(2.5)), "0xA11A",
+                         mono(8.0, "bold"), rgba(accent, 240),
+                         tracking=px(0.8), anchor="right")
+            else:
+                # Window controls: minimise, maximise, close.
+                draw.line((right - px(38), cy, right - px(32), cy),
+                          fill=rgba(CHROME, 195), width=1)
+                draw.rectangle((right - px(23), cy - px(2.4),
+                                right - px(18), cy + px(2.4)),
+                               outline=rgba(CHROME, 195), width=1)
+                draw.line((right - px(10), cy - px(2.6),
+                           right - px(5), cy + px(2.6)),
+                          fill=rgba(CHROME, 215), width=1)
+                draw.line((right - px(10), cy + px(2.6),
+                           right - px(5), cy - px(2.6)),
+                          fill=rgba(CHROME, 215), width=1)
+            title_y = bar_h + px(23)
+            body_y = bar_h + px(39) + (px(2) if ahian else 0)
 
-    def _card_body_lines(self, draw, spec, left, width, top, u, body_font):
-        """Body copy: frosted ink, up to three lines, right-edge code pill
-        reserved by the caller."""
-        pal = self._card_palette(spec)
-        lines = wrap(body_font, spec.body, 0, width)[:3]
-        y = top
-        line_h = u * 13.0
-        for line in lines:
-            put_text(draw, (left, y), line, body_font, rgba(pal["ink"]), tracking=u * 0.2)
-            y += line_h
-        return y
+        # ---- title: the loudest voice on the window
+        title = spec.title
+        size = 13.2
+        while size > 9.0:
+            candidate = sans(size, "bold")
+            if measure(candidate, title, px(0.5)) <= right - pad:
+                break
+            size -= 0.4
+        put_text(draw, (pad, title_y), title, sans(size, "bold"),
+                 rgba(FROST, 255), tracking=px(0.5), bold=True)
 
-    def _card_footer(self, draw, spec, spec_rect, px, u, footer_y):
-        """A single calm footer line: state + code."""
-        pal = self._card_palette(spec)
-        left = px(14)
-        right = px(spec_rect.w) - left
-        state_font = self.fonts.get(7.4 * u, family=self.fonts.MONO)
-        put_text(draw, (left, footer_y), "STATE: NO RESPONSE", state_font,
-                 rgba(pal["muted"], 175), tracking=px(0.9))
-        code_font = self.fonts.get(8.2 * u, family=self.fonts.MONO,
-                                    weight="bold")
-        code_w = measure(code_font, spec.code, px(0.7)) + px(12)
-        put_text(draw, (right, footer_y), spec.code, code_font,
-                 rgba(pal["rail"], 235), tracking=px(0.7), anchor="ra")
-        # Thin footer rule.
-        draw.line((left, footer_y + px(7.5), right, footer_y + px(7.5)),
-                  fill=rgba(pal["chrome"], 55), width=max(1, int(u * 0.5)))
+        # ---- body: at most two quiet lines
+        body_font = sans(9.5)
+        body_y = body_y
+        for line in wrap(body_font, spec.body, 0.0, right - pad - px(2))[:2]:
+            put_text(draw, (pad, body_y), line, body_font,
+                     rgba(pal["muted"], 245), tracking=px(0.15))
+            body_y += px(13.6)
+
+        # ---- AH1AN progress rail
+        footer_y = h - px(11)
+        if ahian:
+            track_y = footer_y - px(15)
+            draw.line((pad, track_y, right, track_y), fill=rgba(FROST, 26),
+                      width=max(1, int(px(1.5))))
+            lit = pad + (right - pad) * 0.62
+            draw.line((pad, track_y, lit, track_y), fill=rgba(accent, 240),
+                      width=max(1, int(px(1.7))))
+
+        # ---- footer: state on the left, stop code on the right
+        draw.line((pad, footer_y - px(8), right, footer_y - px(8)),
+                  fill=rgba(FROST, 22), width=max(1, int(px(0.6))))
+        state = ("AESTHETIC SUBSYSTEM" if ahian
+                 else ("RETRYING" if spec.accent % 2
+                       else "NO RESPONSE"))
+        put_text(draw, (pad, footer_y), state, mono(6.9),
+                 rgba(GHOST_INK, 240), tracking=px(1.2))
+        put_text(draw, (right, footer_y), spec.code, mono(8.0, "bold"),
+                 rgba(accent, 245), tracking=px(0.7), anchor="right")
 
     def _card_sprite(self, spec):
         self._bg = ink(GLASS_PANEL)
@@ -1283,74 +1254,47 @@ class SceneRenderer:
         if sprite is not None:
             return sprite
         w, h = self.scene.card_size(spec)
-        w, h = int(round(w)), int(round(h))
-        u = self.u
-        px = self.px
-        rect = Rect(0, 0, w, h)
-        spec_rect = self.scene.card_rect(spec)
-        panel = self._glass_panel(
-            rect,
-            status=self._card_palette(spec)["status"],
-            progress=1.0,
-            raised=True,
-            glow=spec.is_ahian,
-            active=False,
-            shine=True,
-        )
-        if isinstance(panel, tuple):
-            panel, shadow, shadow_xy = panel
-        else:
-            panel = panel.convert("RGBA")
-            shadow = Image.new("RGBA", (w + int(u * 50), h + int(u * 58)), (0, 0, 0, 0))
-            ImageDraw.Draw(shadow).rounded_rectangle(
-                (int(u * 4), int(u * 7),
-                 w + int(u * 4), h + int(u * 7)),
-                radius=max(1, int(u * 4)),
-                fill=(0, 0, 0, 138))
-            shadow = shadow.filter(ImageFilter.GaussianBlur(u * 9))
-            shadow_xy = (int(u * 6), int(u * 9))
-        draw = self._d(panel)
+        w, h = max(2, int(round(w))), max(2, int(round(h)))
+        u, px = self.u, self.px
         pal = self._card_palette(spec)
-        accent = pal["rail"]
-        # Choose the header layout by accent family, so the 22 windows are
-        # visibly different but the assignment stays deterministic.
-        index = spec.accent % 6
-        if index in (0, 2, 5):
-            header = self._card_header_a(draw, spec, spec_rect, px, u)
-            left = header[0]
-            body_top = header[1] + px(15)
-        elif index in (1, 4):
-            header = self._card_header_b(draw, spec, spec_rect, px, u)
-            left = header[0]
-            body_top = header[2] + px(14)
-        elif index == 3:
-            header = self._card_header_c(draw, spec, spec_rect, px, u)
-            left = header[0]
-            body_top = header[1] + px(14)
-        else:
-            header = self._card_header_d(draw, spec, spec_rect, px, u)
-            left = header[0]
-            body_top = header[1] + px(16)
-        body_font = self.fonts.get(9.6 * u)
-        inner_right = px(rect.w) - left - px(20)
-        body_bottom = self._card_body_lines(draw, spec, left, inner_right,
-                                             body_top, u, body_font)
-        # A thin divider before the footer.
-        draw.line((left, body_bottom + px(4), px(rect.w) - left - px(20),
-                   body_bottom + px(4)),
-                  fill=rgba(pal["chrome"], 55), width=max(1, int(u * 0.5)))
-        footer_y = body_bottom + px(12)
-        self._card_footer(draw, spec, spec_rect, px, u, footer_y)
-        # Glass flash stripe across the top on entrance.
-        flash = rgba(BLUE_COLD if spec.is_ahian else AMBER, 60)
-        draw.rectangle((0, 0, px(rect.w), px(1.6)), fill=flash)
-        # Convert panel to RGBA sprite with a soft rounded mask.
-        sprite = panel.convert("RGBA")
+        ahian = spec.is_ahian
+        # A glass sheet: deep, cool, lit from above.
+        top = (0.088, 0.098, 0.128) if not ahian else (0.106, 0.096, 0.076)
+        bottom = (0.030, 0.035, 0.048) if not ahian else (0.041, 0.036, 0.029)
+        img = Image.new("RGB", (w, h))
+        body_draw = ImageDraw.Draw(img)
+        for y in range(h):
+            t = (y / max(1, h - 1)) ** 0.9
+            body_draw.line((0, y, w - 1, y),
+                           fill=ink(mix_colour(top, bottom, t)))
+        # Status rail down the left edge: the one saturated surface.
+        rail_w = max(2, int(px(2.6)))
+        body_draw.rectangle(
+            (0, 0, rail_w, h),
+            fill=ink(mix_colour(pal["accent"], top, 0.12)))
+        self._card_face(img, spec, pal)
+
+        # Round the sheet, then cut a frost hairline along its edge.
+        sprite = img.convert("RGBA")
+        radius = max(2, int(px(9)))
         mask = Image.new("L", (w, h), 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1),
-                                               radius=max(1, int(u * 9)),
-                                               fill=255)
+        ImageDraw.Draw(mask).rounded_rectangle(
+            (0, 0, w - 1, h - 1), radius=radius, fill=255)
         sprite.putalpha(mask)
+        edge = draw_on(sprite)
+        edge.rounded_rectangle((0, 0, w - 1, h - 1), radius=radius,
+                               outline=rgba(FROST, 42), width=1)
+        edge.line((rail_w + 1, 1, rail_w + 1, h - 2),
+                  fill=rgba(FROST, 12), width=1)
+
+        # A soft shadow makes each window sit above the buried desktop.
+        shadow = Image.new("RGBA", (w + int(px(30)), h + int(px(34))),
+                           (0, 0, 0, 0))
+        ImageDraw.Draw(shadow).rounded_rectangle(
+            (int(px(8)), int(px(11)), w + int(px(8)), h + int(px(11))),
+            radius=max(2, int(px(10))), fill=(0, 0, 0, 150))
+        shadow = shadow.filter(ImageFilter.GaussianBlur(px(9)))
+
         self._shadows[spec.key] = shadow
         self._cards[spec.key] = sprite
         self._base_alpha[spec.key] = sprite.getchannel("A")
@@ -1366,12 +1310,12 @@ class SceneRenderer:
             return self._settled
         layer = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
         for card in cards:
-            rect = card.rect
-            shadow = self._card_shadow(card.spec)
-            layer.alpha_composite(shadow, (int(rect.x - self.px(6)),
-                                           int(rect.y - self.px(9))))
-            layer.alpha_composite(self._card_sprite(card.spec),
-                                  (int(rect.x), int(rect.y)))
+            sprite, shadow = self._card_sprite_rgba(card.spec)
+            sw = shadow.width - sprite.width
+            sh = shadow.height - sprite.height
+            layer.alpha_composite(shadow, (int(card.rect.x - sw / 2),
+                                           int(card.rect.y - sh / 2)))
+            layer.alpha_composite(sprite, (int(card.rect.x), int(card.rect.y)))
         self._settled = layer
         self._settled_key = key
         return layer
@@ -1435,7 +1379,7 @@ class SceneRenderer:
             draw.rounded_rectangle(
                 (rect.x, rect.y, rect.right, rect.bottom),
                 radius=max(1, int(self.px(9))),
-                outline=rgba(pal["rail"], int(170 * card.flash)),
+                outline=rgba(pal["accent"], int(170 * card.flash)),
                 width=max(1, int(self.px(1.3))))
             flash_h = max(1, int(rect.h * 0.10))
             draw.rectangle((rect.x + self.px(1), rect.y + self.px(1),
@@ -1448,11 +1392,12 @@ class SceneRenderer:
         img = self._dimmed(index).copy()
         settled = [c for c in frame.cards if c.progress >= 0.999]
         if settled:
-            img = self._settled_layer(settled)
-            img = img.convert("RGB")
-            base = self._d(img)
-        else:
-            base = self._d(img)
+            # Composite the settled windows *over* the dimmed desktop.  Turning
+            # the transparent settled layer into RGB used to replace the whole
+            # backdrop with black the moment the first window landed.
+            img = Image.alpha_composite(
+                img.convert("RGBA"), self._settled_layer(settled)).convert("RGB")
+        base = self._d(img)
         for card in frame.cards:
             if card.progress < 0.999:
                 self._paste_card(img, card)
@@ -1490,155 +1435,187 @@ class SceneRenderer:
         self._blue_bg = base
         return base
 
-    def _blue_console_panel(self, frame, blue):
-        """A frosted glass console panel floating in front of the blue field,
-        holding the countdown and status readout."""
-        w, h, u = self.w, self.h, self.u
-        pad = self.scene.blue_layout()["pad"]
-        panel_w = min(w - 2 * pad, 0.62 * w)
-        panel_x = (w - panel_w) / 2
-        panel_y = h * 0.30
-        panel_h = h * 0.58
-        panel = self._glass_panel(
-            Rect(panel_x, panel_y, panel_w, panel_h),
-            status="blue",
-            progress=1.0,
-            raised=True,
-            glow=True,
-            active=True,
-            shine=True,
-        )
-        if isinstance(panel, tuple):
-            panel, shadow, shadow_xy = panel
-            base = self._blue_background().copy()
-            self._paste(base, shadow, shadow_xy)
-            panel_rgba = panel.convert("RGBA")
-            base.paste(panel_rgba, (int(panel_x), int(panel_y)), panel_rgba)
-            return base, panel_x, panel_y, panel_w, panel_h
-        panel_rgba = panel.convert("RGBA")
-        img = self._blue_background().copy()
-        img.paste(panel_rgba, (int(panel_x), int(panel_y)), panel_rgba)
-        return img, panel_x, panel_y, panel_w, panel_h
+    def _blue_grid_layer(self):
+        """Dot field and orbit lines for the AH1AN screen, built once."""
+        if self._blue_grid is not None:
+            return self._blue_grid
+        layer = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        step = max(18, int(self.px(28)))
+        radius = max(0.6, self.px(0.7))
+        for y in range(step, self.h, step):
+            for x in range(step, self.w, step):
+                draw.ellipse((x - radius, y - radius,
+                              x + radius, y + radius),
+                             fill=rgba(BLUE_GLOW, 16))
+        # Two very faint orbits: the field has a centre without a panel.
+        cx, cy = self.w * 0.86, self.h * 0.34
+        for scale, alpha in ((0.62, 20), (0.40, 13)):
+            reach = self.h * scale
+            draw.ellipse((cx - reach, cy - reach, cx + reach, cy + reach),
+                         outline=rgba(BLUE_GLOW, alpha),
+                         width=max(1, int(self.px(1.0))))
+        self._blue_grid = layer
+        return layer
 
     def _blue_screen(self, frame):
-        self._bg = (12, 22, 38)
+        """The AH1AN system screen: a full-bleed crash field, no floating panel.
+
+        Everything is anchored to one content column so the headline, the
+        countdown and the stop code read as a single composed screen.
+        """
+        self._bg = (11, 21, 36)
         blue = frame.blue
         w, h, u = self.w, self.h, self.u
-        img, panel_x, panel_y, panel_w, panel_h = self._blue_console_panel(
-            frame, blue)
+        portrait = self.scene.portrait
+        img = Image.alpha_composite(
+            self._blue_background().convert("RGBA"),
+            self._blue_grid_layer()).convert("RGB")
         draw = self._d(img)
-        inner_pad = self.px(22)
-        x = panel_x + inner_pad
-        right = panel_x + panel_w - inner_pad
 
-        # ---- header: dot-matrix SMTH tag + calm machine markers
-        self._dot_matrix(draw, "SMTH", x, panel_y + self.px(20),
-                         max(1.3, self.px(1.6)), rgba(FROST, 235))
-        head_font = self.fonts.get(10.4 * u, family=self.fonts.SANS,
+        pad = max(self.px(34), 0.072 * w)
+        left, right = pad, w - pad
+        if right - left > self.px(1160):
+            left = (w - self.px(1160)) / 2
+            right = left + self.px(1160)
+
+        # ---- brand row
+        top = h * (0.075 if not portrait else 0.055)
+        self._dot_matrix(draw, "SMTH", left, top, self.px(2.0),
+                         rgba(BLUE_INK_C, 245))
+        brand_font = self.fonts.get(10.4 * u, family=self.fonts.SANS,
                                     weight="bold")
-        put_text(draw, (x + self.px(78), panel_y + self.px(14)), "SMTH OS", head_font,
-                 rgba(FROST, 248), tracking=self.px(1.1))
-        meta_font = self.fonts.get(8.0 * u, family=self.fonts.MONO)
-        put_text(draw, (x + self.px(78), panel_y + self.px(29)),
-                 "SESSION 03  ·  KERNEL EVENT", meta_font,
-                 rgba(BLUE_DIM_C, 180), tracking=self.px(1.3))
-        put_text(draw, (right, panel_y + self.px(14)), "AH1AN", meta_font,
-                 rgba(BLUE_COLD, 225), tracking=self.px(2.1), anchor="ra")
-        put_text(draw, (right, panel_y + self.px(29)),
+        put_text(draw, (left + self.px(84), top - self.px(2)), "SMTH OS",
+                 brand_font, rgba(BLUE_INK_C, 250),
+                 tracking=self.px(0.8), bold=True)
+        meta_font = self.fonts.get(7.4 * u, family=self.fonts.MONO)
+        put_text(draw, (left + self.px(84), top + self.px(13)),
+                 "KERNEL EVENT  ·  SESSION 03", meta_font,
+                 rgba(BLUE_DIM_C, 200), tracking=self.px(1.3))
+        put_text(draw, (right, top - self.px(2)), "AH1AN",
+                 self.fonts.get(9.0 * u, family=self.fonts.MONO,
+                                weight="bold"),
+                 rgba(BLUE_GLOW, 245), tracking=self.px(3.0),
+                 anchor="right")
+        put_text(draw, (right, top + self.px(13)),
                  "AESTHETIC SUBSYSTEM ONLINE", meta_font,
-                 rgba(BLUE_DIM_C, 155), tracking=self.px(1.1), anchor="ra")
-        # Header rule: frosted line under the header band.
-        rule_y = panel_y + self.px(44)
-        draw.line((x, rule_y, right, rule_y), fill=rgba(BLUE_RULE_C, 160),
-                  width=max(1, int(u * 0.7)))
+                 rgba(BLUE_DIM_C, 175), tracking=self.px(1.1),
+                 anchor="right")
 
-        # ---- headline: sans display voice, calm and large
-        size = self.scene.blue_layout()["headline_size"] * 1.05
-        head = self.fonts.get(size, family=self.fonts.SANS, weight="bold")
-        tracking = self.px(0.8)
-        max_w = right - x
-        lines = wrap(head, blue.head, tracking, max_w)[:2]
-        if len(lines) > 1 and measure(head, lines[0], tracking) < measure(
-                head, lines[1], tracking) * 0.55:
-            lines = (wrap(head, blue.head, tracking, max_w * 1.25) or lines)[:2]
-        y = panel_y + self.px(74)
-        for line in lines:
-            put_text(draw, (x, y), line, head, rgba(FROST, 255),
-                     tracking=tracking, bold=True)
-            y += size * 1.14
-        sub = self.fonts.get(self.scene.blue_layout()["subline_size"] * 1.08,
-                              family=self.fonts.SANS)
-        put_text(draw, (x, y + size * 0.18), blue.sub, sub,
-                 rgba(BLUE_DIM_C, 235), tracking=self.px(0.3))
-        # Soft accent rule beneath the subline.
-        rule_y = y + size * 0.62
-        rule_w = min(panel_w - 2 * inner_pad, 0.42 * panel_w)
-        draw.line((x, rule_y, x + rule_w, rule_y), fill=rgba(BLUE_RULE_C, 210),
-                  width=max(1, int(u * 1.0)))
-        draw.line((x, rule_y, x + self.px(60), rule_y), fill=rgba(BLUE_COLD, 235),
-                  width=max(2, int(u * 1.6)))
+        # ---- headline: two deliberate lines, never a reflowed paragraph
+        size = min(0.092 * h, 0.072 * w)
+        words = blue.head.split()
+        lines = ([" ".join(words[:2]), " ".join(words[2:])]
+                 if len(words) > 2 else [blue.head])
+        while size > 0.040 * h:
+            head_font = self.fonts.get(size, family=self.fonts.SANS,
+                                       weight="bold")
+            if max(measure(head_font, line, self.px(0.4))
+                   for line in lines) <= right - left:
+                break
+            size *= 0.94
+        head_font = self.fonts.get(size, family=self.fonts.SANS, weight="bold")
+        head_y = h * (0.300 if not portrait else 0.245)
+        for index, line in enumerate(lines):
+            put_text(draw, (left, head_y + index * size * 1.04), line,
+                     head_font, rgba(BLUE_INK_C, 255),
+                     tracking=self.px(0.4), bold=True)
+        sub_size = max(self.px(13), size * 0.28)
+        sub_font = self.fonts.get(sub_size, family=self.fonts.SANS)
+        sub_y = head_y + len(lines) * size * 1.04 + sub_size * 0.55
+        put_text(draw, (left, sub_y), blue.sub, sub_font,
+                 rgba(BLUE_DIM_C, 240), tracking=self.px(0.15))
 
-        # ---- countdown: glass-sweep ring + mono digits + progress rail
-        cy = panel_y + self.px(190)
-        radius = self.px(42)
-        cx = x + radius
-        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius),
-                     outline=rgba(BLUE_RULE_C, 225), width=max(1, int(u * 1.3)))
-        sweep = 360.0 * (1.0 - blue.progress)
+        # ---- countdown: the hero of act two.  A large ring sits opposite the
+        # headline in landscape, and below it in portrait, so neither half of
+        # the screen is empty.
+        progress = blue.progress
+        if portrait:
+            ring_cx = (left + right) / 2
+            ring_cy = h * 0.560
+            radius = min(0.105 * h, 0.200 * (right - left))
+        else:
+            ring_cx = left + (right - left) * 0.700
+            ring_cy = h * 0.610
+            radius = min(0.120 * h, 0.110 * (right - left))
+        draw.ellipse((ring_cx - radius, ring_cy - radius,
+                      ring_cx + radius, ring_cy + radius),
+                     outline=rgba(BLUE_RULE_C, 235),
+                     width=max(2, int(self.px(1.6))))
+        sweep = 360.0 * (1.0 - progress)
         if sweep > 0.5:
-            draw.arc((cx - radius, cy - radius, cx + radius, cy + radius),
-                     270, 270 + sweep, fill=rgba(BLUE_COLD, 250),
-                     width=max(2, int(u * 2.4)))
-        number_font = self.fonts.get(self.px(38) * (1.0 + 0.06 * blue.tick),
-                                      family=self.fonts.MONO, weight="bold")
-        put_text(draw, (cx, cy + self.px(16)), str(blue.countdown), number_font,
-                 rgba(FROST, 255), bold=True, anchor="da")
-        label_font = self.fonts.get(8.4 * u, family=self.fonts.MONO)
-        text_x = cx + radius + self.px(26)
-        put_text(draw, (text_x, cy - self.px(22)), "RECONFIGURING DESKTOP",
-                 label_font, rgba(BLUE_DIM_C, 215), tracking=self.px(2.2))
-        put_text(draw, (text_x, cy - self.px(6)),
-                 "AHIAN is rebuilding your reality",
-                 self.fonts.get(11.0 * u, family=self.fonts.SANS),
-                 rgba(FROST, 235), tracking=self.px(0.3))
-        bar = (text_x, cy + self.px(10),
-               text_x + min(right - text_x, self.px(300)), cy + self.px(13.4))
-        draw.rounded_rectangle(bar, radius=self.px(2),
-                               fill=rgba((0.20, 0.28, 0.38), 255))
-        fill_to = bar[0] + (bar[2] - bar[0]) * blue.progress
-        if fill_to > bar[0] + 1:
-            draw.rounded_rectangle((bar[0], bar[1], fill_to, bar[3]),
+            draw.arc((ring_cx - radius, ring_cy - radius,
+                      ring_cx + radius, ring_cy + radius),
+                     270, 270 + sweep, fill=rgba(BLUE_GLOW, 250),
+                     width=max(2, int(self.px(3.2))))
+        caption_font = self.fonts.get(7.6 * u, family=self.fonts.MONO)
+        put_text(draw, (ring_cx, ring_cy - radius - self.px(20)), "COUNTDOWN",
+                 caption_font, rgba(BLUE_GLOW, 225),
+                 tracking=self.px(3.2), anchor="center")
+        number_size = radius * 1.18
+        number_font = self.fonts.get(number_size * (1.0 + 0.05 * blue.tick),
+                                     family=self.fonts.MONO, weight="bold")
+        put_text(draw, (ring_cx, ring_cy + number_size * 0.34),
+                 str(blue.countdown), number_font, rgba(BLUE_INK_C, 255),
+                 bold=True, anchor="center")
+        put_text(draw, (ring_cx, ring_cy + radius + self.px(26)),
+                 "AHIAN IS REBUILDING YOUR REALITY", caption_font,
+                 rgba(BLUE_DIM_C, 215), tracking=self.px(1.8),
+                 anchor="center")
+        bar_w = radius * 2.10
+        bar_y = ring_cy + radius + self.px(38)
+        bar_h = max(2, int(self.px(3.0)))
+        draw.rounded_rectangle((ring_cx - bar_w / 2, bar_y,
+                                ring_cx + bar_w / 2, bar_y + bar_h),
+                               radius=self.px(2),
+                               fill=rgba((0.16, 0.24, 0.36), 255))
+        fill_to = ring_cx - bar_w / 2 + bar_w * progress
+        if fill_to > ring_cx - bar_w / 2 + 1:
+            draw.rounded_rectangle((ring_cx - bar_w / 2, bar_y,
+                                    fill_to, bar_y + bar_h),
                                    radius=self.px(2),
-                                   fill=rgba(BLUE_COLD, 245))
-        for i in range(M.COUNTDOWN_FROM):
-            xseg = bar[0] + i * self.px(13)
-            on = blue.progress >= (i + 1) / float(M.COUNTDOWN_FROM)
-            draw.rectangle((xseg, cy + self.px(22), xseg + self.px(8), cy + self.px(26)),
-                           fill=rgba(BLUE_COLD if on else (0.25, 0.34, 0.50),
-                                     235 if on else 150))
-        put_text(draw, (bar[2] + self.px(14), cy + self.px(15)),
-                 f"{int(round(blue.progress * 100)):d}%",
+                                   fill=rgba(BLUE_GLOW, 250))
+        put_text(draw, (ring_cx + bar_w / 2 + self.px(12),
+                        bar_y + self.px(3.2)),
+                 f"{int(round(progress * 100)):d}%",
                  self.fonts.get(7.8 * u, family=self.fonts.MONO),
-                 rgba(BLUE_DIM_C, 215), tracking=self.px(0.7))
+                 rgba(BLUE_DIM_C, 225), tracking=self.px(0.8))
 
-        # ---- footer: calm machine status
-        meta_y = panel_y + panel_h - self.px(30)
-        put_text(draw, (x, meta_y), "STOP CODE: AH1AN_ASCENSION", label_font,
-                 rgba(BLUE_DIM_C, 215), tracking=self.px(1.5))
-        put_text(draw, (x, meta_y + self.px(16)), "0x0000AH1A  ·  MODE: AHIAN",
-                 self.fonts.get(8.0 * u, family=self.fonts.MONO),
-                 rgba(BLUE_DIM_C, 155), tracking=self.px(1.3))
-        pulse = 0.55 + 0.45 * math.sin(frame.t_ms / 260.0)
-        dot_r = self.px(3.2)
-        dx = right - self.px(4)
-        draw.ellipse((dx - dot_r, meta_y - dot_r * 2.6, dx + dot_r,
-                      meta_y - dot_r * 0.6),
-                     fill=rgba(BLUE_COLD, int(120 + 120 * pulse)))
-        put_text(draw, (dx - self.px(12), meta_y), "DO NOT POWER OFF", label_font,
-                 rgba(BLUE_DIM_C, 180), tracking=self.px(1.5), anchor="ra")
-        put_text(draw, (right, meta_y + self.px(16)), "AHIAN / 9.0 SEC",
-                 self.fonts.get(8.0 * u, family=self.fonts.MONO),
-                 rgba(BLUE_DIM_C, 145), tracking=self.px(1.3), anchor="ra")
+        # ---- footer: nine segments, then the stop code
+        rule_y = h * (0.845 if not portrait else 0.800)
+        draw.line((left, rule_y, right, rule_y),
+                  fill=rgba(BLUE_RULE_C, 200), width=1)
+        gap = self.px(6)
+        seg_w = (right - left - gap * 8) / 9.0
+        for i in range(9):
+            x = left + i * (seg_w + gap)
+            on = progress >= (i + 1) / 9.0 - 0.001
+            draw.rectangle((x, rule_y + self.px(8),
+                            x + seg_w, rule_y + self.px(11.4)),
+                           fill=rgba(BLUE_GLOW if on
+                                     else mix_colour(BLUE_RULE_C, BLUE_GLOW, 0.18),
+                                     245 if on else 210))
+        meta_y = rule_y + self.px(33)
+        put_text(draw, (left, meta_y), "STOP CODE: AH1AN_ASCENSION",
+                 meta_font, rgba(BLUE_DIM_C, 220),
+                 tracking=self.px(1.5))
+        put_text(draw, (left, meta_y + self.px(15)),
+                 "0x0000A11A  ·  MODE: AHIAN",
+                 self.fonts.get(7.6 * u, family=self.fonts.MONO),
+                 rgba(BLUE_DIM_C, 165), tracking=self.px(1.2))
+        pulse = 0.55 + 0.45 * math.sin(frame.t_ms / 280.0)
+        dot_r = self.px(2.6)
+        dot_x = right - self.px(5)
+        draw.ellipse((dot_x - dot_r, meta_y - dot_r * 1.6,
+                      dot_x + dot_r, meta_y - dot_r * 1.6 + dot_r * 2),
+                     fill=rgba(AMBER_HOT, int(90 + 140 * pulse)))
+        put_text(draw, (right - self.px(16), meta_y), "DO NOT POWER OFF",
+                 meta_font, rgba(BLUE_DIM_C, 210),
+                 tracking=self.px(1.5), anchor="right")
+        put_text(draw, (right, meta_y + self.px(15)), "AHIAN / 9.0 SEC",
+                 self.fonts.get(7.6 * u, family=self.fonts.MONO),
+                 rgba(BLUE_DIM_C, 150), tracking=self.px(1.2),
+                 anchor="right")
         return img
 
     # ---- act 3 --------------------------------------------------------------
@@ -1679,12 +1656,12 @@ class SceneRenderer:
         img = small.resize((w, h), Image.BICUBIC)
         # A soft cool glow in the upper-left, and a fainter warm bloom elsewhere.
         img = Image.alpha_composite(img.convert("RGBA"), self._blurred_bloom(
-            (0.12, 0.18), (0.50, 0.60), (0.30, 0.40, 0.60), 70)).convert("RGB")
+            (0.12, 0.18), (0.50, 0.60), (0.30, 0.40, 0.60), 42)).convert("RGB")
         img = Image.alpha_composite(img.convert("RGBA"), self._blurred_bloom(
-            (0.98, 1.02), (0.52, 0.54), (0.22, 0.16, 0.20), 56)).convert("RGB")
+            (0.98, 1.02), (0.52, 0.54), (0.22, 0.16, 0.20), 34)).convert("RGB")
         for i, colour in enumerate(((0.42, 0.50, 0.64), (0.86, 0.60, 0.34))):
             img = Image.alpha_composite(img.convert("RGBA"), self._blurred_bloom(
-                (0.5, 0.34 + 0.26 * i), (0.70, 0.30), colour, 16)).convert("RGB")
+                (0.5, 0.34 + 0.26 * i), (0.70, 0.30), colour, 10)).convert("RGB")
         draw = self._d(img)
         # Very quiet cold grain, so the field feels physical.
         step = max(20, int(self.px(34)))
@@ -1706,7 +1683,8 @@ class SceneRenderer:
         wave = math.sin(angle + phase * math.tau) * 0.075
         wave += math.sin((u * 1.7 - v * 1.1) * math.tau - phase * math.tau * 2) * 0.035
         band = 0.5 + 0.5 * math.sin((u * 0.8 - v * 0.55) * math.tau - phase * math.tau)
-        base = mix_colour(GLASS_VOID_DEEP, GLASS_PANEL_RAISED,
+        base = mix_colour(GLASS_VOID,
+                          mix_colour(GLASS_PANEL, GLASS_PANEL_RAISED, 0.55),
                           ease_in_out(clamp01(u * 0.58 + v * 0.42 + wave)))
         cool = mix_colour((0.30, 0.40, 0.60), (0.42, 0.50, 0.64),
                            clamp01(u * 0.7 + v * 0.3))
@@ -1801,7 +1779,7 @@ class SceneRenderer:
                      tracking=self.px(3.0), anchor="center")
 
     def _transform_frame(self, frame):
-        self._bg = (34, 26, 64)
+        self._bg = (18, 22, 30)
         tr = frame.transform
         img = self._wallpaper(tr.phase).copy()
         hole = M.ease(clamp01((frame.t_ms - 21200.0) / 1150.0))
@@ -1906,7 +1884,7 @@ class SceneRenderer:
                               min(0.17, 0.045 + 0.055 * glitch.noise))
         if glitch.flash > 0.01 or extra_flash > 0.001:
             img = Image.blend(img, Image.new("RGB", img.size, (220, 230, 245)),
-                              min(0.82, glitch.flash + extra_flash))
+                              min(0.32, 0.42 * (glitch.flash + extra_flash)))
         if glitch.scan_y >= 0:
             draw = self._d(img)
             y = glitch.scan_y * self.h

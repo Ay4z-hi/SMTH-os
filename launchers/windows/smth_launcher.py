@@ -1245,7 +1245,7 @@ class AhianConstructionIntro:
     Act 1 (0-10 s)   custom error windows bury the desktop
     Act 2 (10-19 s)  a full-screen AH1AN system screen counts down from nine
     Act 3 (19-25.8 s) the screen collapses to a line, the line opens into the
-                     flowing purple-teal wallpaper, the dot-matrix SMTH mark
+                     flowing cold-glass wallpaper, the dot-matrix SMTH mark
                      assembles, then the panel, icons and widgets arrive
 
     The frames come from ``ahian_scene``, the same renderer the ISO overlay

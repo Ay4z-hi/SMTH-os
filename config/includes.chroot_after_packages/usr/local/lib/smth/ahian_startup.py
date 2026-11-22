@@ -7,7 +7,7 @@ same frames the Windows launcher shows):
     0 - 10 s   the SMTH desktop is buried under custom error windows
     10 - 19 s  a full-screen AH1AN system screen with a 9 second countdown
     19 - 26 s  the blue screen collapses into a line, the line opens into the
-               flowing purple-teal wallpaper, the dot-matrix SMTH mark
+               flowing cold-glass wallpaper, the dot-matrix SMTH mark
                assembles and the panel, icons and widgets arrive in a stagger
 
 The overlay is fully opaque, so it covers the live desktop completely, then

@@ -34,7 +34,7 @@ import kotlin.math.sqrt
  * act 1  0 - 10 s   the SMTH desktop is buried under custom error windows
  * act 2  10 - 19 s  a full-screen AH1AN system screen counts down from nine
  * act 3  19 - 25.8 s the screen collapses to a line, the line opens into the
- *                    flowing purple-teal wallpaper, the dot-matrix SMTH mark
+ *                    flowing cold-glass wallpaper, the dot-matrix SMTH mark
  *                    assembles, then the icons, taskbar and widgets arrive
  * ```
  *
@@ -97,6 +97,19 @@ class AhianConstructionView(context: Context) : View(context) {
         val BLUE_DIM = 0xFFA5C4F2.toInt()
         val BLUE_RULE = 0xFF32518A.toInt()
         val CRIMSON = 0xFF9E3357.toInt()
+        val GLASS_VOID = 0xFF07080B.toInt()
+        val GLASS_VOID_DEEP = 0xFF040507.toInt()
+        val GLASS_PANEL = 0xFF0E1016.toInt()
+        val GLASS_PANEL_RAISED = 0xFF141822.toInt()
+        val FROST = 0xFFE7ECF5.toInt()
+        val MUTED_INK = 0xFF9DA6B2.toInt()
+        val GHOST_INK = 0xFF6E7686.toInt()
+        val AMBER = 0xFFF0A85A.toInt()
+        val AMBER_HOT = 0xFFFFC67A.toInt()
+        val SIGNAL_RED = 0xFFE05A5A.toInt()
+        val BLUE_COLD = 0xFF4FB0E0.toInt()
+        val CHROME = 0xFF9AA6BF.toInt()
+        val BLUE_GLOW = 0xFF77BCDF.toInt()
 
         val ACCENTS = intArrayOf(MAROON, BLUSH, PURPLE, TEAL, PURPLE_SOFT, CRIMSON)
         val CARD_HEADERS = arrayOf(
@@ -496,15 +509,25 @@ class AhianConstructionView(context: Context) : View(context) {
     }
 
     // ---- act 1: error windows -------------------------------------------------
+    private fun cardAccent(e: Err): Int = when (e.accent % 6) {
+        0, 2 -> AMBER_HOT
+        1, 4 -> BLUE_COLD
+        else -> SIGNAL_RED
+    }
+
+    private fun roundedPath(rect: RectF, radius: Float): Path = Path().apply {
+        addRoundRect(rect, radius, radius, Path.Direction.CW)
+    }
+
     private fun cardRect(e: Err): RectF {
-        val lines = if (e.body.length <= 46) 1 else 2
-        var content = (30f + 9f + 6f + 17f + 5f + 13f * lines + 8f + 11f) * u
-        if (e.accent == 2) content += 15f * u
-        val height = (e.hf * h).coerceIn(content, content * 1.45f)
-        val width = max(e.wf * w, 250f * u)
+        // Content-sized windows: title bar, title, two body lines, footer.
+        val width = max(e.wf * w, 292f * u)
+        val height = (100f + 6f * (e.accent % 3) +
+            if (e.code == "0xA11A") 10f else 0f) * u
         val cx = e.cx * w
         val cy = e.cy * h
-        return RectF(cx - width / 2f, cy - height / 2f, cx + width / 2f, cy + height / 2f)
+        return RectF(cx - width / 2f, cy - height / 2f,
+            cx + width / 2f, cy + height / 2f)
     }
 
     private fun drawCards(canvas: Canvas, t: Float) {
@@ -520,51 +543,125 @@ class AhianConstructionView(context: Context) : View(context) {
             val halfW = base.width() / 2f * scale
             val halfH = base.height() / 2f * scale
             val rect = RectF(cx - halfW, cy - halfH, cx + halfW, cy + halfH)
-            val accent = ACCENTS[e.accent % ACCENTS.size]
+            val accent = cardAccent(e)
+            val ahian = e.code == "0xA11A"
+            val readout = !ahian && e.accent % 2 == 1
             val a = progress
 
-            // Shadow, then the panel: a floating sheet, not a system dialog.
-            rounded(canvas, RectF(rect.left, rect.top + 8f * u, rect.right,
-                rect.bottom + 8f * u), 10f * u, withAlpha(Color.BLACK, 0.42f * a))
-            rounded(canvas, rect, 10f * u, withAlpha(PANEL, 0.97f * a))
-            stroke.color = withAlpha(Color.WHITE, 0.09f * a)
-            stroke.strokeWidth = 1f
-            canvas.drawRoundRect(rect, 10f * u, 10f * u, stroke)
-            rounded(canvas, RectF(rect.left, rect.top + 16f * u, rect.left + 3.2f * u,
-                rect.bottom - 16f * u), 1.6f * u, withAlpha(accent, 0.9f * a))
+            // Soft shadow: the window floats above the buried desktop.
+            val shadowRect = RectF(rect.left + 2f * u, rect.top + 7f * u,
+                rect.right + 2f * u, rect.bottom + 7f * u)
+            fill.color = withAlpha(Color.BLACK, 0.45f * a)
+            canvas.drawRoundRect(shadowRect, 10f * u, 10f * u, fill)
 
-            val left = rect.left + 19f * u
-            fill.color = withAlpha(accent, 0.92f * a)
-            canvas.drawRect(left, rect.top + 15f * u, left + 5f * u, rect.top + 20f * u, fill)
-            text(canvas, CARD_HEADERS[e.accent % CARD_HEADERS.size],
-                left + 11f * u, rect.top + 20.5f * u, 7.8f * u,
-                withAlpha(0xC6BED6.toInt(), 0.62f * a), 1.15f * u)
-            val titleColour = if (e.code == "0xA11A") 0xFFE0FFF8.toInt() else 0xFFF7F2FF.toInt()
-            text(canvas, e.title, left, rect.top + 44f * u, 13.4f * u,
-                withAlpha(titleColour, a), 0.55f * u, bold = true)
+            canvas.save()
+            canvas.clipPath(roundedPath(rect, 10f * u))
+            fill.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
+                if (ahian) 0xFF1C1710.toInt() else 0xFF171A23.toInt(),
+                if (ahian) 0xFF0A0906.toInt() else 0xFF08090D.toInt(),
+                Shader.TileMode.CLAMP)
+            canvas.drawRect(rect, fill)
+            fill.shader = null
+            // The one saturated surface: a status rail down the left edge.
+            fill.color = withAlpha(accent, a)
+            canvas.drawRect(rect.left, rect.top, rect.left + 2.6f * u, rect.bottom, fill)
 
-            var bodyY = rect.top + 62f * u
+            val pad = 15f * u
+            val left = rect.left + pad
+            val right = rect.right - 13f * u
+            var titleY: Float
+            var bodyY: Float
+            if (readout) {
+                text(canvas, "DIAGNOSTIC READOUT", left, rect.top + 14f * u, 7f * u,
+                    withAlpha(mix(accent, FROST, 0.25f), 0.9f * a), 1.4f * u)
+                text(canvas, e.code, right, rect.top + 14f * u, 8f * u,
+                    withAlpha(accent, 0.95f * a), 0.6f * u, bold = true, align = 2)
+                line(canvas, left, rect.top + 20f * u, right, rect.top + 20f * u,
+                    withAlpha(FROST, 0.10f * a), 1f)
+                titleY = rect.top + 38f * u
+                bodyY = rect.top + 54f * u
+            } else {
+                val barH = 24f * u
+                fill.color = withAlpha(
+                    if (ahian) 0xFF231D14.toInt() else 0xFF1A1D27.toInt(), a)
+                canvas.drawRect(rect.left, rect.top, rect.right, rect.top + barH, fill)
+                line(canvas, rect.left, rect.top + barH, rect.right, rect.top + barH,
+                    withAlpha(Color.BLACK, 0.5f * a), 1f)
+                val g = 3.2f * u
+                val gx = left + g
+                val gy = rect.top + barH / 2f
+                val lozenge = Path().apply {
+                    moveTo(gx, gy - g)
+                    lineTo(gx + g, gy)
+                    lineTo(gx, gy + g)
+                    lineTo(gx - g, gy)
+                    close()
+                }
+                fill.color = withAlpha(accent, 0.96f * a)
+                canvas.drawPath(lozenge, fill)
+                val name = if (ahian) "AH1AN" else "SMTH OS"
+                text(canvas, name, left + 11f * u, gy + 2.5f * u, 7f * u,
+                    withAlpha(FROST, 0.95f * a), 1.2f * u, bold = true)
+                text(canvas, "SYSTEM",
+                    left + 11f * u + textWidth(name, 7f * u, 1.2f * u) + 9f * u,
+                    gy + 2.5f * u, 7f * u, withAlpha(GHOST_INK, 0.86f * a), 1.2f * u)
+                if (ahian) {
+                    text(canvas, "0xA11A", right, gy + 2.5f * u, 8f * u,
+                        withAlpha(accent, 0.95f * a), 0.8f * u, bold = true, align = 2)
+                } else {
+                    line(canvas, right - 38f * u, gy, right - 32f * u, gy,
+                        withAlpha(CHROME, 0.75f * a), 1f)
+                    stroke.color = withAlpha(CHROME, 0.75f * a)
+                    stroke.strokeWidth = 1f
+                    canvas.drawRect(right - 23f * u, gy - 2.4f * u,
+                        right - 18f * u, gy + 2.4f * u, stroke)
+                    line(canvas, right - 10f * u, gy - 2.6f * u,
+                        right - 5f * u, gy + 2.6f * u, withAlpha(CHROME, 0.86f * a), 1f)
+                    line(canvas, right - 10f * u, gy + 2.6f * u,
+                        right - 5f * u, gy - 2.6f * u, withAlpha(CHROME, 0.86f * a), 1f)
+                }
+                titleY = rect.top + barH + 23f * u
+                bodyY = rect.top + barH + 39f * u + if (ahian) 2f * u else 0f
+            }
+
+            var size = 13.2f * u
+            while (size > 9f * u && textWidth(e.title, size, 0.5f * u) > right - left) {
+                size -= 0.4f * u
+            }
+            text(canvas, e.title, left, titleY, size, withAlpha(FROST, a),
+                0.5f * u, bold = true)
             var used = 0
-            for (row in wrap(e.body, 9.8f * u, 0f, rect.width() - 41f * u)) {
+            for (row in wrap(e.body, 9.5f * u, 0f, right - left - 2f * u)) {
                 if (used == 2) break
-                text(canvas, row, left, bodyY, 9.8f * u,
-                    withAlpha(0xAEA6C2.toInt(), 0.92f * a))
-                bodyY += 13.5f * u
+                text(canvas, row, left, bodyY, 9.5f * u,
+                    withAlpha(MUTED_INK, 0.96f * a), 0.15f * u)
+                bodyY += 13.6f * u
                 used++
             }
-            if (e.code == "0xA11A") {
-                val track = RectF(left, bodyY + 2f * u, rect.right - 22f * u,
-                    bodyY + 5.2f * u)
-                rounded(canvas, track, 1.6f * u, withAlpha(Color.WHITE, 0.13f * a))
-                rounded(canvas, RectF(track.left, track.top,
-                    track.left + track.width() * 0.62f, track.bottom), 1.6f * u,
-                    withAlpha(mix(PURPLE, TEAL, 0.7f), 0.92f * a))
+            val footerY = rect.bottom - 11f * u
+            if (ahian) {
+                val trackY = footerY - 15f * u
+                line(canvas, left, trackY, right, trackY,
+                    withAlpha(FROST, 0.10f * a), 1.5f * u)
+                line(canvas, left, trackY, left + (right - left) * 0.62f, trackY,
+                    withAlpha(accent, 0.95f * a), 1.8f * u)
             }
-            text(canvas, "NO RESPONSE", left, rect.bottom - 13f * u, 7.8f * u,
-                withAlpha(0x988EA6.toInt(), 0.68f * a), 1.1f * u)
-            text(canvas, e.code, rect.right - 19f * u, rect.bottom - 13f * u, 8.4f * u,
-                withAlpha(accent, 0.92f * a), 0.8f * u, align = 2)
+            line(canvas, left, footerY - 8f * u, right, footerY - 8f * u,
+                withAlpha(FROST, 0.09f * a), 1f)
+            val state = when {
+                ahian -> "AESTHETIC SUBSYSTEM"
+                e.accent % 2 == 1 -> "RETRYING"
+                else -> "NO RESPONSE"
+            }
+            text(canvas, state, left, footerY, 7f * u,
+                withAlpha(GHOST_INK, 0.95f * a), 1.2f * u)
+            text(canvas, e.code, right, footerY, 8f * u,
+                withAlpha(accent, 0.95f * a), 0.7f * u, bold = true, align = 2)
+            canvas.restore()
 
+            stroke.color = withAlpha(FROST, 0.16f * a)
+            stroke.strokeWidth = 1f
+            canvas.drawRoundRect(rect, 10f * u, 10f * u, stroke)
             if (flash > 0.02f) {
                 stroke.color = withAlpha(accent, 0.7f * flash)
                 stroke.strokeWidth = max(1f, 1.4f * u)
@@ -659,111 +756,173 @@ class AhianConstructionView(context: Context) : View(context) {
             Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, w, h, fill)
         fill.shader = null
-        fill.color = withAlpha(0xFF5C8CE0.toInt(), 0.14f)
-        canvas.drawCircle(w * 0.18f, -h * 0.05f, max(w, h) * 0.55f, fill)
-        fill.color = withAlpha(0xFF6B43D8.toInt(), 0.12f)
-        canvas.drawCircle(w * 0.95f, h * 1.02f, max(w, h) * 0.45f, fill)
+        fill.color = withAlpha(0xFF4F7AD0.toInt(), 0.16f)
+        canvas.drawCircle(w * 0.14f, -h * 0.05f, max(w, h) * 0.55f, fill)
+        fill.color = withAlpha(0xFF2B4C86.toInt(), 0.22f)
+        canvas.drawCircle(w * 0.92f, h * 1.02f, max(w, h) * 0.48f, fill)
 
-        val pad = w * 0.075f
-        // ---- header
-        dotMatrix(canvas, "SMTH", pad, 46f * u, max(1.4f, 1.75f * u), BLUE_INK)
-        text(canvas, "SMTH OS", pad + 98f * u, 38f * u, 11f * u, BLUE_INK, 1.2f * u,
-            bold = true)
-        text(canvas, "SESSION 03  ·  KERNEL EVENT", pad + 98f * u, 50f * u, 8.2f * u,
-            withAlpha(BLUE_DIM, 0.68f), 1.4f * u)
-        text(canvas, "AH1AN", w - pad, 38f * u, 8.2f * u, withAlpha(TEAL_BRIGHT, 0.84f),
-            2.2f * u, align = 2)
-        text(canvas, "AESTHETIC SUBSYSTEM ONLINE", w - pad, 50f * u, 8.2f * u,
-            withAlpha(BLUE_DIM, 0.56f), 1.2f * u, align = 2)
-
-        // ---- headline
-        val size = min(0.066f * h, 0.036f * w)
-        val tracking = 0.9f * u
-        var y = 0.300f * h
-        for (row in wrap("AHIAN HAS TAKEN CONTROL", size, tracking, w - 2 * pad)) {
-            text(canvas, row, pad, y, size, BLUE_INK, tracking, bold = true)
-            y += size * 1.16f
+        // Dot field and two very faint orbits: depth without a panel.
+        val fieldStep = 28f * u
+        val fieldDot = max(0.6f, 0.7f * u)
+        fill.color = withAlpha(BLUE_GLOW, 0.06f)
+        var fy = fieldStep
+        while (fy < h) {
+            var fx = fieldStep
+            while (fx < w) {
+                canvas.drawCircle(fx, fy, fieldDot, fill)
+                fx += fieldStep
+            }
+            fy += fieldStep
         }
-        text(canvas, "AHIAN wants to make your life beautiful.", pad,
-            y + size * 0.20f, size * 0.40f, withAlpha(BLUE_DIM, 0.94f), 0.4f * u)
-        val ruleY = y + size * 0.78f
-        line(canvas, pad, ruleY, pad + min(w - 2 * pad, 0.46f * w), ruleY,
-            withAlpha(BLUE_RULE, 0.92f), max(1f, 1.2f * u))
-        line(canvas, pad, ruleY, pad + 56f * u, ruleY, TEAL_BRIGHT, max(2f, 2.2f * u))
+        stroke.color = withAlpha(BLUE_GLOW, 0.10f)
+        stroke.strokeWidth = 1f
+        canvas.drawCircle(w * 0.86f, h * 0.34f, h * 0.62f, stroke)
+        stroke.color = withAlpha(BLUE_GLOW, 0.07f)
+        canvas.drawCircle(w * 0.86f, h * 0.34f, h * 0.40f, stroke)
 
-        // ---- countdown
-        val progress = ((t - BLUE_START) / (BLUE_END - BLUE_START)).coerceIn(0f, 1f)
-        val cy = 0.605f * h + 52f * u
-        val radius = 44f * u
-        val cx = pad + radius
-        stroke.color = withAlpha(BLUE_RULE, 0.86f)
-        stroke.strokeWidth = max(1f, 1.4f * u)
-        canvas.drawCircle(cx, cy, radius, stroke)
+        val pad = max(34f * u, 0.072f * w)
+        val left = pad
+        val right = w - pad
+        val top = h * 0.075f
+
+        // ---- brand row
+        dotMatrix(canvas, "SMTH", left, top, max(1.4f, 2f * u), BLUE_INK)
+        text(canvas, "SMTH OS", left + 84f * u, top - 2f * u, 10.4f * u,
+            BLUE_INK, 0.8f * u, bold = true)
+        text(canvas, "KERNEL EVENT  ·  SESSION 03", left + 84f * u,
+            top + 13f * u, 7.4f * u, withAlpha(BLUE_DIM, 0.78f), 1.3f * u)
+        text(canvas, "AH1AN", right, top - 2f * u, 9f * u,
+            withAlpha(BLUE_GLOW, 0.95f), 3f * u, bold = true, align = 2)
+        text(canvas, "AESTHETIC SUBSYSTEM ONLINE", right, top + 13f * u,
+            7.4f * u, withAlpha(BLUE_DIM, 0.66f), 1.1f * u, align = 2)
+
+        // ---- headline: two deliberate lines, never a reflowed paragraph
+        var size = min(0.092f * h, 0.072f * w)
+        val words = "AHIAN HAS TAKEN CONTROL".split(" ")
+        val lines = listOf(words.take(2).joinToString(" "),
+            words.drop(2).joinToString(" "))
+        while (size > 0.040f * h &&
+            lines.any { textWidth(it, size, 0.4f * u) > right - left }
+        ) {
+            size *= 0.94f
+        }
+        val headY = h * 0.300f
+        lines.forEachIndexed { index, row ->
+            text(canvas, row, left, headY + index * size * 1.04f, size,
+                BLUE_INK, 0.4f * u, bold = true)
+        }
+        val subSize = max(13f * u, size * 0.28f)
+        val subY = headY + lines.size * size * 1.04f + subSize * 0.55f
+        text(canvas, "AHIAN wants to make your life beautiful.", left, subY,
+            subSize, withAlpha(BLUE_DIM, 0.94f), 0.15f * u)
+
+        // ---- countdown: the hero, opposite the headline in landscape
+        val progress = ((t - BLUE_START) / (BLUE_END - BLUE_START))
+            .coerceIn(0f, 1f)
+        val portrait = h >= w * 0.95f
+        val ringCx: Float
+        val ringCy: Float
+        val radius: Float
+        if (portrait) {
+            ringCx = (left + right) / 2f
+            ringCy = h * 0.610f
+            radius = min(0.120f * h, 0.200f * (right - left))
+        } else {
+            ringCx = left + (right - left) * 0.70f
+            ringCy = h * 0.610f
+            radius = min(0.120f * h, 0.110f * (right - left))
+        }
+        stroke.color = withAlpha(BLUE_RULE, 0.92f)
+        stroke.strokeWidth = max(2f, 1.6f * u)
+        canvas.drawCircle(ringCx, ringCy, radius, stroke)
         val sweep = 360f * (1f - progress)
         if (sweep > 0.5f) {
-            stroke.color = TEAL_BRIGHT
-            stroke.strokeWidth = max(2f, 2.6f * u)
-            canvas.drawArc(RectF(cx - radius, cy - radius, cx + radius, cy + radius),
-                270f, sweep, false, stroke)
+            stroke.color = withAlpha(BLUE_GLOW, 0.98f)
+            stroke.strokeWidth = max(2f, 3.2f * u)
+            canvas.drawArc(RectF(ringCx - radius, ringCy - radius,
+                ringCx + radius, ringCy + radius), 270f, sweep, false, stroke)
         }
+        text(canvas, "COUNTDOWN", ringCx, ringCy - radius - 20f * u,
+            7.6f * u, withAlpha(BLUE_GLOW, 0.9f), 3.2f * u, align = 1)
         val sinceTick = (BLUE_END - t) / 1000f
-        val tick = (1f - (sinceTick - sinceTick.toInt()) / 0.28f).coerceIn(0f, 1f)
-        text(canvas, countdown(t).toString(), cx, cy + 15f * u,
-            40f * u * (1f + 0.06f * tick), BLUE_INK, 0f, bold = true, align = 1)
-
-        val textX = cx + radius + 26f * u
-        text(canvas, "RECONFIGURING DESKTOP", textX, cy - 23f * u, 8.6f * u,
-            withAlpha(BLUE_DIM, 0.84f), 2.4f * u)
-        text(canvas, "AHIAN is rebuilding your reality", textX, cy - 7f * u, 11.4f * u,
-            withAlpha(BLUE_INK, 0.94f), 0.4f * u)
-        val barRight = min(w - textX - pad, 330f * u) + textX
-        val barTop = cy + 10f * u
-        rounded(canvas, RectF(textX, barTop, barRight, barTop + 3.6f * u), 2f * u,
-            withAlpha(0xD2EBFF.toInt(), 0.18f))
-        val fillTo = textX + (barRight - textX) * progress
-        if (fillTo > textX + 1f) {
-            rounded(canvas, RectF(textX, barTop, fillTo, barTop + 3.6f * u), 2f * u,
-                TEAL_BRIGHT)
+        val tick = (1f - (sinceTick - sinceTick.toInt()) / 0.28f)
+            .coerceIn(0f, 1f)
+        val numberSize = radius * 1.18f * (1f + 0.05f * tick)
+        text(canvas, countdown(t).toString(), ringCx,
+            ringCy + numberSize * 0.34f, numberSize, BLUE_INK, 0f,
+            bold = true, align = 1)
+        text(canvas, "AHIAN IS REBUILDING YOUR REALITY", ringCx,
+            ringCy + radius + 26f * u, 7.6f * u,
+            withAlpha(BLUE_DIM, 0.84f), 1.8f * u, align = 1)
+        val barW = radius * 2.10f
+        val barY = ringCy + radius + 38f * u
+        rounded(canvas, RectF(ringCx - barW / 2f, barY,
+            ringCx + barW / 2f, barY + 3f * u), 2f * u,
+            withAlpha(0xFF294052.toInt(), 0.9f))
+        if (progress > 0.01f) {
+            rounded(canvas, RectF(ringCx - barW / 2f, barY,
+                ringCx - barW / 2f + barW * progress, barY + 3f * u),
+                2f * u, BLUE_GLOW)
         }
-        for (i in 0 until COUNTDOWN_FROM) {
-            val x = textX + i * 14f * u
-            val on = progress >= (i + 1) / COUNTDOWN_FROM.toFloat()
-            fill.color = if (on) TEAL_BRIGHT else withAlpha(BLUE_RULE, 0.55f)
-            canvas.drawRect(x, cy + 22f * u, x + 8f * u, cy + 26f * u, fill)
-        }
-        text(canvas, "${(progress * 100).toInt()}%", barRight + 14f * u,
-            cy + 14f * u, 8f * u, withAlpha(BLUE_DIM, 0.84f), 0.8f * u)
+        text(canvas, "${(progress * 100).toInt()}%", ringCx + barW / 2f + 12f * u,
+            barY + 3.2f * u, 7.8f * u, withAlpha(BLUE_DIM, 0.88f), 0.8f * u)
 
-        // ---- footer
-        val metaY = 0.870f * h
-        text(canvas, "STOP CODE: AH1AN_ASCENSION", pad, metaY, 8.6f * u,
-            withAlpha(BLUE_DIM, 0.82f), 1.6f * u)
-        text(canvas, "0x0000AH1A  ·  MODE: AHIAN", pad, metaY + 17f * u, 8.2f * u,
-            withAlpha(BLUE_DIM, 0.57f), 1.4f * u)
-        val pulse = 0.55f + 0.45f * sin(t / 260f)
-        fill.color = withAlpha(TEAL_BRIGHT, 0.47f + 0.47f * pulse)
-        canvas.drawCircle(w - pad - 4f * u, metaY - 9f * u, 3.4f * u, fill)
-        text(canvas, "DO NOT POWER OFF", w - pad - 14f * u, metaY, 8.6f * u,
-            withAlpha(BLUE_DIM, 0.68f), 1.6f * u, align = 2)
-        text(canvas, "AHIAN / 9.0 SEC", w - pad, metaY + 17f * u, 8.2f * u,
-            withAlpha(BLUE_DIM, 0.53f), 1.4f * u, align = 2)
+        // ---- footer: nine segments, then the stop code
+        val ruleY = h * 0.845f
+        line(canvas, left, ruleY, right, ruleY, withAlpha(BLUE_RULE, 0.8f), 1f)
+        val gap = 6f * u
+        val segW = (right - left - gap * 8f) / 9f
+        for (i in 0 until 9) {
+            val x = left + i * (segW + gap)
+            val on = progress >= (i + 1) / 9f - 0.001f
+            fill.color = if (on) BLUE_GLOW else withAlpha(BLUE_RULE, 0.65f)
+            canvas.drawRect(x, ruleY + 8f * u, x + segW, ruleY + 11.4f * u, fill)
+        }
+        val metaY = ruleY + 33f * u
+        text(canvas, "STOP CODE: AH1AN_ASCENSION", left, metaY, 7.4f * u,
+            withAlpha(BLUE_DIM, 0.86f), 1.5f * u)
+        text(canvas, "0x0000A11A  ·  MODE: AHIAN", left, metaY + 15f * u,
+            7.4f * u, withAlpha(BLUE_DIM, 0.64f), 1.2f * u)
+        val pulse = 0.55f + 0.45f * sin(t / 280f)
+        fill.color = withAlpha(AMBER_HOT, 0.35f + 0.55f * pulse)
+        canvas.drawCircle(right - 5f * u, metaY - 4f * u, 2.6f * u, fill)
+        text(canvas, "DO NOT POWER OFF", right - 16f * u, metaY, 7.4f * u,
+            withAlpha(BLUE_DIM, 0.82f), 1.5f * u, align = 2)
+        text(canvas, "AHIAN / 9.0 SEC", right, metaY + 15f * u, 7.4f * u,
+            withAlpha(BLUE_DIM, 0.58f), 1.2f * u, align = 2)
     }
 
     // ---- act 3: the AHIAN desktop --------------------------------------------
+    private fun coldWall(x: Float, y: Float, phase: Float): Int {
+        val tau = (2f * PI).toFloat()
+        var wave = sin((x + y * 0.62f) * tau + phase * tau) * 0.075f
+        wave += sin((x * 1.7f - y * 1.1f) * tau - phase * tau * 2f) * 0.035f
+        val band = 0.5f + 0.5f * sin((x * 0.8f - y * 0.55f) * tau - phase * tau)
+        var d = (x * 0.58f + y * 0.42f + wave).coerceIn(0f, 1f)
+        d = d * d * (3f - 2f * d)
+        val base = mix(GLASS_VOID_DEEP, GLASS_PANEL_RAISED, d)
+        val mixT = (x * 0.7f + y * 0.3f).coerceIn(0f, 1f)
+        val cool = mix(0xFF4D668F.toInt(), 0xFF6B80A3.toInt(), mixT)
+        val warm = mix(0xFFB78A4D.toInt(), 0xFFDB9957.toInt(), mixT)
+        return if (band > 0.5f) mix(base, cool, 0.035f + 0.06f * band)
+        else mix(base, warm, 0.018f + 0.03f * (1f - band))
+    }
+
     private fun drawWallpaper(canvas: Canvas, phase: Float) {
-        val stops = IntArray(9) { i ->
-            val k = i / 8f
-            flow(k, k * 0.62f, phase)
+        val stops = IntArray(12) { i ->
+            val k = i / 11f
+            coldWall(k, k * 0.62f, phase)
         }
-        fill.shader = LinearGradient(0f, 0f, w, h, stops, null, Shader.TileMode.CLAMP)
+        fill.shader = LinearGradient(0f, 0f, w, h, stops, null,
+            Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, w, h, fill)
         fill.shader = null
-        fill.color = withAlpha(PURPLE, 0.28f)
+        fill.color = withAlpha(0xFF4D668F.toInt(), 0.13f)
         canvas.drawCircle(w * 0.10f, h * 0.16f, max(w, h) * 0.45f, fill)
-        fill.color = withAlpha(TEAL, 0.22f)
+        fill.color = withAlpha(0xFFDB9957.toInt(), 0.08f)
         canvas.drawCircle(w * 1.02f, h * 1.04f, max(w, h) * 0.42f, fill)
         val step = 34f * u
-        fill.color = withAlpha(INK, 0.055f)
+        fill.color = withAlpha(0xFF66707F.toInt(), 0.06f)
         var y = step
         while (y < h) {
             var x = step
@@ -787,8 +946,8 @@ class AhianConstructionView(context: Context) : View(context) {
         val tilt = 0.27f
         val gold = (PI * (3 - sqrt(5.0))).toFloat()
         val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        for (i in 0 until 280) {
-            val rr = 1.45f + 2.95f * sqrt((i + 0.5f) / 280f)
+        for (i in 0 until 320) {
+            val rr = 1.45f + 2.95f * sqrt((i + 0.5f) / 320f)
             val angle = i * gold + 0.55f * (1.45f / rr).pow(1.5f) * seconds
             val r = rr * radius
             val x = r * cos(angle)
@@ -800,13 +959,14 @@ class AhianConstructionView(context: Context) : View(context) {
             val size = max(1f, (1f + 3.4f * bright * (1f - 0.55f * tr)) * scale * 0.9f)
             val px = cx + x * cs - yy * sn
             val py = cy + x * sn + yy * cs
-            dotPaint.color = withAlpha(if (i % 2 == 0) TEAL else PURPLE_SOFT,
+            dotPaint.color = withAlpha(
+                if (i % 2 == 0) 0xFF4D668F.toInt() else AMBER_HOT,
                 0.82f * bright * alpha)
             canvas.drawCircle(px, py, size, dotPaint)
         }
-        fill.color = withAlpha(0xFF05030A.toInt(), alpha)
+        fill.color = withAlpha(GLASS_VOID_DEEP, alpha)
         canvas.drawCircle(cx, cy, radius, fill)
-        stroke.color = withAlpha(TEAL_BRIGHT, 0.92f * alpha)
+        stroke.color = withAlpha(0xFF6B80A3.toInt(), 0.92f * alpha)
         stroke.strokeWidth = max(1f, (1.2f + 1.8f * (0.65f + 0.35f *
             sin(seconds * 2.2f))) * scale)
         canvas.drawCircle(cx, cy, radius * 1.08f, stroke)
@@ -836,17 +996,17 @@ class AhianConstructionView(context: Context) : View(context) {
             val radius = dot * (1.16f - 0.16f * ease(progress))
             val x = originX + (col + 0.5f) * spacing
             val y = originY + (row + 0.5f) * spacing
-            fill.color = withAlpha(mix(PURPLE_SOFT, TEAL_BRIGHT,
-                col / 22f * 0.7f + row / 6f * 0.3f), brandAlpha * progress)
+            fill.color = withAlpha(mix(0xFFDB9957.toInt(), FROST,
+                col / 22f * 0.6f + row / 6f * 0.4f), brandAlpha * progress)
             canvas.drawCircle(x, y, radius, fill)
         }
         val ruleW = markW * 0.74f * ease(((t - BRAND_START) / BRAND_MS).coerceIn(0f, 1f))
         val ruleY = cy + (7 * spacing) / 2f + 26f * u
         line(canvas, cx - ruleW / 2f, ruleY, cx + ruleW / 2f, ruleY,
-            withAlpha(TEAL_BRIGHT, 0.82f * brandAlpha), 1f)
+            withAlpha(0xFFDB9957.toInt(), 0.82f * brandAlpha), 1f)
         if (brandAlpha > 0.3f) {
             text(canvas, "A H I A N", cx, ruleY + 21f * u, 8.6f * u,
-                withAlpha(INK, 0.62f * brandAlpha), 3f * u, align = 1)
+                withAlpha(FROST, 0.62f * brandAlpha), 3f * u, align = 1)
         }
     }
 
@@ -870,29 +1030,34 @@ class AhianConstructionView(context: Context) : View(context) {
         val bar = barRect()
         val rise = (1f - progress) * bar.height() * 1.5f
         bar.offset(0f, rise)
-        rounded(canvas, RectF(bar.left, bar.top + 4f * u, bar.right, bar.bottom + 4f * u),
-            16f * u, withAlpha(Color.BLACK, 0.35f * progress))
-        rounded(canvas, bar, 16f * u, withAlpha(0xFF0E0C18.toInt(), 0.93f * progress))
-        stroke.color = withAlpha(TEAL, 0.24f * progress)
+        rounded(canvas, RectF(bar.left, bar.top + 4f * u, bar.right,
+            bar.bottom + 4f * u), 16f * u, withAlpha(Color.BLACK, 0.35f * progress))
+        rounded(canvas, bar, 16f * u,
+            withAlpha(GLASS_PANEL_RAISED, 0.96f * progress))
+        stroke.color = withAlpha(BLUE_COLD, 0.24f * progress)
         stroke.strokeWidth = 1f
         canvas.drawRoundRect(bar, 16f * u, 16f * u, stroke)
+        fill.color = withAlpha(AMBER_HOT, 0.75f * progress)
+        canvas.drawRect(bar.left + 16f * u, bar.top + 1f * u,
+            bar.right - 16f * u, bar.top + 2f * u, fill)
         val cy = bar.centerY()
         val startX = bar.left + 32f * u
         rounded(canvas, RectF(startX - 17f * u, cy - 17f * u, startX + 17f * u,
-            cy + 17f * u), 10f * u, withAlpha(PURPLE, 0.88f * progress))
+            cy + 17f * u), 10f * u, withAlpha(AMBER, 0.92f * progress))
         dotMatrix(canvas, "S", startX - 9f * u, cy + 7f * u, 1.9f * u,
-            withAlpha(INK, 0.95f * progress))
+            withAlpha(GLASS_VOID_DEEP, 0.95f * progress))
         for ((index, name) in arrayOf("globe", "terminal", "folder").withIndex()) {
             glyph(canvas, name, bar.left + 84f * u + index * 54f * u, cy, 23f * u,
-                withAlpha(INK, 0.84f * progress))
+                withAlpha(FROST, 0.84f * progress))
         }
         text(canvas, "09:41", bar.right - 18f * u, cy + 3.4f * u, 10f * u,
-            withAlpha(INK, 0.9f * progress), 0.6f * u, align = 2)
+            withAlpha(FROST, 0.9f * progress), 0.6f * u, align = 2)
     }
 
     private fun drawDesktopIcons(canvas: Canvas, t: Float) {
         val cellW = 108f * u
         val cellH = 78f * u
+        val accents = intArrayOf(AMBER_HOT, BLUE_COLD, CHROME)
         for (i in ICON_LABELS.indices) {
             val start = ICON_START + i * ICON_STEP
             val progress = ease(((t - start) / ICON_MS).coerceIn(0f, 1f))
@@ -900,17 +1065,17 @@ class AhianConstructionView(context: Context) : View(context) {
             val cx = 16f * u + 48f * u + cellW * 0.5f
             val top = 22f * u + i * cellH + (1f - progress) * 16f * u
             val size = 50f * u * (0.9f + 0.1f * progress)
-            val accent = ACCENTS[(i + 2) % ACCENTS.size]
+            val accent = accents[i % accents.size]
             rounded(canvas, RectF(cx - size / 2, top, cx + size / 2, top + size),
-                13f * u, withAlpha(0xFF0E0B1A.toInt(), 0.82f * progress))
-            stroke.color = withAlpha(accent, 0.35f * progress)
+                13f * u, withAlpha(GLASS_PANEL_RAISED, 0.94f * progress))
+            stroke.color = withAlpha(accent, 0.30f * progress)
             stroke.strokeWidth = 1f
-            canvas.drawRoundRect(RectF(cx - size / 2, top, cx + size / 2, top + size),
-                13f * u, 13f * u, stroke)
+            canvas.drawRoundRect(RectF(cx - size / 2, top, cx + size / 2,
+                top + size), 13f * u, 13f * u, stroke)
             glyph(canvas, ICON_GLYPHS[i], cx, top + size / 2f, size * 0.52f,
-                withAlpha(INK, 0.94f * progress))
+                withAlpha(FROST, 0.94f * progress))
             text(canvas, ICON_LABELS[i], cx, top + size + 15f * u, 8.6f * u,
-                withAlpha(INK, 0.78f * progress), 1f * u, align = 1)
+                withAlpha(FROST, 0.78f * progress), 1f * u, align = 1)
         }
     }
 
@@ -928,14 +1093,15 @@ class AhianConstructionView(context: Context) : View(context) {
                     if ((rows[row] shr (4 - col)) and 1 != 1) continue
                     val cx = x + (index * 6 + col) * dot
                     val cy = baseline - (6 - row) * dot
-                    fill.color = withAlpha(if ((index * 6 + col) % 2 == 0) PURPLE_SOFT
-                    else TEAL_BRIGHT, 0.95f * progress)
+                    fill.color = withAlpha(
+                        if ((index * 6 + col) % 2 == 0) BLUE_COLD else AMBER_HOT,
+                        0.95f * progress)
                     canvas.drawCircle(cx, cy, dot * 0.38f, fill)
                 }
             }
         }
         text(canvas, "FRIDAY 21 NOVEMBER", x, baseline + 28f * u, 8f * u,
-            withAlpha(INK, 0.55f * progress), 1.6f * u)
+            withAlpha(FROST, 0.55f * progress), 1.6f * u)
     }
 
     private fun drawToast(canvas: Canvas, t: Float) {
@@ -952,15 +1118,15 @@ class AhianConstructionView(context: Context) : View(context) {
         rounded(canvas, RectF(x, y + 3f * u, x + width, y + height + 3f * u),
             height / 2f, withAlpha(Color.BLACK, 0.38f * progress))
         rounded(canvas, RectF(x, y, x + width, y + height), height / 2f,
-            withAlpha(0xFF0B0A10.toInt(), 0.93f * progress))
-        stroke.color = withAlpha(TEAL, 0.43f * progress)
+            withAlpha(GLASS_PANEL_RAISED, 0.96f * progress))
+        stroke.color = withAlpha(CHROME, 0.20f * progress)
         stroke.strokeWidth = 1f
         canvas.drawRoundRect(RectF(x, y, x + width, y + height), height / 2f,
             height / 2f, stroke)
-        fill.color = withAlpha(TEAL_BRIGHT, progress)
+        fill.color = withAlpha(AMBER_HOT, progress)
         canvas.drawCircle(x + 22f * u, y + height / 2f, 3.4f * u, fill)
         text(canvas, label, x + 36f * u, y + height / 2f + 3.2f * u, size,
-            withAlpha(INK, 0.94f * progress), 1.6f * u)
+            withAlpha(FROST, 0.94f * progress), 1.6f * u)
     }
 
     // ---- frame ---------------------------------------------------------------

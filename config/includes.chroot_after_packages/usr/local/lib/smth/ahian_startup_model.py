@@ -23,7 +23,7 @@ The sequence (25.8 s, exactly three acts):
 
     act 3  19.0 - 25.8 s  transformation
            the blue screen collapses to a line again and the line opens into
-           the flowing purple-teal AHIAN wallpaper.  The dot-matrix SMTH mark
+           the flowing cold-glass AHIAN wallpaper.  The dot-matrix SMTH mark
            assembles, then shrinks into a corner watermark while the panel,
            icons, widgets and taskbar arrive in a coordinated stagger.  The
            overlay then fades onto the live, interactive desktop.
@@ -547,16 +547,17 @@ class StartupScene:
         return ERRORS
 
     def card_size(self, spec):
-        """The pixel size of one error window, from its own proportions."""
+        """The pixel size of one error window.
+
+        Windows are content-sized: a title bar, one title, up to two body
+        lines and a footer.  The table's ``hf`` is only a hint kept for the
+        data contract; stretching a card to it used to leave dead space under
+        the copy.  A small deterministic nudge by accent family keeps the
+        cascade from reading as one repeated rectangle.
+        """
         u = self.u
-        lines = 1 if len(spec.body) <= 46 else 2
-        height = (30 + 9 + 6 + 17 + 5 + 13 * lines + 8 + 11) * u
-        if spec.is_ahian:
-            height += 15 * u
-        # The table's height fraction is a hint, never a stretched panel.
-        hint = spec.hf * self.height
-        return (max(spec.wf * self.width, 250 * u),
-                clamp(hint, height, height * 1.45))
+        height = (100 + 6 * (spec.accent % 3) + (10 if spec.is_ahian else 0)) * u
+        return (max(spec.wf * self.width, 292 * u), height)
 
     def card_rect(self, spec):
         w, h = self.card_size(spec)
