@@ -144,6 +144,28 @@ body{background:#100b0d;color:#f7edf0}
   .index{padding:10px 14px}
 }
 
+
+/* Hard-stop mobile card collisions: stack sections in document flow. */
+@media(max-width:760px){
+  main{display:flex;flex-direction:column;gap:24px;align-items:stretch}
+  main>.intro,main>.section{display:block;position:relative;flex:0 0 auto;width:auto;min-width:0;height:auto;min-height:0;margin:0 4%;inset:auto}
+  main>.intro{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+  main>.section{padding:24px 0 28px}
+  main>.section>.heading{display:block;position:relative;inset:auto;margin:0 0 18px;width:100%;height:auto;min-height:0}
+  main>.section>.grid{display:grid;position:relative;grid-template-columns:minmax(0,1fr);gap:14px;width:100%;height:auto}
+  main>.section .feature{position:relative;inset:auto;display:flex;width:100%;height:auto;min-height:270px;margin:0}
+  main>.ahian{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+  main>.ahian>div,main>.ahian>.terminal{position:relative;inset:auto;width:100%;height:auto;min-width:0}
+  main>.releases{display:block}
+  main>.releases>.list,main>.releases>.bottomline{position:relative;inset:auto;width:100%;height:auto}
+  /* Reveal with opacity only on phones; sliding transforms caused visual collisions. */
+  .reveal,.reveal.is-visible,.reveal.from-left,.reveal.from-right{transform:none!important}
+  .reveal{transition:opacity .55s ease}
+  .media{z-index:0}
+  .hero{position:relative;isolation:isolate}
+  .frame{position:relative}
+}
+
 </style>
 </head>
 <body>
