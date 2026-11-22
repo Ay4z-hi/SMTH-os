@@ -368,6 +368,13 @@ def test_each_platform_switches_the_desktop_behind_the_blue_screen():
     assert "postDelayed({ applyAhianTheme()" not in activity
 
 
+def test_windows_launcher_still_has_an_entry_point():
+    """The EXE is only useful if importing the module starts the launcher."""
+    source = (ROOT / "launchers/windows/smth_launcher.py").read_text().rstrip()
+    assert source.endswith('if __name__ == "__main__":\n    main()'), source[-80:]
+    assert "\ndef main():\n" in source
+
+
 def main():
     failures = 0
     for name, fn in sorted(globals().items()):

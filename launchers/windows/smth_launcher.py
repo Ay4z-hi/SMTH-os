@@ -1537,3 +1537,7 @@ class AhianConstructionIntro:
             self.after_id = None
         self._remove_image()
         self._reveal()
+
+
+if __name__ == "__main__":
+    main()
