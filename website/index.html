@@ -258,6 +258,32 @@ main>.section>.heading{position:relative;display:flex;inset:auto;width:100%;heig
 }
 @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transition:none}}
 
+
+/* Definitive mobile hero fix: hero content must contribute to page height.
+   The absolutely positioned copy previously escaped the short hero frame
+   and covered the intro/system sections below it. */
+@media(max-width:760px){
+  .hero{height:auto;min-height:0;padding:7px 7px 18px;overflow:visible}
+  .frame{height:auto!important;min-height:0!important;overflow:visible;display:flow-root}
+  .media{position:absolute!important;inset:0!important;z-index:0!important;border-radius:4px;overflow:hidden}
+  .media video,.media .tint{position:absolute;inset:0;width:100%;height:100%}
+  .nav{position:absolute;z-index:5}
+  .copy{position:relative!important;top:auto!important;left:auto!important;width:auto!important;margin:0 5%;padding:170px 0 94px;z-index:2}
+  .card{position:relative!important;width:100%;max-width:none;margin:15px 0 0}
+  .index{position:absolute;z-index:4;bottom:14px}
+  main{position:relative;display:flex;flex-direction:column;gap:24px;overflow:visible}
+  main>.intro,main>.section{position:relative!important;inset:auto!important;transform:none!important;float:none!important;clear:both;width:auto!important;height:auto!important;min-height:0!important;margin:0 4%!important;flex:none!important}
+  main>.intro{display:grid;grid-template-columns:minmax(0,1fr);padding:25px 21px}
+  main>.section{padding:22px 0 30px}
+  main>.section>.heading{position:relative!important;display:block;width:100%;height:auto;min-height:0;margin:0 0 18px}
+  main>.section>.grid{display:grid;position:relative;grid-template-columns:minmax(0,1fr);gap:14px}
+  main>.section .feature{position:relative!important;display:flex;width:100%;height:auto;min-height:270px;margin:0;transform:none!important}
+  main>.ahian{display:grid;grid-template-columns:minmax(0,1fr);gap:15px}
+  main>.ahian>div,main>.ahian>.terminal{position:relative!important;width:100%;height:auto;min-height:0;margin:0;transform:none!important}
+  main>.releases{display:block}
+  .reveal,.reveal.is-visible,.reveal.from-left,.reveal.from-right{opacity:1!important;transform:none!important;animation:none!important}
+}
+
 </style>
 </head>
 <body>
