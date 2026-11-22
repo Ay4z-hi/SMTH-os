@@ -21,6 +21,7 @@ Preview:                   smth-ahian-startup --force
 """
 import os
 from pathlib import Path
+import subprocess
 import sys
 import time
 
@@ -98,6 +99,7 @@ def run(reduced=False):
             self.finished = False
             self.frame_image = None
             self.rendered_t = -1.0
+            self.desktop_switched = False
 
         def do_activate(self):
             display = Gdk.Display.get_default()
@@ -173,15 +175,40 @@ def run(reduced=False):
             self.frame_image = data          # keep the buffer alive with the surface
             self.rendered_t = self.t
 
+        def switch_desktop(self):
+            """Apply the AHIAN theme while the blue screen hides the desktop.
+
+            Driven by this overlay's own clock rather than a sleep in the CLI,
+            so a slow start can never flash the new wallpaper through the
+            opening beam.
+            """
+            if self.desktop_switched:
+                return
+            self.desktop_switched = True
+            if os.environ.get("SMTH_AHIAN_ACTIVATE", "").strip().lower() not in (
+                    "1", "on", "true", "yes"):
+                return
+            try:
+                subprocess.Popen(
+                    ["/usr/local/bin/ahian", "--activate"],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, start_new_session=True,
+                )
+            except (OSError, subprocess.SubprocessError):
+                pass
+
         def skip(self):
             # A click or key removes the overlay immediately: no outro,
             # no fade, no second desktop.
+            self.switch_desktop()
             self.finish()
 
         def tick(self, _widget, _clock):
             try:
                 now = time.monotonic()
                 self.t = (now - self.started) * 1000.0
+                if self.t >= M.BLUE_OPEN_START_MS + M.BLUE_OPEN_MS:
+                    self.switch_desktop()
                 # The tick callback fires at the display refresh; the scene is
                 # authored at 30 fps and a Pillow frame is far too expensive to
                 # draw at 60, so throttle the redraws instead of the clock.

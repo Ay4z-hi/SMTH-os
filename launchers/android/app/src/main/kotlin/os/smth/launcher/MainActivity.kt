@@ -137,8 +137,8 @@ class MainActivity : Activity() {
         when {
             returningFromAhianCommand -> {
                 intent.removeExtra("show_ahian_construction")
-                // The desktop stays on the wallpaper you were using for act 1.
-                root.postDelayed({ applyAhianTheme() }, 11_000)
+                // The desktop stays on the wallpaper you were using for act 1;
+                // showAhianConstruction switches it behind the blue screen.
                 root.post { showAhianConstruction() }
             }
             ahianEnabled && !ahianRevealPlayed -> root.post { showAhianConstruction() }
@@ -153,7 +153,6 @@ class MainActivity : Activity() {
             intent.removeExtra("show_ahian_construction")
             themeDeferred = true
             applyAhianTheme()
-            root.postDelayed({ applyAhianTheme() }, 11_000)
             root.post { showAhianConstruction() }
         }
     }
@@ -177,6 +176,12 @@ class MainActivity : Activity() {
         // error windows. At the countdown's zero the view is removed and the
         // real AHIAN desktop underneath is revealed.
         val intro = AhianConstructionView(this)
+        intro.onBlueOpen = {
+            if (themeDeferred) {
+                themeDeferred = false
+                applyAhianTheme()
+            }
+        }
         ahianIntro = intro
         root.addView(intro, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))

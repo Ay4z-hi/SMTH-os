@@ -167,6 +167,14 @@ class AhianConstructionView(context: Context) : View(context) {
     private var elapsed = 0f
     private var animator: ValueAnimator? = null
     private var reduced = false
+    private var blueOpened = false
+
+    /**
+     * Fires once, when the blue screen is fully opaque. The caller switches the
+     * real desktop in here, so the new wallpaper is never visible through the
+     * opening beam.
+     */
+    var onBlueOpen: (() -> Unit)? = null
     private val rng = Random(1107)
 
     private var w = 0f
@@ -191,6 +199,7 @@ class AhianConstructionView(context: Context) : View(context) {
 
     fun start(onComplete: (() -> Unit)? = null) {
         animator?.cancel()
+        blueOpened = false
         reduced = reducedMotion()
         val duration = if (reduced) REDUCED_MS else DURATION_MS
         val anim = ValueAnimator.ofFloat(0f, duration.toFloat()).apply {
@@ -198,6 +207,10 @@ class AhianConstructionView(context: Context) : View(context) {
             interpolator = LinearInterpolator()
             addUpdateListener { value ->
                 elapsed = value.animatedValue as Float
+                if (!blueOpened && elapsed >= BLUE_OPEN_START + BLUE_OPEN_MS) {
+                    blueOpened = true
+                    onBlueOpen?.invoke()
+                }
                 alpha = overlayAlpha(elapsed)
                 invalidate()
             }

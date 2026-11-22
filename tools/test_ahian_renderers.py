@@ -340,6 +340,34 @@ def test_android_startup_view_is_only_the_logo():
     assert "logoAlpha" in view and "drawColor(OBSIDIAN)" in view
 
 
+def test_each_platform_switches_the_desktop_behind_the_blue_screen():
+    """The AHIAN wallpaper must never appear through the opening beam."""
+    lib = ROOT / "config/includes.chroot_after_packages/usr/local/lib/smth"
+    overlay = (lib / "ahian_startup.py").read_text()
+    assert "SMTH_AHIAN_ACTIVATE" in overlay
+    assert "def switch_desktop" in overlay
+    assert "M.BLUE_OPEN_START_MS + M.BLUE_OPEN_MS" in overlay
+    assert "ahian\", \"--activate\"" in overlay
+
+    cli = (ROOT / "config/includes.chroot_after_packages/usr/local/bin/ahian").read_text()
+    assert 'SMTH_AHIAN_ACTIVATE": "1"' in cli
+    assert "sleep 11.0" not in cli, "the theme is no longer switched on a guess"
+    assert "sleep 16" in cli, "a headless fallback still applies the theme"
+    assert "def animation_disabled" in cli, "no takeover means no waiting"
+
+    windows = (ROOT / "launchers/windows/smth_launcher.py").read_text()
+    assert "self.module.M.BLUE_START_MS + 900" in windows
+    assert M.BLUE_START_MS + 900 > M.BLUE_OPEN_START_MS + M.BLUE_OPEN_MS
+
+    kotlin = (ROOT / "launchers/android/app/src/main/kotlin/os/smth/launcher").resolve()
+    view = (kotlin / "AhianConstructionView.kt").read_text()
+    activity = (kotlin / "MainActivity.kt").read_text()
+    assert "var onBlueOpen" in view
+    assert "BLUE_OPEN_START + BLUE_OPEN_MS" in view
+    assert "intro.onBlueOpen" in activity
+    assert "postDelayed({ applyAhianTheme()" not in activity
+
+
 def main():
     failures = 0
     for name, fn in sorted(globals().items()):

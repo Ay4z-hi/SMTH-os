@@ -62,6 +62,26 @@ def write_state(ahian):
             pass
 
 
+def animation_disabled():
+    """True when the takeover must not play, so the theme applies at once."""
+    if os.environ.get("SMTH_NO_STARTUP_ANIMATION", "").strip().lower() in (
+            "1", "on", "true", "yes"):
+        return True
+    try:
+        with open(os.path.join(CFG, "startup-animation"), encoding="utf-8") as fh:
+            if fh.read().strip().lower() in ("0", "off", "false", "no"):
+                return True
+    except OSError:
+        pass
+    try:
+        with open("/proc/cmdline", encoding="utf-8", errors="replace") as fh:
+            if "smth.no_startup_animation=1" in fh.read():
+                return True
+    except OSError:
+        pass
+    return False
+
+
 def notify(title, body=""):
     try:
         subprocess.run(["notify-send", "-a", "SMTH", title, body], check=False,
@@ -73,6 +93,7 @@ def notify(title, body=""):
 def ahian(on):
     if on:
         already = os.path.exists(FLAG)
+        static = animation_disabled()
         # Start the overlay first.  Act 1 runs over the desktop that is on
         # screen right now; the AHIAN wallpaper and taskbar are switched in
         # behind the blue screen, then revealed at the countdown's zero.
@@ -81,16 +102,23 @@ def ahian(on):
                 ["sh", "-c", "exec /usr/local/bin/smth-ahian-startup"],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, start_new_session=True,
+                env={**os.environ, "SMTH_AHIAN_ACTIVATE": "1"},
             )
         except (OSError, subprocess.SubprocessError):
             pass
         if already:
             write_state(True)
             notify("AHIAN", "AHIAN mode activated.")
+        elif static:
+            # No takeover will play, so there is no blue screen to hide behind.
+            write_state(True)
+            notify("AHIAN", "AHIAN mode activated.")
         else:
             try:
+                # The overlay switches at the blue screen; this only covers
+                # a session where the overlay could not start at all.
                 subprocess.Popen(
-                    ["sh", "-c", "sleep 11.0; exec /usr/local/bin/ahian --activate"],
+                    ["sh", "-c", "sleep 16; exec /usr/local/bin/ahian --activate"],
                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL, start_new_session=True,
                 )
@@ -110,9 +138,9 @@ def main():
         ahian(False)
     elif arg == "--activate":
         # Deferred half of `ahian`: switch the live desktop while the AH1AN
-        # screen is covering it, so the zero reveal is the real thing.
+        # screen is covering it, so the zero reveal is the real thing. No
+        # notification: it would flash over the countdown.
         write_state(True)
-        notify("AHIAN", "AHIAN mode activated.")
     elif arg in ("on", "1", "start", ""):
         ahian(True)
     else:
