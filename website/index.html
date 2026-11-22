@@ -307,6 +307,29 @@ main>.section>.heading{position:relative;display:flex;inset:auto;width:100%;heig
   .copy .card .actions{gap:12px;flex-wrap:wrap}
 }
 
+
+/* Remove the hero glass card entirely; retain its headline and actions. */
+.hero .copy>.card{
+  background:transparent!important;
+  background-image:none!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  padding:0!important;
+  margin:20px 0 0!important;
+  max-width:630px!important;
+}
+@media(max-width:760px){
+  .hero .copy>.card{
+    width:100%!important;
+    max-width:none!important;
+    margin:0!important;
+    padding:0!important;
+  }
+}
+
 </style>
 </head>
 <body>
