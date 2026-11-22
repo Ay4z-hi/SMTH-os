@@ -269,7 +269,7 @@ class MainActivity : Activity() {
         // ---- taskbar -----------------------------------------------------
         val taskbar = GlassView(this, wallpaper, wallpaper.blurred).apply {
             setPadding(dp(8), 0, dp(8), 0)
-            radius = dpf(13f)
+            radius = dpf(22f)
         }
         val barRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -347,7 +347,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
         }
         startGlass = GlassView(this, wallpaper, wallpaper.blurred).apply {
-            radius = dpf(15f)
+            radius = dpf(22f)
             visibility = View.INVISIBLE
             alpha = 0f
             translationY = dpf(14f)
@@ -503,19 +503,30 @@ class MainActivity : Activity() {
         panel.layoutParams = params
     }
 
-    private fun glassPill(): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = dpf(7f)
-        setColor(blush(0.055f))
-        setStroke(dp(1), blush(0.14f))
-    }
+    private fun glassPill(): GradientDrawable =
+        GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(blush(0.11f), blush(0.03f))).apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpf(999f)
+            setStroke(dp(1), blush(0.18f))
+        }
 
-    private fun focusedPill(): GradientDrawable = GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = dpf(7f)
-        setColor(maroon(0.30f))
-        setStroke(dp(1), blush(0.55f))
-    }
+    private fun focusedPill(): GradientDrawable =
+        GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(blush(0.18f), maroon(0.42f))).apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpf(999f)
+            setStroke(dp(1), blush(0.50f))
+        }
+
+    /** Rounded glass tile behind an app icon. */
+    private fun glassTile(radius: Float = 14f): GradientDrawable =
+        GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(blush(0.11f), maroon(0.13f))).apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpf(radius)
+            setStroke(dp(1), blush(0.17f))
+        }
 
     private fun toolButton(icon: Int, text: String, onClick: () -> Unit): LinearLayout =
         LinearLayout(this).apply {
@@ -601,7 +612,8 @@ class MainActivity : Activity() {
             setPadding(dp(4), dp(5), dp(4), dp(5))
             isClickable = true
             isFocusable = true
-            background = null
+            background = glassTile(15f)
+            setPadding(dp(3), dp(4), dp(3), dp(3))
             addView(ImageView(this@MainActivity).apply {
                 setImageDrawable(entry.icon)
                 scaleType = ImageView.ScaleType.FIT_CENTER
@@ -722,6 +734,7 @@ class MainActivity : Activity() {
             val item = FrameLayout(this).apply {
                 isClickable = true
                 isFocusable = true
+                background = glassTile(11f)
                 addView(ImageView(this@MainActivity).apply {
                     setImageDrawable(entry.icon)
                     scaleType = ImageView.ScaleType.FIT_CENTER
@@ -769,6 +782,7 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER
                 isClickable = true
                 isFocusable = true
+                background = glassTile(15f)
                 addView(ImageView(this@MainActivity).apply { setImageDrawable(entry.icon) },
                     LinearLayout.LayoutParams(dp(24), dp(24)))
                 addView(label(entry.label, 8f, blush(0.72f), 0.0f).apply {
@@ -804,6 +818,7 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER
                 isClickable = true
                 isFocusable = true
+                background = glassTile(17f)
                 addView(ImageView(this@MainActivity).apply { setImageDrawable(entry.icon) },
                     LinearLayout.LayoutParams(dp(24), dp(24)))
                 addView(label(entry.label, 8.5f, BLUSH, 0.0f).apply {

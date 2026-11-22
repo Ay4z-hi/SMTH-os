@@ -20,7 +20,7 @@ REDUCE_MOTION = os.path.expanduser("~/.config/smth/reduce-motion")
 WALL = "/usr/share/backgrounds/smth/wallpaper.png"
 AHIAN_WALL = "/usr/share/backgrounds/smth/ahian-teal.png"
 APPS = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint", "smth-notes",
-        "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings", "smth-ahian"]
+        "smth-calc", "smth-player", "smth-clock", "smth-orbit", "smth-terminal", "smth-settings", "smth-ahian"]
 GOLD = math.pi * (3 - math.sqrt(5)); TAU = math.tau
 CY, VI = D.AHIAN_ACCENT, D.AHIAN_TEAL      # the live dot field is AHIAN art only
 
@@ -43,12 +43,31 @@ def T(): return time.time() - S.t0
 CSS = b"""
 window.home { background: #09090b; color: #f2c6d2; }
 .home, .home label, .home button { font-family: "Space Mono", "Doto", "DotGothic16", monospace; }
-/* Shortcuts are drawn straight on the wallpaper: no tile, no border. */
-.home button.app { background: transparent; border: none; box-shadow: 0 2px 8px alpha(#000000, 0.35); padding: 4px 6px; border-radius: 10px; transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease; }
-.home button.app:hover { background: alpha(#f2c6d2, 0.10); transform: translateY(-2px); box-shadow: 0 6px 16px alpha(#000000, 0.45); }
-.home button.app:active { background: alpha(#701b35, 0.45); }
+/* Shortcuts are glass tiles: rounded, tinted, lit along the top edge. */
+.home button.app {
+  background-image: linear-gradient(165deg, alpha(#f2c6d2, 0.105), alpha(#f2c6d2, 0.028) 54%, alpha(#701b35, 0.13));
+  border: 1px solid alpha(#f2c6d2, 0.15);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.10), 0 12px 26px alpha(#000000, 0.38);
+  padding: 8px 6px 7px;
+  min-width: 78px;
+  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.home button.app:hover {
+  background-image: linear-gradient(165deg, alpha(#f2c6d2, 0.18), alpha(#f2c6d2, 0.06) 54%, alpha(#701b35, 0.22));
+  border-color: alpha(#f2c6d2, 0.30);
+  transform: translateY(-3px);
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.16), 0 18px 34px alpha(#000000, 0.48);
+}
+.home button.app:active { background-image: linear-gradient(165deg, alpha(#701b35, 0.55), alpha(#701b35, 0.28)); border-color: alpha(#f2c6d2, 0.40); }
 .home label.cap { color: #f2c6d2; font-size: 10px; }
-.home .glance { background: alpha(#09090b, 0.55); border-radius: 14px; border: 1px solid alpha(#f2c6d2, 0.18); padding: 8px 12px; box-shadow: 0 8px 24px alpha(#000000, 0.4), inset 0 1px 0 alpha(#ffffff, 0.06); }
+.home .glance {
+  background-image: linear-gradient(160deg, alpha(#f2c6d2, 0.10), alpha(#f2c6d2, 0.03) 55%, alpha(#701b35, 0.10));
+  border-radius: 24px;
+  border: 1px solid alpha(#f2c6d2, 0.16);
+  padding: 10px 14px;
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.10), 0 16px 38px alpha(#000000, 0.42);
+}
 .home .clockbox { background: transparent; }
 .home label.date { color: alpha(#f2c6d2, 0.62); font-size: 10px; letter-spacing: 1px; }
 @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-3px); } 100% { transform: translateY(0px); } }

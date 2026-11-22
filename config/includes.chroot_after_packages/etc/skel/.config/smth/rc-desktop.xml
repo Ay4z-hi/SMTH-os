@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <labwc_config>
-  <theme><name>SMTH</name><cornerRadius>14</cornerRadius><font name="Space Mono" size="10"/></theme>
+  <theme><name>SMTH</name><cornerRadius>18</cornerRadius><font name="Space Mono" size="10"/></theme>
   <keyboard>
     <default/>
     <keybind key="W-Return"><action name="Execute" command="alacritty"/></keybind>

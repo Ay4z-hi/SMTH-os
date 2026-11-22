@@ -71,6 +71,8 @@ jobs:
         run: python3 tools/test_ahian_flow.py
       - name: Desktop grid placement
         run: python3 tools/test_desktop_grid.py
+      - name: Orbit observatory frames and layout
+        run: python3 tools/test_orbit.py
       - name: Generated tokens are committed
         run: |
           git diff --exit-code -- \

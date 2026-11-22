@@ -1,25 +1,275 @@
-/* SMTH: libadwaita overrides for the maroon, obsidian and blush palette. */
+/* SMTH liquid glass.
+ *
+ * One surface language for every GTK4/libadwaita app on the image:
+ *   - every interactive surface is a rounded capsule or a 20px card
+ *   - surfaces are translucent blush glass over obsidian, lit along the top edge
+ *   - the maroon accent only appears where the user is acting
+ *
+ * GTK has no backdrop blur, so the glass is built the way real interfaces
+ * fake it: a low-alpha tint, a soft vertical sheen, a 1px inner highlight and
+ * an outer hairline. Corners of real windows are rounded by labwc.
+ */
+
 @define-color accent_bg_color #701b35;
 @define-color accent_color #f2c6d2;
 @define-color accent_fg_color #f2c6d2;
 @define-color window_bg_color #09090b;
 @define-color window_fg_color #f2c6d2;
-@define-color view_bg_color #09090b;
+@define-color view_bg_color #0b0a0d;
 @define-color view_fg_color #f2c6d2;
-@define-color headerbar_bg_color #09090b;
+@define-color headerbar_bg_color #0b0a0d;
 @define-color headerbar_fg_color #f2c6d2;
-@define-color card_bg_color #0d0d10;
-@define-color popover_bg_color #0d0d10;
-@define-color sidebar_bg_color #0d0d10;
-window, .background { background-color: #09090b; color: #f2c6d2; font-family: "Space Mono", "Doto", "DotGothic16", monospace; }
-headerbar { background: #09090b; border-bottom: 1px solid alpha(#f2c6d2, 0.12); }
-button { border-radius: 8px; background: alpha(#f2c6d2, 0.05); border: 1px solid alpha(#f2c6d2, 0.12); color: #f2c6d2; }
-button:hover { background: alpha(#701b35, 0.38); }
-button:active { background: alpha(#701b35, 0.60); }
-button.suggested-action { background: #701b35; color: #f2c6d2; border-color: alpha(#f2c6d2, 0.30); }
-entry, searchentry, spinbutton { background: alpha(#f2c6d2, 0.05); border: 1px solid alpha(#f2c6d2, 0.14); border-radius: 8px; color: #f2c6d2; }
-entry:focus-within, searchentry:focus-within { border-color: alpha(#f2c6d2, 0.55); }
-.card, list.boxed-list { background: #0d0d10; border: 1px solid alpha(#f2c6d2, 0.12); border-radius: 12px; }
-switch:checked { background: #701b35; }
-selection { background: alpha(#701b35, 0.55); color: #f2c6d2; }
-tooltip { background: #0d0d10; color: #f2c6d2; border: 1px solid alpha(#f2c6d2, 0.18); }
+@define-color card_bg_color #100e12;
+@define-color popover_bg_color #100e12;
+@define-color sidebar_bg_color #0c0b0e;
+
+/* ---- canvas --------------------------------------------------------- */
+window, .background {
+  background-color: #09090b;
+  background-image: radial-gradient(ellipse at 18% -10%, alpha(#701b35, 0.30), transparent 58%),
+                    radial-gradient(ellipse at 110% 108%, alpha(#f2c6d2, 0.05), transparent 52%),
+                    linear-gradient(168deg, #0c0a0f 0%, #09090b 46%, #0d0910 100%);
+  color: #f2c6d2;
+  font-family: "Space Mono", "Doto", "DotGothic16", monospace;
+}
+window.csd { border-radius: 18px; }
+
+/* ---- title bars ------------------------------------------------------ */
+headerbar, .titlebar, windowhandle > headerbar {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.055), alpha(#f2c6d2, 0.012));
+  border-bottom: 1px solid alpha(#f2c6d2, 0.10);
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.05);
+  border-radius: 18px 18px 0 0;
+  min-height: 40px;
+}
+headerbar:backdrop { background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.03), transparent); }
+headerbar windowtitle { font-family: "Doto", "Space Mono", monospace; letter-spacing: 1px; }
+headerbar windowcontrols button {
+  border-radius: 999px; min-width: 22px; min-height: 22px; padding: 0;
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.10), alpha(#f2c6d2, 0.03));
+  border: 1px solid alpha(#f2c6d2, 0.16);
+}
+headerbar windowcontrols button:hover { background-color: alpha(#701b35, 0.65); }
+
+/* ---- buttons: 12px controls, capsules when the app asks for .pill --- */
+button {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.095), alpha(#f2c6d2, 0.030));
+  border: 1px solid alpha(#f2c6d2, 0.16);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.09), 0 2px 6px alpha(#000000, 0.22);
+  color: #f2c6d2;
+  padding: 5px 14px;
+  min-height: 24px;
+  transition: background-color 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+button:hover {
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.16), alpha(#f2c6d2, 0.06));
+  border-color: alpha(#f2c6d2, 0.28);
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.14), 0 6px 16px alpha(#000000, 0.30);
+}
+button:active, button:checked {
+  background-image: linear-gradient(180deg, alpha(#701b35, 0.62), alpha(#701b35, 0.38));
+  border-color: alpha(#f2c6d2, 0.34);
+  box-shadow: inset 0 2px 6px alpha(#000000, 0.35);
+}
+button.flat, button.flat:hover { background-image: none; border-color: transparent; box-shadow: none; }
+button.flat:hover { background-color: alpha(#f2c6d2, 0.07); }
+button.pill, .pill, button.rounded { border-radius: 999px; padding: 4px 16px; }
+button.suggested-action {
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.16), alpha(#701b35, 0.55));
+  border-color: alpha(#f2c6d2, 0.38);
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.16), 0 8px 22px alpha(#701b35, 0.35);
+  color: #ffe9f0;
+}
+button.suggested-action:hover { background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.22), alpha(#701b35, 0.70)); }
+button.destructive-action { background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.10), alpha(#701b35, 0.32)); border-color: alpha(#f2c6d2, 0.30); }
+button:disabled { opacity: 0.45; box-shadow: none; }
+button.circular { border-radius: 999px; padding: 4px; }
+menubutton > button, splitbutton > button, dropdown > button { border-radius: 999px; }
+button.image-button { border-radius: 999px; padding: 6px; }
+
+/* ---- text fields: capsules with a focus ring ------------------------ */
+entry, searchentry, spinbutton, passwordentry, textview {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.075), alpha(#f2c6d2, 0.025));
+  border: 1px solid alpha(#f2c6d2, 0.16);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 3px alpha(#000000, 0.30), inset 0 1px 0 alpha(#ffffff, 0.05);
+  color: #f2c6d2;
+  padding: 6px 12px;
+  min-height: 28px;
+}
+entry > text, searchentry > text, spinbutton > text { background: transparent; padding: 0; }
+entry:focus-within, searchentry:focus-within, spinbutton:focus-within {
+  border-color: alpha(#f2c6d2, 0.46);
+  box-shadow: inset 0 1px 3px alpha(#000000, 0.30), 0 0 0 2px alpha(#701b35, 0.40);
+  background-image: linear-gradient(180deg, alpha(#701b35, 0.28), alpha(#f2c6d2, 0.03));
+}
+entry:focus-within > text, searchentry:focus-within > text { background: transparent; }
+searchentry { border-radius: 999px; padding: 4px 14px; }
+entry.flat, searchentry.flat { border-color: transparent; background-image: alpha(#f2c6d2, 0.05); box-shadow: none; }
+textview {
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: inset 0 1px 3px alpha(#000000, 0.28), inset 0 1px 0 alpha(#ffffff, 0.04);
+}
+textview > text { background: transparent; }
+spinbutton > button { border-radius: 999px; padding: 2px 8px; min-height: 20px; }
+entry.error { border-color: #f2c6d2; box-shadow: 0 0 0 2px alpha(#701b35, 0.65); }
+
+/* ---- cards, rows, sidebars ------------------------------------------ */
+.card, .glass-card, list.boxed-list, preferencesgroup > box {
+  background-color: transparent;
+  background-image: linear-gradient(160deg, alpha(#f2c6d2, 0.075), alpha(#f2c6d2, 0.025) 55%, alpha(#701b35, 0.07));
+  border: 1px solid alpha(#f2c6d2, 0.13);
+  border-radius: 20px;
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.06), 0 14px 34px alpha(#000000, 0.30);
+}
+row, listbox row, .navigation-sidebar row {
+  border-radius: 12px;
+  padding: 6px 8px;
+  transition: background-color 130ms ease, box-shadow 130ms ease;
+}
+row:hover, listbox row:hover { background-color: alpha(#f2c6d2, 0.075); box-shadow: inset 0 1px 0 alpha(#ffffff, 0.05); }
+row:selected, listbox row:selected, .navigation-sidebar row:selected {
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.16), alpha(#701b35, 0.52));
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.10);
+}
+list.boxed-list { padding: 6px; }
+list.boxed-list > row { border-radius: 14px; }
+list.boxed-list > row:first-child { border-top-left-radius: 16px; border-top-right-radius: 16px; }
+list.boxed-list > row:last-child { border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; }
+list.boxed-list > row + row { border-top: 1px solid alpha(#f2c6d2, 0.06); }
+.navigation-sidebar, sidebar, .sidebar { background: transparent; border-radius: 18px; }
+actionbar > revealer > box, .bottom-bar {
+  background-image: linear-gradient(0deg, alpha(#f2c6d2, 0.05), transparent);
+  border-top: 1px solid alpha(#f2c6d2, 0.09);
+  border-radius: 0 0 18px 18px;
+}
+
+/* ---- floating surfaces ---------------------------------------------- */
+popover.background, popover > contents, popover.menu > contents, menu {
+  background-color: transparent;
+  background-image: linear-gradient(165deg, alpha(#f2c6d2, 0.10), alpha(#f2c6d2, 0.035) 45%, alpha(#701b35, 0.16));
+  border: 1px solid alpha(#f2c6d2, 0.18);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.10), 0 20px 48px alpha(#000000, 0.55);
+  color: #f2c6d2;
+  padding: 6px;
+}
+popover.menu modelbutton, popover modelbutton {
+  border-radius: 12px; padding: 6px 10px; min-height: 24px;
+}
+popover.menu modelbutton:hover, popover modelbutton:hover { background-color: alpha(#701b35, 0.45); }
+tooltip, tooltip.background {
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.12), alpha(#f2c6d2, 0.04));
+  background-color: #141116;
+  border: 1px solid alpha(#f2c6d2, 0.22);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px alpha(#000000, 0.50), inset 0 1px 0 alpha(#ffffff, 0.10);
+  color: #f2c6d2;
+  padding: 5px 10px;
+}
+toast, .toast, .app-notification {
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.12), alpha(#701b35, 0.30));
+  background-color: #100d12;
+  border: 1px solid alpha(#f2c6d2, 0.22);
+  border-radius: 999px;
+  box-shadow: 0 18px 40px alpha(#000000, 0.55), inset 0 1px 0 alpha(#ffffff, 0.10);
+  padding: 6px 14px;
+}
+.osd, .osd.background {
+  background-color: alpha(#0b0a0d, 0.92);
+  border: 1px solid alpha(#f2c6d2, 0.16);
+  border-radius: 22px;
+  box-shadow: 0 20px 44px alpha(#000000, 0.50);
+}
+
+/* ---- tabs ------------------------------------------------------------ */
+tabbar tab, notebook tab, .tab {
+  border-radius: 999px;
+  padding: 4px 14px;
+  border: 1px solid transparent;
+  color: alpha(#f2c6d2, 0.68);
+}
+tabbar tab:hover, notebook tab:hover { background-color: alpha(#f2c6d2, 0.07); }
+tabbar tab:selected, notebook tab:selected, .tab:checked {
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.18), alpha(#701b35, 0.42));
+  border-color: alpha(#f2c6d2, 0.25);
+  color: #f2c6d2;
+}
+tabbar tabbox { background: transparent; }
+
+/* ---- switches, checks, sliders -------------------------------------- */
+switch {
+  border-radius: 999px;
+  background-image: linear-gradient(180deg, alpha(#000000, 0.42), alpha(#f2c6d2, 0.05));
+  border: 1px solid alpha(#f2c6d2, 0.18);
+  box-shadow: inset 0 2px 5px alpha(#000000, 0.35);
+  min-width: 44px; min-height: 24px;
+}
+switch:checked {
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.28), alpha(#701b35, 0.78));
+  border-color: alpha(#f2c6d2, 0.35);
+}
+switch > slider {
+  background-image: linear-gradient(180deg, #fff6f9, #d9aebc);
+  border-radius: 999px;
+  border: 1px solid alpha(#000000, 0.25);
+  box-shadow: 0 2px 6px alpha(#000000, 0.45);
+  min-width: 20px; min-height: 20px;
+}
+check, radio {
+  border: 1px solid alpha(#f2c6d2, 0.30);
+  background-color: alpha(#f2c6d2, 0.06);
+  border-radius: 7px;
+  min-width: 18px; min-height: 18px;
+}
+radio { border-radius: 999px; }
+check:checked, radio:checked {
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.35), alpha(#701b35, 0.80));
+  border-color: alpha(#f2c6d2, 0.55);
+}
+scale { padding: 4px 0; }
+scale trough {
+  border-radius: 999px; min-height: 6px;
+  background-color: alpha(#000000, 0.40);
+  box-shadow: inset 0 1px 3px alpha(#000000, 0.45);
+}
+scale highlight { border-radius: 999px; background-image: linear-gradient(90deg, alpha(#701b35, 0.9), alpha(#f2c6d2, 0.55)); }
+scale slider {
+  background-image: linear-gradient(180deg, #fff6f9, #e0b8c4);
+  border-radius: 999px; min-width: 16px; min-height: 16px;
+  border: 1px solid alpha(#000000, 0.30);
+  box-shadow: 0 2px 8px alpha(#000000, 0.50);
+}
+progressbar trough { border-radius: 999px; background-color: alpha(#000000, 0.35); min-height: 6px; }
+progressbar progress { border-radius: 999px; background-image: linear-gradient(90deg, alpha(#701b35, 0.9), alpha(#f2c6d2, 0.55)); }
+
+/* ---- scrolling ------------------------------------------------------- */
+scrollbar { background: transparent; border: none; }
+scrollbar slider {
+  border-radius: 999px;
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.24), alpha(#f2c6d2, 0.10));
+  border: 1px solid alpha(#f2c6d2, 0.12);
+  min-width: 7px; min-height: 36px;
+  margin: 3px;
+}
+scrollbar slider:hover { background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.38), alpha(#701b35, 0.30)); }
+scrollbar trough { background: transparent; border-radius: 999px; }
+scrolledwindow > undershoot.top, scrolledwindow > undershoot.bottom { background: none; }
+
+/* ---- misc ------------------------------------------------------------ */
+separator { background-color: alpha(#f2c6d2, 0.10); min-width: 1px; min-height: 1px; }
+paned > separator { background-color: alpha(#f2c6d2, 0.10); min-width: 5px; }
+selection { background-color: alpha(#701b35, 0.62); color: #f2c6d2; }
+link, button.link { color: #f2c6d2; text-decoration-color: alpha(#f2c6d2, 0.45); }
+levelbar trough { border-radius: 999px; background-color: alpha(#000000, 0.35); }
+levelbar block { border-radius: 999px; }
+spinner { color: #f2c6d2; }
+toolbarview > .top-bar, toolbarview > .bottom-bar { background: transparent; }
+calendarbutton { border-radius: 999px; }
+calendar { border-radius: 18px; background: transparent; }
+drop { border-radius: 20px; border: 1px dashed alpha(#f2c6d2, 0.35); }

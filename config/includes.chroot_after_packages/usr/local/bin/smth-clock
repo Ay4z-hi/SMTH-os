@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """SMTH Clock: dot-matrix clock, world time, stopwatch, timer, alarms."""
 import datetime, subprocess, sys, time, zoneinfo
+sys.path.insert(0, "/usr/local/lib/smth")
 import gi
 gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
 from gi.repository import Adw, GLib, Gtk
+import smthdot as D
 
 FONT = {
  "0": (14,17,19,21,25,17,14), "1": (4,12,4,4,4,4,14), "2": (14,17,1,2,4,8,31),
@@ -125,7 +127,7 @@ def on_activate(app):
                                   ("alarm", "Alarm", "alarm-symbolic", alarm_page)]:
         stack.add_titled_with_icon(fn(), name, title, icon)
     tv = Adw.ToolbarView(content=stack)
-    tv.add_top_bar(Adw.HeaderBar(title_widget=Adw.WindowTitle(title="Clock", subtitle="")))
+    tv.add_top_bar(Adw.HeaderBar(title_widget=D.dot_label("CLOCK", 3)))
     tv.add_bottom_bar(Adw.ViewSwitcherBar(stack=stack, reveal=True))
     Adw.ApplicationWindow(application=app, content=tv, default_width=420, default_height=760).present()
 

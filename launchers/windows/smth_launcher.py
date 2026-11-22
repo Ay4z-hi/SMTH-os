@@ -58,12 +58,19 @@ import time
 import tkinter as tk
 from tkinter import font as tkfont
 
+try:                                   # Pillow ships with the portable build
+    from PIL import Image, ImageDraw, ImageOps, ImageTk
+    HAVE_PIL = True
+except Exception:                      # pragma: no cover - minimal fallback
+    HAVE_PIL = False
+
 OBSIDIAN = "#09090B"
 MAROON = "#701B35"
 BLUSH = "#F2C6D2"
 SURFACE = "#0D0B0F"          # obsidian lifted one step for the taskbar
 BLUSH_DIM = "#8A7078"        # blush at low emphasis, still within the palette
 MAROON_DEEP = "#3A0F1D"
+BODY = "#120E13"            # the inside of a glass card
 AHIAN_PURPLE = "#4FB0E0"      # cold blue (was purple)
 AHIAN_TEAL = "#F0A85A"        # amber (was teal)
 AHIAN_DEEP = "#141822"
@@ -221,6 +228,7 @@ class SMTHLauncher:
         self.mono = self.pick_font(("Space Mono", "Consolas", "Courier New"))
         self.display = self.pick_font(("Doto", "Space Mono", "Segoe UI"))
         self.wallpaper = None
+        self._img_cache = {}
         self.recent = []
         self.start_open = False
         self.shortcut_positions = {}
@@ -270,6 +278,89 @@ class SMTHLauncher:
             if name in available:
                 return name
         return "TkDefaultFont"
+
+    # ---- glass assets ----------------------------------------------------
+    def glass_photo(self, width, height, radius=16, tint=(23, 16, 23), alpha=226):
+        """A cached, antialiased rounded glass card, drawn with Pillow."""
+        key = (int(width), int(height), int(radius), tint, alpha)
+        if key in self._img_cache:
+            return self._img_cache[key]
+        if not HAVE_PIL:
+            return None
+        scale = 2
+        w, h = max(2, int(width)) * scale, max(2, int(height)) * scale
+        r = min(int(radius) * scale, min(w, h) // 2)
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle((0, 0, w - 1, h - 1), r, fill=tint + (alpha,))
+        glow = int(h * 0.52)
+        for y in range(glow):
+            a = int(22 * (1 - y / max(1, glow)))
+            if a:
+                draw.line((0, y, w, y), fill=(255, 255, 255, a))
+        draw.rounded_rectangle((0, 0, w - 1, h - 1), r, outline=(242, 198, 210, 74), width=scale)
+        if w > 6 * scale:
+            draw.rounded_rectangle((scale, scale, w - 1 - scale, h - 1 - scale),
+                                   max(0, r - scale), outline=(255, 255, 255, 22), width=scale)
+        mask = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), r, fill=255)
+        img.putalpha(mask)
+        photo = ImageTk.PhotoImage(img.resize((int(width), int(height)), Image.LANCZOS),
+                                   master=self.root)
+        self._img_cache[key] = photo
+        return photo
+
+    def wallpaper_image(self):
+        if not HAVE_PIL:
+            return None
+        art = getattr(self, "_wall_pil", None)
+        if art is not None:
+            return art
+        try:
+            art = Image.open(os.path.join(ASSETS, "smth-wallpaper.png")).convert("RGB")
+        except (OSError, ValueError):
+            return None
+        self._wall_pil = ImageOps.fit(art, (max(1, self.root.winfo_width()),
+                                            max(1, self.root.winfo_height())),
+                                      Image.LANCZOS, centering=(0.5, 0.5))
+        return self._wall_pil
+
+    def wallpaper_crop(self, x, y, width, height):
+        """The slice of wallpaper behind a floating panel, for seamless corners."""
+        art = self.wallpaper_image()
+        if art is None:
+            return None
+        return art.crop((max(0, int(x)), max(0, int(y)),
+                         max(1, int(x) + int(width)), max(1, int(y) + int(height))))
+
+    def glass_over_backdrop(self, x, y, width, height, radius=22, tint=(26, 17, 25), alpha=240):
+        """Rounded glass over the exact wallpaper behind it: real transparent corners."""
+        if not HAVE_PIL:
+            return None
+        key = ("backdrop", int(x), int(y), int(width), int(height), int(radius), tint, alpha)
+        if key in self._img_cache:
+            return self._img_cache[key]
+        crop = None if self.ahian_mode else self.wallpaper_crop(x, y, width, height)
+        if crop is None or crop.size != (int(width), int(height)):
+            crop = Image.new("RGB", (int(width), int(height)),
+                             (20, 24, 34) if self.ahian_mode else (9, 9, 11))
+        glass = self.glass_photo(width, height, radius, tint, alpha)
+        if glass is None:
+            return None
+        merged = crop.convert("RGBA")
+        merged.alpha_composite(ImageTk.getimage(glass))
+        photo = ImageTk.PhotoImage(merged, master=self.root)
+        self._img_cache[key] = photo
+        return photo
+
+    def draw_icon_tile(self, canvas, size, radius=12, tags=()):
+        """Rounded glass plate used behind every app glyph."""
+        photo = self.glass_photo(size, size, radius)
+        if photo is not None:
+            canvas.delete("tile")
+            canvas.create_image(0, 0, image=photo, anchor="nw", tags=("tile",) + tuple(tags))
+            canvas.tile = photo
+            canvas.tag_lower("tile")
 
     def load_wallpaper(self):
         path = os.path.join(ASSETS, "smth-wallpaper.png")
@@ -358,9 +449,14 @@ class SMTHLauncher:
             self.shortcut_positions[name] = (x, y)
             tag = f"shortcut-{i}"
             accent = "#B9A0FF" if self.ahian_mode else BLUSH
-            draw_glyph(c, glyph, x, y + 20, 30, accent, 1.7, tags=("desktop", tag))
-            c.create_text(x + 20, y + 46, text=name, fill=accent, anchor="w",
-                          font=(self.mono, 9), tags=("desktop", tag))
+            photo = self.glass_photo(58, 58, 17)
+            if photo is not None:
+                c.create_image(x + 27, y + 2, image=photo, anchor="nw", tags=("desktop", tag))
+                c.shortcut_photos = getattr(c, "shortcut_photos", {})
+                c.shortcut_photos[tag] = photo
+            draw_glyph(c, glyph, x + 56, y + 31, 28, accent, 1.6, tags=("desktop", tag))
+            c.create_text(x + 56, y + 68, text=name, fill=accent, anchor="center",
+                          font=(self.mono, 8), tags=("desktop", tag))
             c.tag_bind(tag, "<ButtonPress-1>", lambda e, n=name: self.begin_shortcut_drag(e, n))
             c.tag_bind(tag, "<B1-Motion>", self.drag_shortcut)
             c.tag_bind(tag, "<ButtonRelease-1>",
@@ -407,154 +503,248 @@ class SMTHLauncher:
         return "break"
 
     def build_taskbar(self):
-        bar = tk.Frame(self.root, bg=SURFACE, height=48)
-        bar.place(relx=0, rely=1.0, relwidth=1.0, y=-48, height=48)
-        edge = tk.Frame(self.root, bg=MAROON, height=1)
-        edge.place(relx=0, rely=1.0, relwidth=1.0, y=-49, height=1)
-        self.taskbar = bar
-        self.taskbar_edge = edge
+        # One floating glass capsule, drawn on a canvas so its corners are real.
+        self.taskbar = tk.Canvas(self.root, bg=OBSIDIAN, highlightthickness=0, bd=0)
+        self.taskbar.place(x=12, rely=1.0, y=-58, relwidth=1, width=-24, height=46)
+        self.taskbar.bind("<Configure>", lambda _e: self.paint_taskbar())
+        self.paint_taskbar()
 
-        start = tk.Frame(bar, bg=SURFACE, cursor="hand2")
-        start.pack(side="left", padx=(10, 4), pady=7)
-        logo = tk.Canvas(start, width=30, height=30, bg=SURFACE, highlightthickness=0, bd=0)
-        logo.pack(side="left")
-        draw_glyph(logo, "fallback", 15, 15, 24, BLUSH, 1.6)
-        # The logo opens search; there is no separate Search button.
-        for widget in (start, logo):
-            widget.bind("<Button-1>", lambda _e: self.open_start(focus=True))
-
-        self.pinned_bar = tk.Frame(bar, bg=SURFACE)
-        self.pinned_bar.pack(side="left", padx=8)
-        for name in PINNED[:5]:
+    def paint_taskbar(self):
+        c = self.taskbar
+        w, h = max(1, c.winfo_width()), max(1, c.winfo_height())
+        c.delete("all")
+        photo = self.glass_over_backdrop(c.winfo_x(), c.winfo_y(), w, h, 23,
+                                         tint=(26, 17, 25), alpha=238)
+        if photo is not None:
+            c.create_image(0, 0, image=photo, anchor="nw")
+            c.taskbar_photo = photo
+        c.create_text(18, h // 2, text="SMTH", fill=BLUSH, anchor="w",
+                      font=(self.display, 10, "bold"), tags=("start",))
+        c.tag_bind("start", "<Button-1>", lambda _e: self.open_start(focus=True))
+        x = 84
+        for index, name in enumerate(PINNED[:5]):
             app = next((a for a in APPS if a[0] == name), None)
-            if not app: continue
-            button = tk.Canvas(self.pinned_bar, width=30, height=30, bg=SURFACE,
-                               highlightthickness=0, bd=0, cursor="hand2")
-            button.smth_name = name
-            button.pack(side="left", padx=1)
-            if app[3] == "smth_terminal":
-                # Draw terminal glyph for built-in terminal
-                draw_glyph(button, "terminal", 15, 14, 18, BLUSH, 1.5)
-                button.bind("<Button-1>", lambda _e, a=app: self.launch(a[0], a[3]))
-            else:
-                draw_glyph(button, app[4], 15, 14, 18, BLUSH, 1.5)
-                button.bind("<Button-1>", lambda _e, a=app: self.launch(a[1], a[3], a[2]))
-            self.pinned_dot(button, name)
+            if not app:
+                continue
+            tag = f"pin-{index}"
+            tile = self.glass_photo(32, 32, 11, tint=(35, 23, 33), alpha=232)
+            if tile is not None:
+                c.create_image(x, h // 2 - 16, image=tile, anchor="nw", tags=(tag,))
+                c.taskbar_tiles = getattr(c, "taskbar_tiles", {})
+                c.taskbar_tiles[tag] = tile
+            kind = "terminal" if app[3] == "smth_terminal" else app[4]
+            draw_glyph(c, kind, x + 16, h // 2 - 1, 17, BLUSH, 1.5, tags=(tag,))
+            if name in self.recent:
+                c.create_oval(x + 13, h - 9, x + 19, h - 3, fill=BLUSH, outline="", tags=(tag,))
+            c.tag_bind(tag, "<Button-1>", lambda _e, a=app: self.launch_pinned(a))
+            x += 40
+        now = datetime.datetime.now()
+        c.create_text(w - 16, h // 2 - 7, text=now.strftime("%H:%M"), fill=BLUSH, anchor="e",
+                      font=(self.mono, 10), tags=("clock",))
+        c.create_text(w - 16, h // 2 + 8, text=now.strftime("%a %d %b").upper(), fill=BLUSH_DIM,
+                      anchor="e", font=(self.mono, 7), tags=("date",))
+        c.create_text(w - 78, h // 2, text=self.read_battery(), fill=BLUSH_DIM, anchor="e",
+                      font=(self.mono, 8), tags=("battery",))
 
-        tray = tk.Frame(bar, bg=SURFACE)
-        tray.pack(side="right", padx=(4, 12))
-        self.battery = tk.Label(tray, fg=BLUSH_DIM, bg=SURFACE, font=(self.mono, 8))
-        self.battery.pack(side="right", padx=(10, 0))
-        clock_box = tk.Frame(tray, bg=SURFACE)
-        clock_box.pack(side="right")
-        self.clock = tk.Label(clock_box, fg=BLUSH, bg=SURFACE, font=(self.mono, 10))
-        self.clock.pack(anchor="e")
-        self.date = tk.Label(clock_box, fg=BLUSH_DIM, bg=SURFACE, font=(self.mono, 8))
-        self.date.pack(anchor="e")
+    def launch_pinned(self, app):
+        if app[3] == "smth_terminal":
+            self.launch(app[0], app[3])
+        else:
+            self.launch(app[1], app[3], app[2])
+        self.paint_taskbar()
 
     def pinned_dot(self, canvas, name):
         canvas.delete("run")
         if name in self.recent:
-            canvas.create_oval(13, 27, 17, 31, fill=BLUSH, outline="", tags="run")
+            canvas.create_oval(15, 29, 19, 33, fill=BLUSH, outline="", tags="run")
 
     def build_start(self):
-        self.panel = tk.Frame(self.root, bg=OBSIDIAN, highlightthickness=1,
-                              highlightbackground=MAROON, bd=0)
-        body = tk.Frame(self.panel, bg=OBSIDIAN)
-        body.pack(fill="both", expand=True, padx=16, pady=14)
+        self.panel = tk.Frame(self.root, bg=BODY, bd=0, highlightthickness=0)
+        self.panel_bg = tk.Canvas(self.panel, bg=OBSIDIAN, highlightthickness=0, bd=0)
+        self.panel_bg.place(x=0, y=0, relwidth=1, relheight=1)
+        self.panel_bg.bind("<Configure>", lambda _e: self.paint_panel())
+        body = tk.Frame(self.panel, bg=BODY)
+        body.place(x=18, y=16, relwidth=1, width=-36, relheight=1, height=-32)
 
-        head = tk.Frame(body, bg=OBSIDIAN)
+        head = tk.Frame(body, bg=BODY)
         head.pack(fill="x")
-        tk.Label(head, text="SMTH", fg=BLUSH, bg=OBSIDIAN,
+        tk.Label(head, text="SMTH", fg=BLUSH, bg=BODY,
                  font=(self.display, 14, "bold")).pack(side="left")
-        tk.Label(head, text="START", fg=BLUSH_DIM, bg=OBSIDIAN,
+        tk.Label(head, text="START", fg=BLUSH_DIM, bg=BODY,
                  font=(self.mono, 7)).pack(side="right", pady=(8, 0))
 
         self.query = tk.StringVar()
         self.query.trace_add("write", lambda *_: self.filter_start())
-        self.search = tk.Entry(body, textvariable=self.query, bg=MAROON_DEEP, fg=BLUSH,
+        self.search_shell = tk.Canvas(body, height=42, bg=BODY, highlightthickness=0, bd=0)
+        self.search_shell.pack(fill="x", pady=(10, 0))
+        self.search = tk.Entry(self.search_shell, textvariable=self.query, bg="#1A131B", fg=BLUSH,
                                insertbackground=BLUSH, relief="flat", font=(self.mono, 10),
-                               highlightthickness=1, highlightbackground=BLUSH_DIM,
-                               highlightcolor=BLUSH)
-        self.search.pack(fill="x", pady=(10, 0), ipady=6)
+                               highlightthickness=0, bd=0)
+        self._search_window = self.search_shell.create_window(16, 21, window=self.search,
+                                                              anchor="w", width=200, height=28)
+        self.search_shell.bind("<Configure>", self.resize_search)
         self.search.bind("<Return>", lambda *_: self.launch_first())
         self.search.bind("<Escape>", lambda *_: self.close_start())
         self.search.bind("<Down>", lambda *_: self.focus_list())
 
-        tk.Label(body, text="PINNED", fg=BLUSH_DIM, bg=OBSIDIAN,
+        tk.Label(body, text="PINNED", fg=BLUSH_DIM, bg=BODY,
                  font=(self.mono, 7)).pack(anchor="w", pady=(12, 4))
-        self.pin_row = tk.Frame(body, bg=OBSIDIAN)
+        self.pin_row = tk.Frame(body, bg=BODY)
         self.pin_row.pack(fill="x")
         for name in PINNED[:6]:
             app = next((a for a in APPS if a[0] == name), None)
             if not app: continue
-            cell = tk.Frame(self.pin_row, bg=OBSIDIAN, cursor="hand2")
-            cell.pack(side="left", padx=(0, 4))
-            icon = tk.Canvas(cell, width=28, height=28, bg=OBSIDIAN, highlightthickness=0, bd=0)
+            cell = tk.Frame(self.pin_row, bg=BODY, cursor="hand2")
+            cell.pack(side="left", padx=(0, 5))
+            icon = tk.Canvas(cell, width=40, height=40, bg=BODY, highlightthickness=0, bd=0)
             icon.pack()
-            label = tk.Label(cell, text=name, fg=BLUSH, bg=OBSIDIAN, font=(self.mono, 7))
+            self.draw_icon_tile(icon, 40, 13)
+            label = tk.Label(cell, text=name, fg=BLUSH, bg=BODY, font=(self.mono, 7))
             if app[3] == "smth_terminal":
-                # Draw terminal glyph for built-in terminal
-                draw_glyph(icon, "terminal", 14, 14, 20, BLUSH, 1.5)
+                draw_glyph(icon, "terminal", 20, 19, 22, BLUSH, 1.5)
                 for widget in (cell, icon, label):
                     widget.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
             else:
-                draw_glyph(icon, app[4], 14, 14, 20, BLUSH, 1.5)
+                draw_glyph(icon, app[4], 20, 19, 22, BLUSH, 1.5)
                 for widget in (cell, icon, label):
                     widget.bind("<Button-1>", lambda _e, a=app: self.launch_start(a))
             label.pack()
 
-        tk.Label(body, text="ALL APPLICATIONS", fg=BLUSH_DIM, bg=OBSIDIAN,
+        tk.Label(body, text="ALL APPLICATIONS", fg=BLUSH_DIM, bg=BODY,
                  font=(self.mono, 7)).pack(anchor="w", pady=(12, 2))
-        self.all_frame = tk.Frame(body, bg=OBSIDIAN)
+        self.all_frame = tk.Frame(body, bg=BODY)
         self.all_frame.pack(fill="both", expand=True)
         self.draw_all_apps()
 
-        foot = tk.Frame(body, bg=OBSIDIAN)
+        foot = tk.Frame(body, bg=BODY)
         foot.pack(fill="x", pady=(8, 0))
-        self.status = tk.Label(foot, text="", fg=BLUSH_DIM, bg=OBSIDIAN, anchor="w",
+        self.status = tk.Label(foot, text="", fg=BLUSH_DIM, bg=BODY, anchor="w",
                                font=(self.mono, 8))
         self.status.pack(side="left", fill="x", expand=True)
         self.pill(foot, "SETTINGS", lambda: self.launch("ms-settings:", "scheme")).pack(side="right", padx=(4, 0))
         self.pill(foot, "POWER", self.power_menu).pack(side="right")
 
+    def paint_panel(self):
+        """Rounded glass plate under the Start menu (the body sits inset on it)."""
+        if not hasattr(self, "panel_bg"):
+            return
+        w = self.panel_bg.winfo_width()
+        h = self.panel_bg.winfo_height()
+        if w < 20 or h < 20:
+            return
+        photo = self.glass_over_backdrop(self.panel.winfo_x(), self.panel.winfo_y(), w, h, 24,
+                                         tint=(30, 19, 28), alpha=244)
+        self.panel_bg.delete("glass")
+        if photo is not None:
+            self.panel_bg.create_image(0, 0, image=photo, anchor="nw", tags="glass")
+            self.panel_bg.glass_photo = photo
+
+    def resize_search(self, event):
+        w = max(80, event.width)
+        self.search_shell.delete("glass")
+        photo = self.glass_photo(w, 42, 21, tint=(28, 18, 26), alpha=240)
+        if photo is not None:
+            self.search_shell.create_image(0, 0, image=photo, anchor="nw", tags="glass")
+            self.search_shell.glass_photo = photo
+            self.search_shell.tag_lower("glass")
+        self.search_shell.coords(self._search_window, 16, 21)
+        self.search_shell.itemconfigure(self._search_window, width=max(40, w - 32))
+
     def pill(self, parent, label, command):
-        return tk.Button(parent, text=label, command=command, bg=OBSIDIAN, fg=BLUSH,
-                         activebackground=MAROON, activeforeground=BLUSH, relief="flat",
-                         bd=0, highlightthickness=1, highlightbackground=BLUSH_DIM,
-                         font=(self.mono, 7), padx=10, pady=4, cursor="hand2")
+        width = tkfont.Font(font=(self.mono, 7)).measure(label) + 32
+        canvas = tk.Canvas(parent, width=width, height=27, bg=BODY,
+                           highlightthickness=0, bd=0, cursor="hand2")
+        photo = self.glass_photo(width, 27, 13, tint=(34, 22, 32), alpha=235)
+        if photo is not None:
+            canvas.create_image(0, 0, image=photo, anchor="nw")
+            canvas._photo = photo
+        canvas.create_text(width / 2, 14, text=label, fill=BLUSH, font=(self.mono, 7))
+        canvas.bind("<Button-1>", lambda _e: command())
+        return canvas
 
     def draw_all_apps(self):
         for child in self.all_frame.winfo_children():
             child.destroy()
-        self.listbox = tk.Listbox(self.all_frame, bg=OBSIDIAN, fg=BLUSH, selectbackground=MAROON,
-                                  selectforeground=BLUSH, relief="flat", bd=0,
-                                  highlightthickness=0, font=(self.mono, 9), activestyle="none")
-        scroll = tk.Scrollbar(self.all_frame, command=self.listbox.yview, width=6,
-                              bg=SURFACE, troughcolor=OBSIDIAN, activebackground=MAROON,
-                              relief="flat", bd=0)
-        self.listbox.configure(yscrollcommand=scroll.set)
-        scroll.pack(side="right", fill="y")
-        self.listbox.pack(side="left", fill="both", expand=True)
-        for app in APPS:
-            self.listbox.insert("end", f"  {app[0]}")
-        # Bind double-click and Enter to launch
-        self.listbox.bind("<Double-Button-1>", lambda *_: self.launch_selected())
-        self.listbox.bind("<Return>", lambda *_: self.launch_selected())
-        # Also launch on double-click via listbox binding
-        self.listbox.bind("<Double-1>", lambda e: self.launch_selected())
+        self.filtered = [app[0] for app in APPS]
+        self.selected_row = 0
+        self.list_scroll = 0
+        self.list_canvas = tk.Canvas(self.all_frame, bg=BODY, highlightthickness=0, bd=0)
+        self.list_canvas.pack(fill="both", expand=True)
+        self.list_canvas.bind("<Configure>", lambda _e: self.render_rows())
+        self.list_canvas.bind("<Button-1>", self.on_row_click)
+        self.list_canvas.bind("<Double-Button-1>", self.on_row_open)
+        self.list_canvas.bind("<Return>", lambda _e: self.launch_selected())
+        self.list_canvas.bind("<Down>", lambda _e: self.move_row(1))
+        self.list_canvas.bind("<Up>", lambda _e: self.move_row(-1))
+        self.list_canvas.bind("<MouseWheel>", self.on_list_wheel)
+        self.render_rows()
+
+    def render_rows(self):
+        """Draw the application list as rounded glass rows, never a listbox."""
+        if not hasattr(self, "list_canvas"):
+            return
+        c = self.list_canvas
+        width = max(1, c.winfo_width())
+        height = max(1, c.winfo_height())
+        c.delete("all")
+        row_h = 30
+        visible = max(1, height // row_h)
+        self.list_scroll = max(0, min(self.list_scroll, max(0, len(self.filtered) - visible)))
+        plain = self.glass_photo(max(40, width - 4), row_h - 4, 13, tint=(30, 19, 28), alpha=180)
+        chosen = self.glass_photo(max(40, width - 4), row_h - 4, 13, tint=(86, 24, 44), alpha=235)
+        for offset, name in enumerate(self.filtered[self.list_scroll:self.list_scroll + visible]):
+            y = offset * row_h
+            photo = chosen if self.list_scroll + offset == self.selected_row else plain
+            if photo is not None:
+                c.create_image(2, y + 2, image=photo, anchor="nw")
+                c.row_photos = getattr(c, "row_photos", {})
+                c.row_photos[offset] = photo
+            selected = self.list_scroll + offset == self.selected_row
+            c.create_text(18, y + row_h / 2, text=name, anchor="w",
+                          fill=BLUSH if selected else BLUSH_DIM, font=(self.mono, 9))
+
+    def on_row_click(self, event):
+        index = self.list_scroll + int(event.y // 30)
+        if 0 <= index < len(self.filtered):
+            self.selected_row = index
+            self.render_rows()
+            self.list_canvas.focus_set()
+        return "break"
+
+    def on_row_open(self, event):
+        self.on_row_click(event)
+        self.launch_selected()
+        return "break"
+
+    def move_row(self, delta):
+        if not self.filtered:
+            return "break"
+        self.selected_row = max(0, min(len(self.filtered) - 1, self.selected_row + delta))
+        visible = max(1, self.list_canvas.winfo_height() // 30)
+        if self.selected_row < self.list_scroll:
+            self.list_scroll = self.selected_row
+        elif self.selected_row >= self.list_scroll + visible:
+            self.list_scroll = self.selected_row - visible + 1
+        self.render_rows()
+        return "break"
+
+    def on_list_wheel(self, event):
+        step = -1 if getattr(event, "delta", 0) > 0 else 1
+        self.list_scroll = max(0, self.list_scroll + step)
+        self.render_rows()
+        return "break"
 
     def filter_start(self):
         q = self.query.get().strip().lower()
-        self.listbox.delete(0, "end")
-        for app in APPS:
-            if not q or q in app[0].lower():
-                self.listbox.insert("end", f"  {app[0]}")
+        self.filtered = [app[0] for app in APPS if not q or q in app[0].lower()]
+        self.selected_row = 0
+        self.list_scroll = 0
+        self.render_rows()
         for child in self.pin_row.winfo_children():
             child.pack_forget()
         if not q:
             for child in self.pin_row.winfo_children():
-                child.pack(side="left", padx=(0, 4))
+                child.pack(side="left", padx=(0, 5))
 
     # ---- start menu window state ---------------------------------------
     def toggle_start(self):
@@ -570,8 +760,10 @@ class SMTHLauncher:
         panel_w = min(760, max(420, int(w * 0.52)))
         panel_h = min(520, max(300, h - 120))
         self._panel_h = panel_h
+        self._wall_pil = None
         self.panel.place(x=12, y=h - 58 - panel_h + 14, width=panel_w, height=panel_h)
         self.panel.lift()
+        self.paint_panel()
         self.slide(14, target=0)
         if focus:
             self.search.focus_set()
@@ -613,15 +805,14 @@ class SMTHLauncher:
         self.open_start(focus=True)
 
     def focus_list(self):
-        if self.listbox.size():
-            self.listbox.focus_set()
-            self.listbox.selection_clear(0, "end")
-            self.listbox.selection_set(0)
+        if self.filtered:
+            self.selected_row = 0
+            self.list_canvas.focus_set()
+            self.render_rows()
 
     # ---- apps -----------------------------------------------------------
     def launch_selected(self):
-        selection = self.listbox.curselection()
-        name = self.listbox.get(selection[0]).strip() if selection else ""
+        name = self.filtered[self.selected_row] if self.filtered else ""
         app = next((a for a in APPS if a[0] == name), None)
         if app:
             self.launch_start(app)
@@ -672,8 +863,7 @@ class SMTHLauncher:
                 self.recent.insert(0, name)
                 self.recent = self.recent[:5]
             self.status.config(text=f"Opened {name}", fg=BLUSH_DIM)
-            for child in self.pinned_bar.winfo_children():
-                self.pinned_dot(child, getattr(child, "smth_name", ""))
+            self.paint_taskbar()
             return
         except (OSError, subprocess.SubprocessError) as first_error:
             for fallback in fallbacks:
@@ -702,9 +892,12 @@ class SMTHLauncher:
 
     def tick(self):
         now = datetime.datetime.now()
-        self.clock.config(text=now.strftime("%H:%M"))
-        self.date.config(text=now.strftime("%a %d %b").upper())
-        self.battery.config(text=self.read_battery())
+        try:
+            self.taskbar.itemconfigure("clock", text=now.strftime("%H:%M"))
+            self.taskbar.itemconfigure("date", text=now.strftime("%a %d %b").upper())
+            self.taskbar.itemconfigure("battery", text=self.read_battery())
+        except (AttributeError, tk.TclError):
+            pass
         self.root.after(15000, self.tick)
 
     @staticmethod
@@ -735,10 +928,9 @@ class SMTHLauncher:
         self.reveal_pending = False
         if self.ahian_mode:
             try:
-                self.taskbar.place(relx=0, rely=1.0, relwidth=1.0, y=-48, height=48)
-                self.taskbar_edge.place(relx=0, rely=1.0, relwidth=1.0, y=-49, height=1)
+                self.taskbar.place(x=12, rely=1.0, y=-58, relwidth=1, width=-24, height=46)
                 self.taskbar.lift()
-                self.taskbar_edge.lift()
+                self.paint_taskbar()
             except (AttributeError, tk.TclError):
                 pass
         self.paint_desktop()

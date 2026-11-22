@@ -2,8 +2,8 @@
 program = "/usr/bin/zsh"
 
 [window]
-opacity = 0.92
-padding = { x = 14, y = 12 }
+opacity = 0.94
+padding = { x = 16, y = 14 }
 decorations = "None"
 
 [font]
@@ -11,9 +11,15 @@ normal = { family = "DejaVu Sans Mono", style = "Regular" }
 size = 11.0
 
 [colors.primary]
-background = "#000000"
-foreground = "#FFFFFF"
+background = "#0b0a0d"
+foreground = "#f2c6d2"
+dim_foreground = "#8a7078"
+bright_foreground = "#fff6f9"
 
 [colors.cursor]
-cursor = "#701b35"
-text = "#000000"
+cursor = "#f2c6d2"
+text = "#09090b"
+
+[colors.selection]
+background = "#701b35"
+text = "#fff6f9"

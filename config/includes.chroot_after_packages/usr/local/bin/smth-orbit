@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""SMTH Orbit: the system observatory.
+
+A single drawn composition: dot-matrix clock, three orbital gauges, process,
+network and per-core panels, and a live ticker. Space holds the animation,
+F toggles fullscreen, Escape closes.
+"""
+import sys, time
+sys.path.insert(0, "/usr/local/lib/smth")
+import cairo
+import gi
+gi.require_version("Gtk", "4.0"); gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, GLib, Gtk
+import orbit_scene as O
+import smthdot as D
+
+CSS = b"""
+window.orbit { background: #09090b; }
+window.orbit headerbar { background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.06), transparent); border-bottom: 1px solid alpha(#f2c6d2, 0.10); }
+window.orbit headerbar button { border-radius: 999px; }
+"""
+
+
+class Orbit(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, default_width=1180, default_height=760, title="SMTH Orbit")
+        self.set_size_request(900, 620)
+        self.add_css_class("orbit")
+        self.sampler = O.Sampler(); self.sample = self.sampler.read()
+        self.t0 = time.monotonic(); self.held = 0.0; self.hold_at = None
+        self.paused = False; self.rendered_at = -1.0; self.frame = None
+        self.area = Gtk.DrawingArea(hexpand=True, vexpand=True)
+        self.area.set_draw_func(self.draw)
+        view = Adw.ToolbarView(content=self.area)
+        bar = Adw.HeaderBar(title_widget=D.dot_label("ORBIT", 3)); bar.add_css_class("flat")
+        self.pause_button = Gtk.Button(icon_name="media-playback-pause-symbolic", tooltip_text="Hold the orbit (Space)")
+        self.pause_button.connect("clicked", lambda *_: self.toggle_hold())
+        self.full_button = Gtk.Button(icon_name="view-fullscreen-symbolic", tooltip_text="Fullscreen (F)")
+        self.full_button.connect("clicked", lambda *_: self.toggle_full())
+        bar.pack_end(self.full_button); bar.pack_end(self.pause_button)
+        view.add_top_bar(bar); self.set_content(view)
+        key = Gtk.EventControllerKey(); key.connect("key-pressed", self.key); self.add_controller(key)
+        self.add_tick_callback(self.tick)
+        provider = Gtk.CssProvider(); provider.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider,
+                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    def now(self):
+        return time.monotonic() - self.t0 - self.held - ((time.monotonic() - self.hold_at) if self.hold_at else 0.0)
+
+    def toggle_hold(self):
+        if self.paused:
+            self.held += time.monotonic() - (self.hold_at or time.monotonic())
+            self.hold_at = None; self.paused = False
+            self.pause_button.set_icon_name("media-playback-pause-symbolic")
+        else:
+            self.paused = True; self.hold_at = time.monotonic()
+            self.pause_button.set_icon_name("media-playback-start-symbolic")
+        self.area.queue_draw()
+
+    def toggle_full(self):
+        (self.unfullscreen if self.is_fullscreen() else self.fullscreen)()
+
+    def key(self, _c, key, _code, _state):
+        if key == Gdk.KEY_Escape:
+            self.close(); return True
+        if key == Gdk.KEY_space:
+            self.toggle_hold(); return True
+        if key in (Gdk.KEY_f, Gdk.KEY_F):
+            self.toggle_full(); return True
+        return False
+
+    def tick(self, _widget, _clock):
+        t = self.now()
+        if t - self.rendered_at < 1 / 30.0:
+            return GLib.SOURCE_CONTINUE
+        if not self.paused:
+            self.area.queue_draw()
+        return GLib.SOURCE_CONTINUE
+
+    def draw(self, _area, cr, width, height):
+        if width < 2 or height < 2:
+            return
+        try:
+            self.sample = self.sampler.read()
+            image = O.render(width, height, self.now(), self.sample, self.paused)
+        except Exception as exc:                       # never leave a blank window
+            print(f"smth-orbit: frame failed: {exc}", file=sys.stderr)
+            cr.set_source_rgb(0.035, 0.035, 0.043); cr.paint()
+            return
+        self.rendered_at = self.now()
+        data = bytearray(image.convert("RGBA").tobytes("raw", "BGRA"))
+        surface = cairo.ImageSurface.create_for_data(data, cairo.FORMAT_ARGB32, width, height, width * 4)
+        cr.set_source_surface(surface, 0, 0); cr.paint()
+        self.frame = data                              # keep the buffer alive with the surface
+
+
+app = Adw.Application(application_id="os.smth.Orbit")
+app.connect("activate", lambda a: Orbit(a).present())
+sys.exit(app.run(sys.argv))

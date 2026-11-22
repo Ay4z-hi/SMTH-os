@@ -13,26 +13,49 @@ from gi.repository import Gtk4LayerShell as LS
 import smthdot as D
 
 PINNED = ["smth-files", "smth-browser", "smth-store", "smth-camera", "smth-gallery", "smth-paint",
-          "smth-notes", "smth-calc", "smth-player", "smth-clock", "smth-terminal", "smth-settings", "smth-ahian"]
+          "smth-notes", "smth-calc", "smth-player", "smth-clock", "smth-orbit", "smth-terminal", "smth-settings", "smth-ahian"]
 
 CSS = b"""
-window.launcher { background: alpha(#09090b, 0.90); border: 1px solid alpha(#f2c6d2, 0.18); border-radius: 14px; color: #f2c6d2; }
+window.launcher {
+  background-color: transparent;
+  background-image: radial-gradient(ellipse at 12% -8%, alpha(#701b35, 0.42), transparent 56%),
+                    linear-gradient(168deg, alpha(#f2c6d2, 0.10), alpha(#f2c6d2, 0.035) 38%, alpha(#701b35, 0.14));
+  border: 1px solid alpha(#f2c6d2, 0.20);
+  border-radius: 24px;
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.12), 0 26px 60px alpha(#000000, 0.60);
+  color: #f2c6d2;
+}
 .launcher label { color: #f2c6d2; }
-.launcher .head { color: alpha(#f2c6d2, 0.55); font-size: 10px; letter-spacing: 2px; }
-.launcher searchentry { border-radius: 8px; padding: 6px 12px; min-height: 26px; background: alpha(#f2c6d2, 0.06);
-                        border: 1px solid alpha(#f2c6d2, 0.14); color: #f2c6d2; }
-.launcher searchentry:focus-within { border-color: alpha(#f2c6d2, 0.55); background: alpha(#701b35, 0.32); }
-.launcher button.pin { border-radius: 8px; padding: 4px; background: transparent; border: none; box-shadow: none; }
-.launcher button.pin:hover { background: alpha(#f2c6d2, 0.08); }
-.launcher button.pin:active { background: alpha(#701b35, 0.45); }
+.launcher .head { color: alpha(#f2c6d2, 0.52); font-size: 10px; letter-spacing: 2px; }
+.launcher searchentry {
+  border-radius: 999px; padding: 5px 16px; min-height: 30px;
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.09), alpha(#f2c6d2, 0.03));
+  border: 1px solid alpha(#f2c6d2, 0.16); color: #f2c6d2;
+  box-shadow: inset 0 1px 3px alpha(#000000, 0.30), inset 0 1px 0 alpha(#ffffff, 0.06);
+}
+.launcher searchentry:focus-within {
+  border-color: alpha(#f2c6d2, 0.48);
+  background-image: linear-gradient(180deg, alpha(#701b35, 0.34), alpha(#f2c6d2, 0.035));
+  box-shadow: inset 0 1px 3px alpha(#000000, 0.30), 0 0 0 2px alpha(#701b35, 0.45);
+}
+.launcher button.pin {
+  border-radius: 16px; padding: 5px;
+  background-image: linear-gradient(170deg, alpha(#f2c6d2, 0.085), alpha(#f2c6d2, 0.02));
+  border: 1px solid alpha(#f2c6d2, 0.12); box-shadow: inset 0 1px 0 alpha(#ffffff, 0.07);
+}
+.launcher button.pin:hover { background-image: linear-gradient(170deg, alpha(#f2c6d2, 0.16), alpha(#701b35, 0.22)); border-color: alpha(#f2c6d2, 0.26); }
+.launcher button.pin:active { background-image: linear-gradient(170deg, alpha(#701b35, 0.55), alpha(#701b35, 0.30)); }
 .launcher list { background: transparent; }
-.launcher row { border-radius: 6px; padding: 2px 6px; }
-.launcher row:hover { background: alpha(#f2c6d2, 0.07); }
-.launcher row:selected { background: alpha(#701b35, 0.55); }
+.launcher row { border-radius: 12px; padding: 3px 8px; }
+.launcher row:hover { background-color: alpha(#f2c6d2, 0.075); }
+.launcher row:selected { background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.16), alpha(#701b35, 0.52)); }
 .launcher label.cap { font-size: 10px; color: #f2c6d2; }
-.launcher button.pill { border-radius: 8px; padding: 5px 12px; background: alpha(#f2c6d2, 0.05);
-                        border: 1px solid alpha(#f2c6d2, 0.14); color: #f2c6d2; font-size: 10px; letter-spacing: 1px; }
-.launcher button.pill:hover { background: alpha(#701b35, 0.40); }
+.launcher button.pill {
+  border-radius: 999px; padding: 5px 14px;
+  background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.095), alpha(#f2c6d2, 0.03));
+  border: 1px solid alpha(#f2c6d2, 0.15); color: #f2c6d2; font-size: 10px; letter-spacing: 1px;
+}
+.launcher button.pill:hover { background-image: linear-gradient(180deg, alpha(#f2c6d2, 0.17), alpha(#701b35, 0.40)); border-color: alpha(#f2c6d2, 0.28); }
 """
 
 
