@@ -19,6 +19,10 @@ Verified by commands in this repository (see `docs/audit/2026-11-audit.md`):
 * Android APK: `gradle assembleDebug` succeeds (JDK 17, SDK 35), and the APK
   passes `unzip -t`, DEX presence, bundled fonts, `aapt` package +
   launchable-activity identity and `apksigner verify`.
+* Native shell helpers: `make -C native check` and `python3 tools/test_native.py`
+  (Waybar JSON contract, formatter rules, `/proc` parity with the bash
+  implementation, layout watcher). `tools/bench_native.py` reproduces the A/B
+  measurements in `docs/performance/ram-optimization.md`.
 * Startup construction model: `python3 tools/test_startup.py` (timeline, logo,
   cursor independence, selection boxes, items, resolutions, Reduced Motion).
 * Boot harness wiring: `tools/verify_bootloader.sh` and

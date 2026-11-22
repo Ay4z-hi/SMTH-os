@@ -25,3 +25,5 @@ __pycache__/
 /artifacts/SMTH-Android-Launcher.apk
 
 /launchers/android/.kotlin/
+
+/native/build/

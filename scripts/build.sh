@@ -28,7 +28,7 @@ GRUB="grub-efi-$SMTH_ARCH-bin"
 $SUDO apt-get install -y --no-install-recommends \
   live-build debootstrap xorriso squashfs-tools mtools dosfstools \
   cargo rustc rustfmt rust-clippy ca-certificates debian-archive-keyring \
-  python3-numpy python3-pil fonts-dejavu-core $GRUB
+  python3-numpy python3-pil fonts-dejavu-core gcc libc6-dev make $GRUB
 
 echo "-- static repository checks"
 bash scripts/check-packages.sh
@@ -46,6 +46,10 @@ python3 tools/test_ahian_renderers.py
 python3 tools/test_ahian_flow.py
 python3 tools/test_desktop_grid.py
 
+echo "-- native shell helpers (C)"
+make -C native clean check
+python3 tools/test_native.py
+
 echo "-- Rust core: format, lint, test"
 ( cd core && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings )
 ( cd core && cargo test --workspace --locked )
@@ -62,6 +66,14 @@ C=config/includes.chroot_after_packages
 install -D -m755 core/target/release/smthd "$C/usr/bin/smthd"
 install -D -m755 core/target/release/smth-ahian "$C/usr/bin/smth-ahian"
 install -D -m755 core/target/release/smthctl-core "$C/usr/bin/smthctl-core"
+
+# Native C shell helpers replace the bash taskbar sampler and the bash layout
+# watcher. They are compiled on the target architecture, so the arm64 image
+# gets arm64 binaries from the arm64 runner (no emulation, no cross toolchain).
+echo "-- native helper binaries"
+make -C native all
+install -D -m755 native/build/smth-glance "$C/usr/local/bin/smth-glance"
+install -D -m755 native/build/smth-moded "$C/usr/local/bin/smth-moded"
 
 chmod +x auto/* config/hooks/normal/* scripts/*.sh \
   "$C"/usr/local/bin/* "$C"/usr/local/lib/smth/* 2>/dev/null || true

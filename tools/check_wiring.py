@@ -24,6 +24,10 @@ VERBOSE = "-v" in sys.argv
 
 # Binaries provided by the Rust workspace (built by scripts/build.sh).
 RUST_BINS = {"smthd", "smth-ahian", "smthctl-core"}
+# Binaries compiled from native/ by scripts/build.sh and installed into
+# /usr/local/bin. They are not source files in the image tree, so the resolver
+# has to know them by name (same approach as RUST_BINS).
+NATIVE_BINS = {"smth-glance", "smth-moded"}
 # Distribution binaries from config/package-lists/*.list.chroot.
 SYSTEM_BINS = {
     "alacritty", "bash", "bluetoothctl", "curl", "dconf", "file", "free", "fuzzel",
@@ -55,7 +59,7 @@ def resolve(token):
     token = token.strip().strip('"\'')
     if not token:
         return True
-    if token in RUST_BINS or token in SYSTEM_BINS:
+    if token in RUST_BINS or token in NATIVE_BINS or token in SYSTEM_BINS:
         return True
     if token.startswith("/"):
         rel = token.lstrip("/")

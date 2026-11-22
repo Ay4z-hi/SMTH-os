@@ -100,6 +100,27 @@ justified for a settings-level shell), but they consume the same rules:
 `freezerd` is explicitly **not enabled** in the image: it would loop forever doing
 nothing.
 
+## Native (C) modules
+
+Two hot shell helpers are C, not Rust and not Python, because they are pure
+syscall shims with no state and no cross-platform sharing:
+
+| Module | Replaces | Why C | Measured |
+|---|---|---|---|
+| `native/smth-glance.c` | bash + `nproc` + `awk` + coreutils chain per Waybar poll | no runtime to start, no heap, one `write(2)`; the work is two `/proc` reads and one `statvfs` | 11.2 ms → 1.05 ms CPU per poll, 4 → 1 `execve`, 3.5 → 1.6 MiB peak RSS |
+| `native/smth-moded.c` | bash + `udevadm monitor` + `read` subshell | one netlink subscription instead of three processes and a text pipeline | 4 → 1 process, 12.0 → 1.3 MiB RSS |
+
+Rust would be a defensible alternative — it would add roughly a megabyte of
+runtime for two programs that only call `read`, `statvfs`, `poll` and `fork` —
+but it would not make them smaller or faster, and the stateful, safety-relevant
+logic (supervisor, IPC, file operations, settings, AHIAN planning) is already in
+`smth-core`. Assembly was investigated for the per-poll inner loop and rejected
+with measurements: `docs/performance/ram-optimization.md` §5.
+
+Both modules are compiled from source in `scripts/build.sh` on the target
+architecture (amd64 and arm64 runners), installed to `/usr/local/bin`, and
+tested by `tools/test_native.py` in CI (`ci.yml`, `native` job).
+
 ## Roadmap
 
 | Phase | Content | State |

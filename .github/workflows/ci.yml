@@ -82,6 +82,21 @@ jobs:
             config/includes.chroot_after_packages/etc/skel/.config/gtk-4.0/smth-tokens.css \
             config/includes.chroot_after_packages/etc/skel/.config/gtk-4.0/smth-typography.css
 
+  native:
+    name: Native helpers (C)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build native helpers (warnings are errors)
+        run: make -C native clean all
+      - name: Contract, parity, formatter and daemon tests
+        run: python3 tools/test_native.py
+      - name: A/B benchmark (informational)
+        run: python3 tools/bench_native.py --quick
+
   launchers:
     name: Launcher sources
     runs-on: ubuntu-latest
