@@ -222,7 +222,22 @@ def test_legacy_parity():
     if not shutil.which("bash"):
         print("SKIP legacy parity: no bash")
         return
-    for mode in ("cpu", "mem", "disk"):
+    # The shell implementation shelled out for its numbers. Where those tools
+    # are absent (procps is not in the image's package lists, and CI images are
+    # minimal) the old module emitted a broken meter rather than a number, so
+    # parity cannot be compared. That is a finding about the old code, not a
+    # failure of the new one, which has no such dependency.
+    requirements = {
+        "cpu": ("awk", "nproc"),
+        "mem": ("awk", "free"),
+        "disk": ("df", "tail", "tr"),
+    }
+    for mode, tools in requirements.items():
+        missing = [tool for tool in tools if not shutil.which(tool)]
+        if missing:
+            print(f"SKIP legacy parity for {mode}: the shell version needs {', '.join(missing)}; "
+                  f"the native sampler needs neither")
+            continue
         old = run(["bash", str(LEGACY_GLANCE), mode])
         new = glance(mode)
         if not check(old.returncode == 0, f"legacy {mode} still runs"):

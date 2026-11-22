@@ -54,6 +54,13 @@ Duplicated work found in the audit:
 4. `freezerd` is still a scaffold and remains **not enabled** — a daemon doing
    nothing forever would be the worst possible RAM trade.
 
+Also found while testing parity: the old RAM meter ran `free`, which comes from
+`procps` — a package that is **not listed** in `config/package-lists/`. On a host
+without it the module emitted `{"text":"RAM ","tooltip":"% used"}` and Waybar
+rendered an empty meter (reproduced with `PATH` lacking `free`; exit status is
+still 0, so nothing failed loudly). The C sampler reads `/proc/meminfo` itself
+and has no binary dependency at all.
+
 Not a problem, deliberately: `zram-tools` is installed and enabled. Compressed
 swap raises the low-memory ceiling instead of lowering idle RSS, which is
 exactly what the minimum-boot target needs.
@@ -242,7 +249,7 @@ The honest ranking of RAM levers, largest first:
 | Check | Result |
 |---|---|
 | `make -C native clean check` (`-O2 -Wall -Wextra -Werror -pedantic`) | **pass** |
-| `python3 tools/test_native.py` | **pass** — JSON contract, formatter rules (clamping, `hot` at >85 %, `df` ceiling), `/proc`/`statvfs`/`df` parity, parity with the bash implementation, usage errors, layout watcher (`--once`, residency, idle CPU, RSS, `SIGTERM`) |
+| `python3 tools/test_native.py` | **pass** — JSON contract, formatter rules (clamping, `hot` at >85 %, `df` ceiling), `/proc`/`statvfs`/`df` parity, parity with the bash implementation, usage errors, layout watcher (`--once`, residency, idle CPU, RSS, `SIGTERM`). The bash parity comparison is skipped per mode when the tools the shell version needs are absent, because in that case the old module produced no number at all |
 | `python3 tools/bench_native.py --runs 40` | **pass**, numbers in §3/§4 |
 | `make -C native bench` (Assembly A/B) | **pass**, numbers in §5 |
 | `python3 tools/measure_ram.py --seconds 2` | **pass** (collector validated; no desktop in this VM) |
