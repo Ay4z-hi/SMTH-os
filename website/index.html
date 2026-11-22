@@ -284,6 +284,29 @@ main>.section>.heading{position:relative;display:flex;inset:auto;width:100%;heig
   .reveal,.reveal.is-visible,.reveal.from-left,.reveal.from-right{opacity:1!important;transform:none!important;animation:none!important}
 }
 
+
+/* Match the hero block to the full-width section cards below it. */
+@media(max-width:760px){
+  .hero{padding:7px 7px 18px}
+  .frame{min-height:0}
+  .copy{
+    width:auto!important;
+    margin:0 4%!important;
+    padding:112px 0 72px!important;
+  }
+  .copy>.eyebrow{margin:0 0 12px}
+  .copy>.card{
+    width:100%!important;
+    max-width:none!important;
+    margin:0!important;
+    padding:30px 24px 28px!important;
+    border-radius:22px;
+  }
+  .copy .card h1{font-size:clamp(48px,13vw,72px);line-height:.96}
+  .copy .card .desc{max-width:100%;margin:20px 0}
+  .copy .card .actions{gap:12px;flex-wrap:wrap}
+}
+
 </style>
 </head>
 <body>
