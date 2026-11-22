@@ -1,74 +1,44 @@
-"""AHIAN takeover: the cinematic three-act timeline (shared by every platform).
+"""AHIAN takeover: two acts over the live desktop (shared by every platform).
 
 This module is the single source of truth for the AHIAN presentation.  It is
 free of GTK, cairo, Pillow, Tk and Android APIs so the geometry, the wording and
-the timing can be tested anywhere.  The Linux overlay and the Windows launcher
-draw these frames with ``ahian_scene.py``; the Android launcher mirrors the same
-values in ``AhianConstructionView.kt``.
+the timing can be tested anywhere.  The Linux overlay, the Windows launcher and
+the Android launcher draw these values themselves.
 
-The sequence (25.8 s, exactly three acts):
+The takeover never replaces the desktop.  The live session keeps running the
+whole time; the overlay only ever adds the error windows and, for nine seconds,
+the AH1AN system screen:
 
     act 1  0.0 - 10.0 s   error outbreak
-           the real SMTH desktop, then custom error windows arrive at
-           accelerating intervals over it.  Each window fades and scales in,
-           the screen flickers, slices and splits, and the whole scene gets
-           progressively noisier.  No two windows are identical and none of
-           them line up on a diagonal.
+           22 custom error windows arrive at accelerating intervals over the
+           running desktop.  Each window fades and scales in and flashes its
+           accent once.  The wallpaper, icons, taskbar and every running widget
+           stay visible and untouched underneath; the overlay is transparent
+           everywhere a window is not, and the screen effects are translucent.
 
     act 2  10.0 - 19.0 s  blue screen
-           the desktop is squeezed to a single bright line and the full-screen
-           AH1AN system screen opens from it.  It carries a real 9 second
-           countdown, a stop code and a quiet progress arc, with restrained
-           glitching and grain.
+           the AH1AN system screen covers the display and counts down from
+           nine.  At exactly zero the overlay closes: the countdown stops and
+           the real AHIAN desktop is already there, functional and live.
 
-    act 3  19.0 - 25.8 s  transformation
-           the blue screen collapses to a line again and the line opens into
-           the flowing cold-glass AHIAN wallpaper.  The dot-matrix SMTH mark
-           assembles, then shrinks into a corner watermark while the panel,
-           icons, widgets and taskbar arrive in a coordinated stagger.  The
-           overlay then fades onto the live, interactive desktop.
-
-``unahian`` stays instant: it cancels the overlay and restores the normal
-desktop with no animation at all.
+There is no third act, no rebuilt desktop, no desktop screenshot and no fade
+onto a rendered replacement.  ``unahian`` cancels a visible overlay instantly.
 """
 
 from dataclasses import dataclass
 import math
 
 # ---- timeline ---------------------------------------------------------------
-DURATION_MS = 25800
+DURATION_MS = 19000
 REDUCED_MS = 700
 
 OUTBREAK_MS = 10000            # act 1 ends here
 BLUE_START_MS = OUTBREAK_MS
-BLUE_END_MS = 19000            # act 2 ends here, nine full seconds of countdown
+BLUE_END_MS = 19000            # the countdown reaches zero here and the overlay closes
 COUNTDOWN_FROM = 9
 
-COLLAPSE_MS = 220              # desktop squeezed to a line
-BLUE_OPEN_START_MS = 10220
-BLUE_OPEN_MS = 380             # the blue screen opens out of that line
-BLUE_CLOSE_MS = 180            # blue screen squeezed back to a line
-WALL_OPEN_START_MS = 19180
-WALL_OPEN_MS = 430             # the wallpaper opens out of the line
-
-BRAND_START_MS = 19520
-BRAND_MS = 980                 # last dot of the wordmark lands here
-BRAND_SETTLE_MS = 20600        # mark shrinks into the corner watermark
-BRAND_SETTLED_MS = 21600
-PANEL_START_MS = 20120
-PANEL_MS = 620
-ICON_START_MS = 20460
-ICON_STEP_MS = 86
-ICON_MS = 430
-WIDGET_START_MS = 21420
-WIDGET_MS = 620
-TOAST_START_MS = 22260
-TOAST_MS = 320
-TOAST_END_MS = 24280
-SHIMMER_START_MS = 23600
-SHIMMER_MS = 900
-FADE_START_MS = 25000
-FADE_MS = DURATION_MS - FADE_START_MS
+BLUE_OPEN_START_MS = BLUE_START_MS + 220   # the screen opens from a beam
+BLUE_OPEN_MS = 380              # and is full-bleed here
 
 CARD_ENTER_MS = 360            # fade + scale + drift for a new error window
 CARD_FLASH_MS = 300
@@ -151,7 +121,7 @@ def wallpaper_colour(t):
 
 
 def flow_colour(u, v, phase=0.0):
-    """The live AHIAN flowing gradient, sampled by the desktop and the reveal.
+    """The live AHIAN flowing gradient, sampled by the desktop wallpaper.
 
     Two slow diagonal waves bend a purple to teal ramp and a narrow band lifts
     it toward the bright AHIAN inks.  ``phase`` completes one cycle at 1.0.
@@ -262,9 +232,10 @@ ERROR_TABLE = (
 )
 
 # Act 1 screen effects: (start_ms, duration_ms, kind, amount).
-# "flash" lifts the frame, "split" separates the colour channels, "slice"
-# displaces one horizontal band, "noise" grains the frame and "scan" sweeps a
-# soft line down the screen.  They are sparse at first, denser near the end.
+# "flash" lifts the frame, "scan" sweeps a soft line down the screen and
+# "noise" grains it.  Overlay-safe: every effect is translucent, so the live
+# desktop stays visible underneath.  They are sparse at first, denser near the
+# end.
 GLITCH_TABLE = (
     (1350, 70, "flash", 0.16),
     (2180, 110, "split", 2.5),
@@ -293,7 +264,7 @@ GLITCH_TABLE = (
     (9840, 120, "slice", 80.0),
 )
 
-# Act 2 and 3 effects, deliberately restrained.
+# Act 2 effects, deliberately restrained.
 CALM_GLITCH_TABLE = (
     (400, 90, "split", 2.0),
     (2450, 120, "slice", 10.0),
@@ -305,7 +276,7 @@ CALM_GLITCH_TABLE = (
 )
 
 
-# The 5x7 dot glyphs used for the SMTH wordmark and the desktop clock.
+# The 5x7 dot glyphs used for the AH1AN screen.
 BRAND_GLYPHS = {
     "S": (15, 16, 16, 14, 1, 1, 30),
     "M": (17, 27, 21, 21, 17, 17, 17),
@@ -327,7 +298,7 @@ DIGIT_GLYPHS = {
 
 
 def glyph_dots(text, glyphs, spacing=6):
-    """(col, row, order) for every lit dot, laid out on a 5x7 grid."""
+    """(col, row) for every lit dot, laid out on a 5x7 grid."""
     dots = []
     for index, char in enumerate(text.upper()):
         rows = glyphs.get(char, glyphs.get(" "))
@@ -335,8 +306,7 @@ def glyph_dots(text, glyphs, spacing=6):
             bits = rows[row]
             for col in range(5):
                 if bits >> (4 - col) & 1:
-                    x = index * spacing + col
-                    dots.append((x, row))
+                    dots.append((index * spacing + col, row))
     return tuple(dots)
 
 
@@ -364,15 +334,6 @@ ERRORS = tuple(
               cx=row[3], cy=row[4], wf=row[5], hf=row[6], accent=row[7],
               start_ms=row[8])
     for index, row in enumerate(ERROR_TABLE))
-
-
-@dataclass(frozen=True)
-class IconSpec:
-    key: str
-    label: str
-    glyph: str
-    rect: Rect
-    accent: tuple
 
 
 @dataclass(frozen=True)
@@ -416,37 +377,21 @@ class BlueFrame:
 
 
 @dataclass(frozen=True)
-class TransformFrame:
-    open: float
-    wallpaper: float
-    brand: float
-    brand_alpha: float
-    brand_scale: float
-    brand_x: float
-    brand_y: float
-    panel: float
-    icons: tuple
-    widgets: float
-    toast: float
-    shimmer: float
-    phase: float
-
-
-@dataclass(frozen=True)
 class Frame:
     t_ms: float
     phase: str
     cards: tuple
     glitch: GlitchFrame
     blue: BlueFrame
-    transform: TransformFrame
-    desktop_dim: float
     overlay_alpha: float
     done: bool
     reduced: bool
 
 
-# ---- layout -----------------------------------------------------------------
+def _empty_blue():
+    return BlueFrame(0.0, 0.0, 0, 0.0, 0.0, "", "", TEAL_BRIGHT)
+
+
 class StartupScene:
     """Resolution-independent AHIAN takeover scene."""
 
@@ -459,101 +404,17 @@ class StartupScene:
         self.reduced = bool(reduced)
         self.portrait = self.height >= self.width * 0.95
         self.u = ui_scale(self.width, self.height)
-        self.layout = self._layout()
-        self.icons = self.layout["icons"]
-        self.errors = self._errors()
+        self.errors = ERRORS
         self.glitches = GLITCH_TABLE
         self.calm_glitches = CALM_GLITCH_TABLE
-        self.brand_dots = glyph_dots("SMTH", BRAND_GLYPHS)
-        self.brand_columns = 23
-
-    # ---- layout -------------------------------------------------------------
-    def _layout(self):
-        w, h, u = self.width, self.height, self.u
-        if self.profile == "linux":
-            bar = Rect(0, 0, w, 38 * u)
-            clock = Rect(30 * u, h - 142 * u, 96 * u, 62 * u)
-            rings = Rect(w - 30 * u - 236 * u, h - 156 * u, 236 * u, 78 * u)
-            cols, rows = 2, 7
-            cell_w, cell_h = 112 * u, 90 * u
-            origin = (24 * u, 24 * u)
-            labels = ("FILES", "BROWSER", "STORE", "CAMERA", "GALLERY", "PAINT",
-                      "NOTES", "CALC", "PLAYER", "CLOCK", "TERMINAL", "SETTINGS")
-            glyphs = ("folder", "globe", "bag", "camera", "photo", "brush",
-                      "note", "calc", "play", "clock", "terminal", "gear")
-        elif self.profile == "android":
-            bar = Rect(12 * u, h - 66 * u, w - 24 * u, 52 * u)
-            clock = Rect(bar.right - 118 * u, bar.y + 12 * u, 104 * u, 30 * u)
-            rings = None
-            cols, rows = 1, 6
-            cell_w, cell_h = 108 * u, 78 * u
-            origin = (16 * u, 22 * u)
-            labels = ("TERMINAL", "CHROME", "PHONE", "MESSAGES", "CAMERA", "SETTINGS")
-            glyphs = ("terminal", "globe", "phone", "chat", "camera", "gear")
-        else:
-            bar = Rect(0, h - 48 * u, w, 48 * u)
-            clock = Rect(w - 140 * u, h - 44 * u, 124 * u, 34 * u)
-            rings = None
-            cols, rows = 1, 6
-            cell_w, cell_h = 112 * u, 86 * u
-            origin = (24 * u, 24 * u)
-            labels = ("FILES", "BROWSER", "TERMINAL", "SETTINGS", "CALC", "PHOTOS")
-            glyphs = ("folder", "globe", "terminal", "gear", "calc", "photo")
-
-        icons = []
-        for index in range(min(cols * rows, len(labels))):
-            col, row = index // rows, index % rows
-            rect = Rect(origin[0] + col * cell_w,
-                        origin[1] + row * cell_h,
-                        96 * u, 78 * u).clamp_into(w, h)
-            icons.append(IconSpec(
-                key=f"icon-{index}",
-                label=labels[index % len(labels)],
-                glyph=glyphs[index % len(glyphs)],
-                rect=rect,
-                accent=(MAROON, BLUSH, PURPLE, TEAL, PURPLE_SOFT, MAROON_DEEP)[index % 6],
-            ))
-        return {
-            "bar": bar,
-            "clock": clock,
-            "rings": rings,
-            "icons": tuple(icons),
-            "margin": 24 * u,
-            "unit": u,
-        }
-
-    # ---- act 2 layout anchors ----------------------------------------------
-    def blue_layout(self):
-        """Composition anchors for the AH1AN screen, in pixels."""
-        w, h, u = self.width, self.height, self.u
-        pad = 0.075 * w
-        head_size = min(0.066 * h, 0.036 * w)
-        return {
-            "pad": pad,
-            "mark": Rect(pad, 0.115 * h, 74 * u, 22 * u),
-            "headline": (pad, 0.300 * h),
-            "headline_size": head_size,
-            "subline": (pad, 0.300 * h + head_size * 1.55),
-            "subline_size": head_size * 0.40,
-            "rule": Rect(pad, 0.300 * h + head_size * 2.35,
-                         min(w - 2 * pad, 0.46 * w), max(1.0, 1.6 * u)),
-            "count_y": (0.500 if self.portrait else 0.605) * h,
-            "bar": Rect(pad, 0.780 * h, min(w - 2 * pad, 0.36 * w), max(2.0, 2.6 * u)),
-            "meta_y": (0.840 if self.portrait else 0.870) * h,
-        }
 
     # ---- act 1 cards --------------------------------------------------------
-    def _errors(self):
-        return ERRORS
-
     def card_size(self, spec):
         """The pixel size of one error window.
 
         Windows are content-sized: a title bar, one title, up to two body
-        lines and a footer.  The table's ``hf`` is only a hint kept for the
-        data contract; stretching a card to it used to leave dead space under
-        the copy.  A small deterministic nudge by accent family keeps the
-        cascade from reading as one repeated rectangle.
+        lines and a footer.  A small deterministic nudge by accent family keeps
+        the cascade from reading as one repeated rectangle.
         """
         u = self.u
         height = (100 + 6 * (spec.accent % 3) + (10 if spec.is_ahian else 0)) * u
@@ -573,10 +434,6 @@ class StartupScene:
             return "outbreak"
         if t_ms < BLUE_END_MS:
             return "blue"
-        if t_ms < FADE_START_MS:
-            return "transform"
-        if t_ms < DURATION_MS:
-            return "reveal"
         return "done"
 
     def countdown(self, t_ms):
@@ -637,10 +494,9 @@ class StartupScene:
                 state["noise"] = max(state["noise"], amount * env)
             elif kind == "scan":
                 state["scan_y"] = local
-        # Persistent grain rises through the outbreak and rests low after it.
-        if t_ms < BLUE_START_MS:
-            state["noise"] = min(1.2, state["noise"] + 0.10 * ease(clamp(t_ms / 9000)))
-        else:
+        # No permanent film over the desktop: between effects the overlay is
+        # fully transparent. Only the blue screen keeps a light resting grain.
+        if t_ms >= BLUE_START_MS:
             state["noise"] = min(1.0, state["noise"] + 0.06)
         return GlitchFrame(**state)
 
@@ -652,113 +508,44 @@ class StartupScene:
             opened = ease_in_out((t_ms - BLUE_OPEN_START_MS) / BLUE_OPEN_MS)
         else:
             opened = 1.0
-        if t_ms >= BLUE_END_MS:
-            opened = 0.0
-        elif t_ms >= BLUE_END_MS - BLUE_CLOSE_MS:
-            closed = (t_ms - (BLUE_END_MS - BLUE_CLOSE_MS)) / BLUE_CLOSE_MS
-            opened = 1.0 - ease_in_out(closed)
         countdown = self.countdown(t_ms)
         since_tick = (BLUE_END_MS - t_ms) / 1000.0
         tick = clamp(1.0 - (since_tick - int(since_tick)) / 0.28) if opened else 0.0
-        head = "AHIAN HAS TAKEN CONTROL"
-        sub = "AHIAN wants to make your life beautiful."
         return BlueFrame(
             open=opened,
-            alpha=ease(clamp((t_ms - BLUE_OPEN_START_MS) / 300.0)),
+            alpha=1.0,
             countdown=countdown,
             tick=tick,
             progress=clamp((t_ms - BLUE_START_MS) / (BLUE_END_MS - BLUE_START_MS)),
-            head=head,
-            sub=sub,
+            head="AHIAN HAS TAKEN CONTROL",
+            sub="AHIAN wants to make your life beautiful.",
             accent=TEAL_BRIGHT,
-        )
-
-    # ---- act 3 --------------------------------------------------------------
-    def wallpaper_phase(self, t_ms):
-        """Live-wallpaper phase so the reveal resolves onto the running desktop."""
-        return ((BLUE_END_MS - t_ms) / 1000.0 * 0.022) % 1.0
-
-    def _transform(self, t_ms):
-        u = self.u
-        if t_ms < WALL_OPEN_START_MS:
-            opened = 0.0
-        elif t_ms < WALL_OPEN_START_MS + WALL_OPEN_MS:
-            opened = ease_in_out((t_ms - WALL_OPEN_START_MS) / WALL_OPEN_MS)
-        else:
-            opened = 1.0
-        brand = clamp((t_ms - BRAND_START_MS) / (BRAND_MS + 240.0))
-        settle = ease_in_out(clamp(
-            (t_ms - BRAND_SETTLE_MS) / (BRAND_SETTLED_MS - BRAND_SETTLE_MS)))
-        # The wordmark is the introduction, not decoration: it assembles dead
-        # centre, holds, then dissolves upward as the icons take over.
-        brand_alpha = 1.0 - settle
-        brand_scale = 1.0 - 0.06 * settle
-        brand_x = 0.5
-        brand_y = lerp(0.44, 0.395, settle)
-        panel = ease(clamp((t_ms - PANEL_START_MS) / PANEL_MS))
-        icons = tuple(
-            ease(clamp((t_ms - (ICON_START_MS + i * ICON_STEP_MS)) / ICON_MS))
-            for i in range(len(self.icons)))
-        widgets = ease(clamp((t_ms - WIDGET_START_MS) / WIDGET_MS))
-        toast_in = ease(clamp((t_ms - TOAST_START_MS) / TOAST_MS))
-        toast_out = clamp((t_ms - TOAST_END_MS) / 420.0)
-        toast = toast_in * (1.0 - toast_out)
-        shimmer = clamp((t_ms - SHIMMER_START_MS) / SHIMMER_MS)
-        if t_ms < SHIMMER_START_MS:
-            shimmer = 0.0
-        return TransformFrame(
-            open=opened,
-            wallpaper=opened,
-            brand=brand,
-            brand_alpha=brand_alpha,
-            brand_scale=brand_scale,
-            brand_x=brand_x,
-            brand_y=brand_y,
-            panel=panel,
-            icons=icons,
-            widgets=widgets,
-            toast=toast,
-            shimmer=shimmer,
-            phase=self.wallpaper_phase(t_ms),
         )
 
     # ---- frame --------------------------------------------------------------
     def frame(self, t_ms):
         phase = self.phase(t_ms)
         if self.reduced:
+            # Reduced motion: no windows, no blue screen. The overlay is simply
+            # removed while the live desktop is already on screen.
             t_ms = clamp(t_ms, 0, REDUCED_MS)
-            overlay = 1.0 - t_ms / REDUCED_MS
             return Frame(
                 t_ms=t_ms, phase=phase, cards=(), glitch=GlitchFrame(),
-                blue=BlueFrame(0.0, 0.0, 0, 0.0, 0.0, "", "", TEAL_BRIGHT),
-                transform=TransformFrame(
-                    open=1.0, wallpaper=1.0, brand=1.0, brand_alpha=0.22,
-                    brand_scale=0.30, brand_x=0.115, brand_y=0.155,
-                    panel=1.0, icons=tuple(1.0 for _ in self.icons),
-                    widgets=1.0, toast=0.0, shimmer=0.0, phase=0.0),
-                desktop_dim=0.0, overlay_alpha=overlay,
+                blue=_empty_blue(),
+                overlay_alpha=1.0 - t_ms / REDUCED_MS,
                 done=t_ms >= REDUCED_MS, reduced=True,
             )
 
         t_ms = clamp(t_ms, 0, DURATION_MS)
-        collapse = 0.0
-        if BLUE_START_MS <= t_ms < BLUE_OPEN_START_MS:
-            collapse = ease_in((t_ms - BLUE_START_MS) / COLLAPSE_MS)
-        if t_ms >= BLUE_END_MS - BLUE_CLOSE_MS:
-            collapse = max(collapse, 0.0)
-        if FADE_START_MS <= t_ms:
-            overlay = clamp(1.0 - (t_ms - FADE_START_MS) / FADE_MS)
-        else:
-            overlay = 1.0
         return Frame(
             t_ms=t_ms,
             phase=phase,
             cards=self._cards(t_ms) if t_ms < BLUE_START_MS else (),
             glitch=self._glitch(t_ms),
-            blue=self._blue(t_ms),
-            transform=self._transform(t_ms),
-            desktop_dim=ease(clamp(t_ms / OUTBREAK_MS)) * 0.46,
-            overlay_alpha=overlay,
+            blue=self._blue(t_ms) if t_ms >= BLUE_START_MS else _empty_blue(),
+            # The overlay is a live layer over the desktop: no desktop dim, no
+            # fade onto a rendered replacement. At zero it is removed.
+            overlay_alpha=0.0 if t_ms >= DURATION_MS else 1.0,
             done=t_ms >= DURATION_MS,
             reduced=False,
         )
@@ -775,10 +562,10 @@ if __name__ == "__main__":
     import sys
     if "--print-plan" in sys.argv:
         scene = StartupScene(1920, 1080)
-        for t in (0, 2400, 5200, 8600, 12000, 15000, 18600, 19800, 22000, 25000):
+        for t in (0, 2400, 5200, 8600, 9950, 10300, 12600, 15000, 18600, 18999, 19000):
             frame = scene.frame(t)
             print(f"{t:>6} ms  {frame.phase:<9} cards={len(frame.cards):>2} "
-                  f"count={frame.blue.countdown} open={frame.transform.open:.2f} "
-                  f"icon={max(frame.transform.icons or (0,)):.2f}")
+                  f"count={frame.blue.countdown} open={frame.blue.open:.2f} "
+                  f"done={frame.done}")
         print(f"duration={DURATION_MS}ms")
         sys.exit(0)

@@ -1,16 +1,20 @@
 """The AHIAN takeover renderer (shared by the ISO, the EXE and the previews).
 
 One implementation, one look.  ``ahian_startup.py`` draws these frames into a
-GTK overlay and the Windows launcher draws the same frames into a Tk window, so
-the ISO and the EXE are pixel-identical.  ``tools/render_ahian_preview.py``
+GTK overlay and the Windows launcher draws the same frames over its live
+desktop, so the ISO and the EXE match.  ``tools/render_ahian_preview.py``
 writes the very same frames to PNG, which is how the animation is visually
 checked without a display attached.
 
-Pillow's ``ImageDraw`` only alpha-blends when the target is RGB, so every scene
-is composed in RGB and cards are pasted with their own alpha channel.  The
-desktop base, the dimmed bases, each error window's chrome and shadow, the
-settled-window layer, the blue screen background and the flowing wallpaper are
-all cached, so a steady-state frame is a handful of composites.
+Every frame is RGBA.  Act 1 is transparent except for the error windows and
+translucent interference, so the running desktop underneath is never replaced,
+dimmed or screenshotted.  Act 2 is the opaque AH1AN screen.  At the countdown's
+zero the renderer returns a fully transparent frame and the overlay is removed,
+revealing the live AHIAN desktop that was running all along.
+
+Each error window's chrome and shadow are cached, as are the blue screen
+background and its dot field, so a steady-state frame is a handful of
+composites.
 """
 import importlib.util
 import math
@@ -320,9 +324,16 @@ def to_argb32(image):
     """Return ``(buffer, stride)``: the frame as cairo ARGB32 (premultiplied BGRA).
 
     A cairo ImageSurface points straight at this buffer, so the caller must keep
-    it alive for as long as the surface is in use.
+    it alive for as long as the surface is in use.  Overlay frames are mostly
+    transparent, so the colour channels are premultiplied by alpha or the
+    compositor would show the window cards as bright fringes.
     """
     rgba = image.convert("RGBA")
+    if rgba.getchannel("A").getextrema()[0] < 255:
+        r, g, b, a = rgba.split()
+        rgba = Image.merge("RGBA", (ImageChops.multiply(r, a),
+                                    ImageChops.multiply(g, a),
+                                    ImageChops.multiply(b, a), a))
     return bytearray(rgba.tobytes("raw", "BGRA")), rgba.width * 4
 
 
@@ -471,16 +482,11 @@ class SceneRenderer:
         self.u = scene.u
         self.fonts = Fonts(font_dirs)
         self.wallpaper_source = wallpaper
-        self._desktop = None
-        self._dim = {}
         self._cards = {}
         self._shadows = {}
         self._base_alpha = {}
-        self._settled = None
-        self._settled_key = None
         self._blue_bg = None
         self._blue_grid = None
-        self._wall = {}
         self._noise = None
         self._vignette_cache = None
         self._bg = (10, 11, 14)
@@ -626,338 +632,6 @@ class SceneRenderer:
             img = Image.alpha_composite(img.convert("RGBA"), shine_img).convert("RGB")
         return img
 
-    def _glass_desktop_palette(self, ahian):
-        if ahian:
-            return {
-                "bar_fill": rgba((0.062, 0.070, 0.086), 238),
-                "bar_edge": rgba(BLUE_COLD, 70),
-                "rail": AMBER,
-                "ink": rgba(FROST, 232),
-                "muted": rgba(GHOST_INK, 170),
-                "panel_tile": rgba(GLASS_PANEL_RAISED, 232),
-                "panel_border": rgba(BLUE_COLD, 60),
-                "glass_edge": CHROME,
-                "corner": AMBER,
-            }
-        return {
-            "bar_fill": rgba((0.032, 0.036, 0.045), 242),
-            "bar_edge": rgba(MAROON, 120),
-            "rail": MAROON,
-            "ink": rgba(BLUSH, 220),
-            "muted": rgba(BLUSH, 140),
-            "panel_tile": rgba(GLASS_VOID_DEEP, 226),
-            "panel_border": rgba(BLUSH, 30),
-            "glass_edge": CHROME_DIM,
-            "corner": BLUSH,
-        }
-
-    def _rim(self, img, y, alpha=210):
-        """A cold blue-to-amber hairline: the AHIAN accent on every bar."""
-        draw = self._d(img)
-        segments = 24
-        for i in range(segments):
-            x0 = self.w * i / segments
-            x1 = self.w * (i + 1) / segments + 1
-            colour = mix_colour(BLUE_COLD, AMBER, i / max(1, segments - 1.0))
-            draw.rectangle((x0, y, x1, y + max(1.0, self.px(1.1))),
-                           fill=rgba(colour, alpha))
-
-    def _desktop(self):
-        self._bg = (10, 11, 14)
-        if self._desktop is not None:
-            return self._desktop
-        w, h, u = self.w, self.h, self.u
-        # Base: a deep cool vertical gradient, not a flat obsidian plate.
-        img = self._gradient(GLASS_VOID, GLASS_VOID_DEEP)
-        # Two quiet cold blooms so the void has depth, not just darkness.
-        img = Image.alpha_composite(
-            img.convert("RGBA"), self._blurred_bloom(
-                (0.06, 0.92), (0.50, 0.46), (0.18, 0.10, 0.14), 30)).convert("RGB")
-        img = Image.alpha_composite(
-            img.convert("RGBA"), self._blurred_bloom(
-                (1.05, 0.04), (0.42, 0.38), (0.14, 0.18, 0.24), 55)).convert("RGB")
-        draw = self._d(img)
-        # Faint cold grain on the desktop backdrop.
-        step = max(18, int(self.px(26)))
-        radius = max(0.8, self.px(1.0))
-        for y in range(step, h, step):
-            for x in range(step, w, step):
-                draw.ellipse((x - radius, y - radius, x + radius, y + radius),
-                             fill=rgba((0.30, 0.34, 0.42), 10))
-        for spec in self.scene.icons:
-            self._draw_shortcut(img, spec, ahian=False)
-        bar = self.scene.layout["bar"]
-        if self.scene.profile == "linux":
-            self._draw_waybar(img, bar, 1.0, ahian=False)
-            self._draw_clock_widget(img, self.scene.layout["clock"], 1.0,
-                                    ahian=False)
-            if self.scene.layout["rings"] is not None:
-                self._draw_glance(img, self.scene.layout["rings"], 1.0,
-                                  ahian=False)
-        else:
-            self._draw_taskbar(img, bar, 1.0, ahian=False)
-        self._desktop = img
-        return img
-
-    def _draw_shortcut(self, img, spec, progress=1.0, ahian=False):
-        self._bg = GLASS_PANEL_ACTIVE if ahian else GLASS_VOID_DEEP
-        if progress <= 0.005:
-            return
-        draw = self._d(img)
-        p = min(1.0, progress)
-        rect = spec.rect
-        cx = rect.x + rect.w / 2
-        top = rect.y + (1.0 - p) * self.px(16)
-        size = self.px(50) * (0.9 + 0.1 * p)
-        palette = self._glass_desktop_palette(ahian)
-        # Glass tile.
-        panel = self._glass_panel(
-            Rect(cx - size / 2, top, size, size),
-            status="amber" if ahian else "chrome",
-            progress=p,
-            raised=True,
-            glow=ahian,
-            active=ahian,
-        )
-        if isinstance(panel, tuple):
-            panel, shadow, _ = panel
-            self._paste(img, shadow, (cx - size / 2 - self.px(3),
-                                      top - self.px(4)))
-            self._paste(img, panel, (cx - size / 2, top))
-        else:
-            self._paste(img, panel, (cx - size / 2, top))
-        draw = self._d(img)
-        glyph_colour = palette["ink"] if p > 0.999 else palette["muted"]
-        self._glyph(draw, spec.glyph, cx, top + size / 2, size * 0.52,
-                    glyph_colour)
-        put_text(draw, (cx, top + size + self.px(15)), spec.label,
-                 self.fonts.get(8.6 * self.u),
-                 palette["ink"] if p > 0.999 else palette["muted"],
-                 tracking=self.px(1.0), anchor="center")
-
-    def _draw_waybar(self, img, bar, progress, ahian=False):
-        self._bg = GLASS_VOID_DEEP
-        if progress <= 0.005:
-            return
-        draw = self._d(img)
-        u = self.u
-        palette = self._glass_desktop_palette(ahian)
-        height = bar.h * progress
-        # Bar body: glass tile spanning the screen.
-        bar_img = self._glass_panel(
-            Rect(0, 0, self.w, height),
-            status="amber" if ahian else "chrome",
-            progress=progress,
-            raised=True,
-            glow=ahian,
-        )
-        if isinstance(bar_img, tuple):
-            bar_panel, bar_shadow, _ = bar_img
-            # Bar shadow should sit at the very bottom edge of the bar.
-            self._paste(img, bar_shadow,
-                        (0, int(height - bar_shadow.height)))
-            self._paste(img, bar_panel, (0, 0))
-        else:
-            draw.rectangle((0, 0, self.w, height),
-                           fill=palette["bar_fill"])
-        # Re-open draw on the composited image.
-        draw = self._d(img)
-        if ahian:
-            self._rim(img, height - self.px(1.2), 220)
-        else:
-            draw.line((0, height, self.w, height), fill=palette["bar_edge"],
-                      width=max(1, int(u)))
-        self._dot_matrix(draw, "SMTH", self.px(20), height / 2 + self.px(9),
-                         self.px(2.0), palette["ink"])
-        font = self.fonts.get(9.2 * u)
-        x = self.px(112)
-        for label in ("FILES", "BROWSER", "STORE", "SETTINGS"):
-            put_text(draw, (x, height / 2 + self.px(3.2)), label, font,
-                     palette["muted"], tracking=self.px(1.4))
-            x += measure(font, label, self.px(1.4)) + self.px(20)
-        right = self.w - self.px(18)
-        time_font = self.fonts.get(10.0 * u)
-        put_text(draw, (right, height / 2 + self.px(3.4)), "09:41", time_font,
-                 palette["ink"], tracking=self.px(0.6), anchor="right")
-        right -= measure(time_font, "09:41", self.px(0.6)) + self.px(28)
-        for i in range(3):
-            cx = right - self.px(30) + i * self.px(10)
-            draw.ellipse((cx - self.px(2.0), height / 2 - self.px(2.0),
-                          cx + self.px(2.0), height / 2 + self.px(2.0)),
-                         fill=rgba(AMBER if ahian else BLUSH,
-                                   175 if ahian else 165))
-
-    def _draw_taskbar(self, img, bar, progress, ahian=False):
-        self._bg = GLASS_VOID_DEEP
-        if progress <= 0.005:
-            return
-        draw = self._d(img)
-        u = self.u
-        palette = self._glass_desktop_palette(ahian)
-        rise = (1.0 - progress) * bar.h * 1.5
-        left, top = bar.x + self.px(12), bar.y + rise
-        right, bottom = bar.right - self.px(12), bar.bottom + rise
-        # Glass rounded bar.
-        bar_rect = Rect(left, top, right - left, bottom - top)
-        bar_panel = self._glass_panel(
-            bar_rect,
-            status="amber" if ahian else "chrome",
-            progress=min(1.0, progress),
-            raised=True,
-            glow=ahian,
-        )
-        if isinstance(bar_panel, tuple):
-            bp, bs, _ = bar_panel
-            self._paste(img, bs, (left - self.px(3), top - self.px(4)))
-            self._paste(img, bp, (left, top))
-        else:
-            draw.rounded_rectangle((left, top, right, bottom),
-                                   radius=self.px(16),
-                                   fill=palette["bar_fill"],
-                                   outline=palette["bar_edge"], width=1)
-        draw = self._d(img)
-        cy = (top + bottom) / 2
-        cx = left + self.px(32)
-        # App launcher marker: a small glass pill with the S mark.
-        marker = self._glass_panel(
-            Rect(cx - self.px(17), cy - self.px(17), self.px(34), self.px(34)),
-            status="amber" if ahian else "chrome",
-            progress=min(1.0, progress),
-            raised=True,
-            glow=ahian,
-        )
-        if isinstance(marker, tuple):
-            mp, ms, _ = marker
-            self._paste(img, ms, (cx - self.px(20), cy - self.px(21)))
-            self._paste(img, mp, (cx - self.px(17), cy - self.px(17)))
-        else:
-            draw.rounded_rectangle((cx - self.px(17), cy - self.px(17),
-                                    cx + self.px(17), cy + self.px(17)),
-                                   radius=self.px(10),
-                                   fill=rgba(AMBER if ahian else MAROON,
-                                             int(225 * min(1.0, progress))))
-        self._dot_matrix(draw, "S", cx - self.px(9), cy + self.px(7),
-                         self.px(1.9),
-                         rgba(FROST if ahian else BLUSH,
-                              int(245 * min(1.0, progress))))
-        time_font = self.fonts.get(10.0 * u)
-        put_text(draw, (right - self.px(18), cy + self.px(3.4)), "09:41",
-                 time_font, palette["ink"],
-                 tracking=self.px(0.6), anchor="right")
-        avail = right - self.px(18) - measure(time_font, "09:41",
-                                                self.px(0.6)) - self.px(26)
-        for index, glyph in enumerate(("globe", "terminal", "folder")):
-            gx = left + self.px(84) + index * self.px(54)
-            if gx > avail - self.px(20):
-                break
-            self._glyph(draw, glyph, gx, cy,
-                        self.px(23),
-                        rgba(FROST if ahian else BLUSH,
-                             int(215 * min(1.0, progress))))
-
-    def _draw_clock_widget(self, img, rect, progress, ahian=False):
-        self._bg = GLASS_PANEL_RAISED if ahian else GLASS_VOID_DEEP
-        if progress <= 0.005:
-            return
-        p = min(1.0, progress)
-        rise = (1.0 - p) * self.px(14)
-        rect = Rect(rect.x, rect.y + rise, rect.w, rect.h)
-        palette = self._glass_desktop_palette(ahian)
-        # Clock is its own glass tile.
-        clock_panel = self._glass_panel(
-            rect,
-            status="amber" if ahian else "chrome",
-            progress=p,
-            raised=True,
-            glow=ahian,
-        )
-        if isinstance(clock_panel, tuple):
-            cp, cs, _ = clock_panel
-            self._paste(img, cs, (rect.x - self.px(3), rect.y + rise - self.px(4)))
-            self._paste(img, cp, (rect.x, rect.y + rise))
-        else:
-            img.paste(clock_panel, (int(rect.x), int(rect.y + rise)))
-        draw = self._d(img)
-        u = self.u
-        text = "09:41"
-        if ahian:
-            spacing = self.px(3.4)
-            glyphs = M.DIGIT_GLYPHS
-            for index, char in enumerate(text):
-                rows = glyphs.get(char, glyphs.get(" "))
-                for row in range(7):
-                    for col in range(5):
-                        if rows[row] >> (4 - col) & 1:
-                            x = rect.x + (index * 6 + col) * spacing
-                            y = rect.y + rise + self.px(30) - (6 - row) * spacing
-                            colour = (BLUE_COLD if (index * 6 + col) % 2 == 0
-                                      else AMBER)
-                            r = spacing * 0.38
-                            draw.ellipse((x - r, y - r, x + r, y + r),
-                                         fill=rgba(colour, int(250 * p)))
-        else:
-            self._dot_matrix(draw, text, rect.x, rect.y + rise + self.px(30),
-                             self.px(3.4), rgba(BLUSH, int(240 * p)),
-                             glyphs=M.DIGIT_GLYPHS)
-        put_text(draw, (rect.x, rect.y + rise + self.px(58)), "FRIDAY 21 NOVEMBER",
-                 self.fonts.get(8.0 * self.u),
-                 rgba(FROST if ahian else BLUSH,
-                      int((160 if ahian else 125) * p)),
-                 tracking=self.px(1.6))
-
-    def _draw_glance(self, img, rect, progress, ahian=False):
-        self._bg = GLASS_PANEL_RAISED if ahian else GLASS_VOID_DEEP
-        if progress <= 0.005:
-            return
-        p = min(1.0, progress)
-        rise = (1.0 - p) * self.px(16)
-        box = Rect(rect.x, rect.y + rise, rect.w, rect.h)
-        palette = self._glass_desktop_palette(ahian)
-        glance_panel = self._glass_panel(
-            box,
-            status="blue" if ahian else "chrome",
-            progress=p,
-            raised=True,
-            glow=ahian,
-        )
-        if isinstance(glance_panel, tuple):
-            gp, gs, _ = glance_panel
-            self._paste(img, gs, (box.x - self.px(3), box.y - self.px(4)))
-            self._paste(img, gp, (box.x, box.y))
-        else:
-            img.paste(glance_panel, (int(box.x), int(box.y)))
-        draw = self._d(img)
-        u = self.u
-        for index, (label, value) in enumerate(zip(("CPU", "RAM", "SSD"),
-                                                   (0.62, 0.44, 0.71))):
-            cx = box.x + self.px(44) + index * self.px(80)
-            cy = (box.y + box.bottom) / 2 - self.px(4)
-            radius = self.px(19)
-            total = 26
-            lit = int(total * value)
-            for k in range(total):
-                angle = -math.pi / 2 + math.tau * k / total
-                x = cx + radius * math.cos(angle)
-                y = cy + radius * math.sin(angle)
-                r = self.px(2.1) if k < lit else self.px(0.9)
-                if ahian:
-                    if k < lit:
-                        colour = (BLUE_COLD if k % 2 == 0 else AMBER)
-                        alpha = 220
-                    else:
-                        colour = GLASS_VOID_DEEP
-                        alpha = 80
-                else:
-                    colour = (BLUSH if (k < lit and k % 2 == 0) else MAROON)
-                    alpha = 215 if k < lit else 70
-                draw.ellipse((x - r, y - r, x + r, y + r),
-                             fill=rgba(colour, int(alpha * p)))
-            put_text(draw, (cx, cy + radius + self.px(14)), label,
-                     self.fonts.get(7.4 * u),
-                     rgba(FROST if ahian else BLUSH,
-                          int((190 if ahian else 150) * p)),
-                     tracking=self.px(1.2), anchor="center")
-
     def _dot_matrix(self, draw, text, x, baseline, dot, colour, glyphs=None,
                     tracking=1):
         """Dot-matrix type: the SMTH identity, identical on every platform."""
@@ -976,148 +650,6 @@ class SceneRenderer:
         return len(text) * spacing * dot
 
     # ---- glyphs -------------------------------------------------------------
-    def _glyph(self, draw, name, cx, cy, size, colour, width=None):
-        """One coherent line-icon language, drawn from primitives."""
-        s = size / 2.0
-        width = width or max(1, int(size * 0.09))
-
-        def line(x0, y0, x1, y1):
-            draw.line((cx + x0 * s, cy + y0 * s, cx + x1 * s, cy + y1 * s),
-                      fill=colour, width=width)
-
-        def box(x0, y0, x1, y1):
-            draw.rectangle((cx + x0 * s, cy + y0 * s, cx + x1 * s, cy + y1 * s),
-                           outline=colour, width=width)
-
-        if name == "folder":
-            draw.line([(cx - s * 0.82, cy - s * 0.40), (cx - s * 0.22, cy - s * 0.40),
-                       (cx - s * 0.08, cy - s * 0.62), (cx + s * 0.82, cy - s * 0.62)],
-                      fill=colour, width=width)
-            box(-0.82, -0.38, 0.82, 0.62)
-        elif name == "globe":
-            draw.ellipse((cx - s * 0.72, cy - s * 0.72, cx + s * 0.72, cy + s * 0.72),
-                         outline=colour, width=width)
-            line(0, -0.72, 0, 0.72)
-            draw.arc((cx - s * 0.72, cy - s * 0.42, cx + s * 0.72, cy + s * 0.42),
-                     0, 360, fill=colour, width=max(1, width - 1))
-        elif name == "terminal":
-            box(-0.82, -0.62, 0.82, 0.62)
-            line(-0.5, -0.28, -0.16, 0.0)
-            line(-0.16, 0.0, -0.5, 0.28)
-            line(0.10, 0.30, 0.52, 0.30)
-        elif name == "gear":
-            draw.ellipse((cx - s * 0.32, cy - s * 0.32, cx + s * 0.32, cy + s * 0.32),
-                         outline=colour, width=width)
-            for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0),
-                           (-0.72, -0.72), (0.72, 0.72), (-0.72, 0.72), (0.72, -0.72)):
-                line(dx * 0.44, dy * 0.44, dx * 0.72, dy * 0.72)
-        elif name == "calc":
-            box(-0.62, -0.78, 0.62, 0.78)
-            draw.rectangle((cx - s * 0.40, cy - s * 0.60, cx + s * 0.40, cy - s * 0.28),
-                           fill=colour)
-            for row in range(2):
-                for col in range(3):
-                    x = -0.36 + col * 0.36
-                    y = 0.02 + row * 0.34
-                    draw.rectangle((cx + (x - 0.08) * s, cy + (y - 0.08) * s,
-                                    cx + (x + 0.08) * s, cy + (y + 0.08) * s), fill=colour)
-        elif name == "photo":
-            box(-0.82, -0.62, 0.82, 0.62)
-            draw.ellipse((cx + s * 0.24, cy - s * 0.46, cx + s * 0.50, cy - s * 0.20),
-                         outline=colour, width=width)
-            line(-0.68, 0.5, -0.16, -0.10)
-            line(-0.16, -0.10, 0.14, 0.22)
-            line(0.14, 0.22, 0.34, 0.04)
-            line(0.34, 0.04, 0.68, 0.5)
-        elif name == "note":
-            box(-0.66, -0.78, 0.66, 0.78)
-            for i in range(3):
-                line(-0.36, -0.30 + i * 0.32, 0.36, -0.30 + i * 0.32)
-        elif name == "clock":
-            draw.ellipse((cx - s * 0.74, cy - s * 0.74, cx + s * 0.74, cy + s * 0.74),
-                         outline=colour, width=width)
-            line(0, 0, 0, -0.44)
-            line(0, 0, 0.30, 0.14)
-        elif name == "camera":
-            box(-0.82, -0.44, 0.82, 0.54)
-            draw.rectangle((cx - s * 0.24, cy - s * 0.62, cx + s * 0.24, cy - s * 0.44),
-                           outline=colour, width=width)
-            draw.ellipse((cx - s * 0.26, cy - s * 0.20, cx + s * 0.26, cy + s * 0.32),
-                         outline=colour, width=width)
-        elif name == "phone":
-            draw.rounded_rectangle((cx - s * 0.42, cy - s * 0.78, cx + s * 0.42,
-                                    cy + s * 0.78),
-                                   radius=max(2, int(s * 0.16)), outline=colour,
-                                   width=width)
-            line(-0.16, 0.56, 0.16, 0.56)
-        elif name == "chat":
-            draw.rounded_rectangle((cx - s * 0.78, cy - s * 0.62, cx + s * 0.78,
-                                    cy + s * 0.32),
-                                   radius=max(2, int(s * 0.18)), outline=colour,
-                                   width=width)
-            draw.line([(cx - s * 0.24, cy + s * 0.32), (cx - s * 0.34, cy + s * 0.62),
-                       (cx + s * 0.06, cy + s * 0.32)], fill=colour, width=width)
-        elif name == "bag":
-            box(-0.72, -0.44, 0.72, 0.72)
-            draw.arc((cx - s * 0.34, cy - s * 0.86, cx + s * 0.34, cy - s * 0.12),
-                     180, 360, fill=colour, width=width)
-        elif name == "brush":
-            line(-0.6, 0.6, 0.24, -0.24)
-            draw.polygon([(cx + s * 0.22, cy - s * 0.22), (cx + s * 0.60, cy - s * 0.70),
-                          (cx + s * 0.70, cy - s * 0.54), (cx + s * 0.34, cy - s * 0.12)],
-                         outline=colour, width=width)
-        elif name == "play":
-            draw.polygon([(cx - s * 0.4, cy - s * 0.62), (cx + s * 0.62, cy),
-                          (cx - s * 0.4, cy + s * 0.62)], outline=colour, width=width)
-        else:
-            box(-0.7, -0.7, 0.7, 0.7)
-
-    # ---- act 0: the real desktop -------------------------------------------
-    def desktop(self):
-        self._bg = (16, 13, 20)
-        if self._desktop is not None:
-            return self._desktop
-        w, h, u = self.w, self.h, self.u
-        img = self._gradient(ink(M.OBSIDIAN), (26, 17, 27))
-        # Two broad maroon washes: the SMTH wallpaper, soft rather than graphic.
-        img = Image.alpha_composite(
-            img.convert("RGBA"),
-            self._blurred_bloom((0.06, 0.92), (0.55, 0.46), M.MAROON, 26)).convert("RGB")
-        img = Image.alpha_composite(
-            img.convert("RGBA"),
-            self._blurred_bloom((1.02, 0.05), (0.46, 0.40), M.MAROON_DEEP, 60)).convert("RGB")
-        draw = self._d(img)
-        step = max(18, int(self.px(26)))
-        radius = max(0.8, self.px(1.0))
-        for y in range(step, h, step):
-            for x in range(step, w, step):
-                draw.ellipse((x - radius, y - radius, x + radius, y + radius),
-                             fill=rgba(M.BLUSH, 10))
-        for spec in self.scene.icons:
-            self._draw_shortcut(img, spec)
-        bar = self.scene.layout["bar"]
-        if self.scene.profile == "linux":
-            self._draw_waybar(img, bar, 1.0)
-            self._draw_clock_widget(img, self.scene.layout["clock"], 1.0)
-            if self.scene.layout["rings"] is not None:
-                self._draw_glance(img, self.scene.layout["rings"], 1.0)
-        else:
-            self._draw_taskbar(img, bar, 1.0)
-        self._desktop = img
-        return img
-
-    # ---- act 1 --------------------------------------------------------------
-    def _dimmed(self, index):
-        cached = self._dim.get(index)
-        if cached is None:
-            cached = Image.blend(self.desktop(),
-                                 Image.new("RGB", (self.w, self.h),
-                                                  (3, 4, 7)),
-                                 index / 12.0)
-            self._dim[index] = cached
-        return cached
-
-    # ---- error card layouts -------------------------------------------------
     def _card_palette(self, spec):
         family, accent, soft, chrome = STATUS_FAMILY[
             spec.accent % len(STATUS_FAMILY)]
@@ -1300,110 +832,6 @@ class SceneRenderer:
         self._base_alpha[spec.key] = sprite.getchannel("A")
         return sprite
 
-    def _card_shadow(self, spec):
-        self._card_sprite(spec)
-        return self._shadows[spec.key]
-
-    def _settled_layer(self, cards):
-        key = tuple(c.spec.key for c in cards)
-        if key == self._settled_key and self._settled is not None:
-            return self._settled
-        layer = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
-        for card in cards:
-            sprite, shadow = self._card_sprite_rgba(card.spec)
-            sw = shadow.width - sprite.width
-            sh = shadow.height - sprite.height
-            layer.alpha_composite(shadow, (int(card.rect.x - sw / 2),
-                                           int(card.rect.y - sh / 2)))
-            layer.alpha_composite(sprite, (int(card.rect.x), int(card.rect.y)))
-        self._settled = layer
-        self._settled_key = key
-        return layer
-
-    def _card_sprite_rgba(self, spec):
-        """Prebuild the RGBA sprite for a card (shadow separate) so
-        pasting code does not need to recompute the shadow each time."""
-        self._card_sprite(spec)
-        return self._cards[spec.key], self._shadows[spec.key]
-
-    def _paste_card_shadow(self, img, card):
-        sprite, shadow = self._card_sprite_rgba(card.spec)
-        sw = shadow.width - sprite.width
-        sh = shadow.height - sprite.height
-        self._paste(img, shadow,
-                    (int(card.rect.x - sw / 2), int(card.rect.y - sh / 2)))
-
-    def _paste_card_sprite(self, img, card):
-        sprite, shadow = self._card_sprite_rgba(card.spec)
-        if card.alpha < 0.999:
-            sprite = sprite.copy()
-            sprite.putalpha(self._base_alpha[card.spec.key].point(
-                lambda v, a=card.alpha: int(v * a)))
-        if (abs(card.rect.w - sprite.width) > 1
-                or abs(card.rect.h - sprite.height) > 1):
-            size = (max(1, int(card.rect.w)), max(1, int(card.rect.h)))
-            sprite = sprite.resize(size, Image.BILINEAR)
-            shadow = shadow.resize(
-                (int(shadow.width * size[0] / max(1, sprite.width)),
-                 int(shadow.height * size[1] / max(1, sprite.height))),
-                Image.BILINEAR)
-        sw = shadow.width - sprite.width
-        sh = shadow.height - sprite.height
-        self._paste(img, shadow,
-                    (int(card.rect.x - sw / 2), int(card.rect.y - sh / 2)))
-        self._paste(img, sprite, (int(card.rect.x), int(card.rect.y)))
-
-    def _paste_card(self, img, card):
-        rect = card.rect
-        sprite, shadow = self._card_sprite_rgba(card.spec)
-        if card.alpha < 0.999:
-            sprite = sprite.copy()
-            sprite.putalpha(self._base_alpha[card.spec.key].point(
-                lambda v, a=card.alpha: int(v * a)))
-        if (abs(rect.w - sprite.width) > 1
-                or abs(rect.h - sprite.height) > 1):
-            size = (max(1, int(rect.w)), max(1, int(rect.h)))
-            sprite = sprite.resize(size, Image.BILINEAR)
-            shadow = shadow.resize(
-                (int(shadow.width * size[0] / max(1, sprite.width)),
-                 int(shadow.height * size[1] / max(1, sprite.height))),
-                Image.BILINEAR)
-        sw = shadow.width - sprite.width
-        sh = shadow.height - sprite.height
-        self._paste(img, shadow,
-                    (int(rect.x - sw / 2), int(rect.y - sh / 2)))
-        self._paste(img, sprite, (int(rect.x), int(rect.y)))
-        if card.flash > 0.02:
-            draw = self._d(img)
-            pal = self._card_palette(card.spec)
-            draw.rounded_rectangle(
-                (rect.x, rect.y, rect.right, rect.bottom),
-                radius=max(1, int(self.px(9))),
-                outline=rgba(pal["accent"], int(170 * card.flash)),
-                width=max(1, int(self.px(1.3))))
-            flash_h = max(1, int(rect.h * 0.10))
-            draw.rectangle((rect.x + self.px(1), rect.y + self.px(1),
-                            rect.right - self.px(1),
-                            rect.y + flash_h),
-                           fill=rgba(FROST, int(90 * card.flash)))
-
-    def _outbreak(self, frame):
-        index = max(0, min(12, int(round(frame.desktop_dim / 0.46 * 12))))
-        img = self._dimmed(index).copy()
-        settled = [c for c in frame.cards if c.progress >= 0.999]
-        if settled:
-            # Composite the settled windows *over* the dimmed desktop.  Turning
-            # the transparent settled layer into RGB used to replace the whole
-            # backdrop with black the moment the first window landed.
-            img = Image.alpha_composite(
-                img.convert("RGBA"), self._settled_layer(settled)).convert("RGB")
-        base = self._d(img)
-        for card in frame.cards:
-            if card.progress < 0.999:
-                self._paste_card(img, card)
-        return img
-
-    # ---- act 2 --------------------------------------------------------------
     def _blue_background(self):
         if self._blue_bg is not None:
             return self._blue_bg
@@ -1637,312 +1065,153 @@ class SceneRenderer:
         self._vignette_cache = layer
         return layer
 
-    def _wallpaper(self, phase):
-        bucket = int(phase * 24) % 24
-        cached = self._wall.get(bucket)
-        if cached is not None:
-            return cached
-        w, h = self.w, self.h
-        # Cold glass field: a deep cool-grey ramp with two slow diagonal light
-        # waves in frosted blue and faint amber.  No purple, no teal ramp.
-        low = (max(32, w // 4), max(24, h // 4))
-        small = Image.new("RGB", low)
-        draw = draw_on(small)
-        for y in range(low[1]):
-            v = (y + 0.5) / low[1]
-            for x in range(low[0]):
-                uu = (x + 0.5) / low[0]
-                draw.point((x, y), fill=ink(self._cold_wallpaper_colour(uu, v, phase)))
-        img = small.resize((w, h), Image.BICUBIC)
-        # A soft cool glow in the upper-left, and a fainter warm bloom elsewhere.
-        img = Image.alpha_composite(img.convert("RGBA"), self._blurred_bloom(
-            (0.12, 0.18), (0.50, 0.60), (0.30, 0.40, 0.60), 42)).convert("RGB")
-        img = Image.alpha_composite(img.convert("RGBA"), self._blurred_bloom(
-            (0.98, 1.02), (0.52, 0.54), (0.22, 0.16, 0.20), 34)).convert("RGB")
-        for i, colour in enumerate(((0.42, 0.50, 0.64), (0.86, 0.60, 0.34))):
-            img = Image.alpha_composite(img.convert("RGBA"), self._blurred_bloom(
-                (0.5, 0.34 + 0.26 * i), (0.70, 0.30), colour, 10)).convert("RGB")
-        draw = self._d(img)
-        # Very quiet cold grain, so the field feels physical.
-        step = max(20, int(self.px(34)))
-        radius = max(0.9, self.px(1.0))
-        for y in range(step, h, step):
-            for x in range(step, w, step):
-                draw.ellipse((x - radius, y - radius, x + radius, y + radius),
-                             fill=rgba((0.40, 0.44, 0.52), 12))
-        img = Image.alpha_composite(img.convert("RGBA"), self._vignette_layer()).convert("RGB")
-        self._wall[bucket] = img
-        return img
+    # ---- act 1: windows over the live desktop -------------------------------
+    def _compose_card(self, layer, card, dx=0.0, dy=0.0):
+        """Alpha-composite one error window onto the transparent overlay.
 
-    def _cold_wallpaper_colour(self, u, v, phase):
-        """Live wallpaper: two slow waves bend a cool-grey ramp and a narrow
-        band lifts it toward the cool blooms."""
-        u = clamp01(u)
-        v = clamp01(v)
-        angle = (u * 1.0 + v * 0.62) * math.tau
-        wave = math.sin(angle + phase * math.tau) * 0.075
-        wave += math.sin((u * 1.7 - v * 1.1) * math.tau - phase * math.tau * 2) * 0.035
-        band = 0.5 + 0.5 * math.sin((u * 0.8 - v * 0.55) * math.tau - phase * math.tau)
-        base = mix_colour(GLASS_VOID,
-                          mix_colour(GLASS_PANEL, GLASS_PANEL_RAISED, 0.55),
-                          ease_in_out(clamp01(u * 0.58 + v * 0.42 + wave)))
-        cool = mix_colour((0.30, 0.40, 0.60), (0.42, 0.50, 0.64),
-                           clamp01(u * 0.7 + v * 0.3))
-        warm = mix_colour((0.72, 0.54, 0.30), (0.86, 0.60, 0.34),
-                          clamp01(u * 0.7 + v * 0.3))
-        return mix_colour(base, cool, 0.035 + 0.06 * band) if band > 0.5 else mix_colour(
-            base, warm, 0.018 + 0.03 * (1 - band))
-
-    def _draw_black_hole(self, img, t_ms, alpha):
-        """The live AHIAN desktop's dot disk, so the fade uncovers the same scene.
-
-        Mirrors home.py: a Keplerian dot disk (inner dots orbit faster), a void
-        and a cool orbit ring.  Stars drift slowly behind it, now in cold hues.
+        Nothing else is painted: the live desktop shows through every pixel a
+        window does not cover.
         """
-        if alpha <= 0.01:
-            return
-        self._bg = GLASS_PANEL_RAISED
-        draw = self._d(img)
-        w, h = self.w, self.h
-        scale = h / 1080.0
-        cx, cy, R = w * 0.66, h * 0.50, h * 0.105
-        seconds = t_ms / 1000.0
-        # Stars, deterministic and very quiet.
-        for i in range(56):
-            sx = ((i * 0.618034 + 0.13) % 1.0) * w
-            sy = ((i * 0.381966 + 0.37) % 1.0) * h
-            twinkle = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(seconds * 1.4 + i))
-            radius = max(0.7, (0.7 + 0.9 * ((i * 7) % 10) / 10.0) * scale)
-            draw.ellipse((sx - radius, sy - radius, sx + radius, sy + radius),
-                         fill=rgba((0.28, 0.40, 0.56) if i % 2 else GLASS_VOID_DEEP,
-                                   int(58 * twinkle * alpha)))
-        cs, sn, tilt = math.cos(-0.22), math.sin(-0.22), 0.27
-        gold = math.pi * (3 - math.sqrt(5))
-        for i in range(430):
-            rr = 1.45 + 2.95 * math.sqrt((i + 0.5) / 430)
-            angle = i * gold + 0.55 * (1.45 / rr) ** 1.5 * seconds
-            r = rr * R
-            x = r * math.cos(angle)
-            s = math.sin(angle)
-            y = r * s * tilt if s >= 0 else -math.sqrt(max(0.0, r * r - x * x)) * 0.93
-            tr = (rr - 1.45) / 2.95
-            bright = 0.62 - 0.38 * math.cos(angle)
-            radius = max(1.0, (1.0 + 3.4 * bright * (1 - 0.55 * tr)) * scale * 0.9)
-            px, py = cx + x * cs - y * sn, cy + x * sn + y * cs
-            draw.ellipse((px - radius, py - radius, px + radius, py + radius),
-                         fill=rgba((0.28, 0.40, 0.56) if i % 2 else (0.72, 0.54, 0.30),
-                                   int(208 * bright * alpha)))
-        draw.ellipse((cx - R, cy - R, cx + R, cy + R),
-                     fill=rgba(GLASS_VOID_DEEP, int(255 * alpha)))
-        pulse = 0.65 + 0.35 * math.sin(seconds * 2.2)
-        ring = max(1.0, (1.2 + 1.8 * pulse) * scale)
-        draw.ellipse((cx - R * 1.08, cy - R * 1.08, cx + R * 1.08, cy + R * 1.08),
-                     outline=rgba((0.42, 0.50, 0.64), int(235 * alpha)), width=int(ring) or 1)
+        sprite = self._card_sprite(card.spec)
+        shadow = self._shadows[card.spec.key]
+        if card.alpha < 0.999:
+            sprite = sprite.copy()
+            sprite.putalpha(self._base_alpha[card.spec.key].point(
+                lambda v, a=card.alpha: int(v * a)))
+        x = int(round(card.rect.x + dx))
+        y = int(round(card.rect.y + dy))
+        sw = shadow.width - sprite.width
+        sh = shadow.height - sprite.height
+        layer.alpha_composite(shadow, (int(x - sw / 2), int(y - sh / 2)))
+        layer.alpha_composite(sprite, (x, y))
+        if card.flash > 0.02:
+            w, h = sprite.size
+            flash = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(flash)
+            pal = self._card_palette(card.spec)
+            draw.rounded_rectangle(
+                (0, 0, w - 1, h - 1), radius=max(1, int(self.px(9))),
+                outline=rgba(pal["accent"], int(170 * card.flash)),
+                width=max(1, int(self.px(1.3))))
+            draw.rectangle(
+                (self.px(1), self.px(1), w - self.px(1),
+                 self.px(1) + max(1, int(h * 0.10))),
+                fill=rgba(FROST, int(90 * card.flash)))
+            layer.alpha_composite(flash, (x, y))
 
-    def _brand(self, img, frame):
-        self._bg = GLASS_PANEL_RAISED
-        tr = frame.transform
-        if tr.brand <= 0 or tr.brand_alpha <= 0.02:
-            return
-        draw = self._d(img)
-        u = self.u
-        mark_w = min(0.42 * self.w, 0.50 * self.h * (23 / 7.0))
-        spacing = mark_w / 23.0 * tr.brand_scale
-        dot = spacing * 0.30
-        cx = tr.brand_x * self.w
-        cy = tr.brand_y * self.h
-        origin_x = cx - (23 * spacing) / 2
-        origin_y = cy - (7 * spacing) / 2
-        for (col, row) in self.scene.brand_dots:
-            order = (col / 22.0) * 0.62 + (row / 6.0) * 0.38
-            start = _M.BRAND_START_MS + order * (_M.BRAND_MS - 260)
-            progress = _M.clamp((frame.t_ms - start) / 260.0)
-            if progress <= 0:
-                continue
-            radius = dot * (1.16 - 0.16 * M.ease(progress))
-            x = origin_x + (col + 0.5) * spacing
-            y = origin_y + (row + 0.5) * spacing
-            alpha = int(255 * tr.brand_alpha * progress)
-            # Frost-amber dot-matrix: the one constant brand token, in the new palette.
-            colour = mix_colour((0.86, 0.60, 0.34), FROST,
-                                col / 22.0 * 0.6 + row / 6.0 * 0.4)
-            draw.ellipse((x - radius, y - radius, x + radius, y + radius),
-                         fill=rgba(colour, alpha))
-        rule_w = mark_w * 0.74 * M.ease(tr.brand)
-        rule_y = cy + (7 * spacing) / 2 + self.px(26)
-        draw.line((cx - rule_w / 2, rule_y, cx + rule_w / 2, rule_y),
-                  fill=rgba((0.86, 0.60, 0.34), int(210 * tr.brand_alpha)), width=1)
-        if tr.brand > 0.35 and tr.brand_alpha > 0.25:
-            put_text(draw, (cx, rule_y + self.px(21)), "A H I A N",
-                     self.fonts.get(8.6 * u, family=self.fonts.MONO),
-                     rgba(FROST, int(165 * tr.brand_alpha)),
-                     tracking=self.px(3.0), anchor="center")
+    def _outbreak(self, frame):
+        layer = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        g = frame.glitch
+        # The tremor moves the windows, never the desktop behind them.
+        for card in frame.cards:
+            self._compose_card(layer, card, g.dx, g.dy)
+        return layer
 
-    def _transform_frame(self, frame):
-        self._bg = (18, 22, 30)
-        tr = frame.transform
-        img = self._wallpaper(tr.phase).copy()
-        hole = M.ease(clamp01((frame.t_ms - 21200.0) / 1150.0))
-        self._draw_black_hole(img, frame.t_ms, hole)
-        self._brand(img, frame)
-        for spec, progress in zip(self.scene.icons, tr.icons):
-            self._draw_shortcut(img, spec, progress, ahian=True)
-        if self.scene.profile == "linux":
-            self._draw_clock_widget(img, self.scene.layout["clock"], tr.widgets,
-                                    ahian=True)
-            if self.scene.layout["rings"] is not None:
-                self._draw_glance(img, self.scene.layout["rings"], tr.widgets,
-                                  ahian=True)
-            self._draw_waybar(img, self.scene.layout["bar"], tr.panel, ahian=True)
-        else:
-            self._draw_taskbar(img, self.scene.layout["bar"], tr.panel, ahian=True)
-        self._toast(img, tr.toast)
-        self._shimmer(img, tr.shimmer)
-        return img
+    # ---- overlay-safe screen effects ----------------------------------------
+    def _grain(self):
+        if self._noise is None:
+            noise = Image.effect_noise((self.w, self.h), 26)
+            white = Image.new("L", (self.w, self.h), 255)
+            alpha = noise.point(lambda v: int(v * 0.14))
+            self._noise = Image.merge("RGBA", (white, white, white, alpha))
+        return self._noise
 
-    def _toast(self, img, progress):
-        self._bg = GLASS_VOID_DEEP
-        if progress <= 0.01:
-            return
-        u = self.u
-        text = "AHIAN  ·  UPGRADE COMPLETE"
-        font = self.fonts.get(8.8 * u, family=self.fonts.MONO)
-        width = measure(font, text, self.px(1.6)) + self.px(64)
-        height = self.px(34)
-        x = (self.w - width) / 2
-        y = self.h - (self.px(124) if self.scene.profile == "linux" else self.px(122))
-        y += (1.0 - progress) * self.px(12)
-        # Glass toast: frosted panel with a thin amber status rail and a calm dot.
-        toast_rect = Rect(x, y, width, height)
-        toast = self._glass_panel(
-            toast_rect,
-            status="amber",
-            progress=progress,
-            raised=True,
-            glow=False,
-            active=False,
-            rail=True,
-            highlight=True,
-            shine=False,
-        )
-        if isinstance(toast, tuple):
-            toast_panel, toast_shadow, toast_shadow_xy = toast
-            self._paste(img, toast_shadow, toast_shadow_xy)
-            toast_rgba = toast_panel.convert("RGBA")
-            img.paste(toast_rgba, (int(x), int(y)), toast_rgba)
-        else:
-            toast_rgba = toast.convert("RGBA")
-            img.paste(toast_rgba, (int(x), int(y)), toast_rgba)
-        draw = self._d(img)
-        dot = self.px(3.4)
-        dot_x = x + self.px(22)
-        dot_y = y + height / 2
-        draw.ellipse((dot_x - dot, dot_y - dot, dot_x + dot, dot_y + dot),
-                     fill=rgba((0.86, 0.60, 0.34), int(255 * progress)))
-        put_text(draw, (dot_x + self.px(14), dot_y + self.px(3.2)), text,
-                 font, rgba(FROST, int(240 * progress)), tracking=self.px(1.6))
+    def _glitch(self, img, frame):
+        """Translucent interference: it tints the overlay, never the desktop.
 
-    def _shimmer(self, img, progress):
-        if progress <= 0 or progress >= 1:
-            return
-        draw = self._d(img)
-        x = -self.w * 0.45 + progress * self.w * 1.9
-        band = self.w * 0.20
-        env = math.sin(progress * math.pi)
-        skew = self.h * 0.45
-        draw.polygon([(x, 0), (x + band, 0), (x + band - skew, self.h),
-                      (x - skew, self.h)], fill=(220, 230, 250, int(18 * env)))
-        draw.polygon([(x + band * 0.7, 0), (x + band * 0.78, 0),
-                      (x + band * 0.78 - skew, self.h), (x + band * 0.7 - skew, self.h)],
-                     fill=(220, 230, 250, int(26 * env)))
-
-    # ---- shared post effects ------------------------------------------------
-    def _glitch(self, img, frame, extra_flash=0.0):
-        glitch = frame.glitch
-        if not glitch.active and extra_flash <= 0.001:
+        The old renderer sliced and colour-shifted frame pixels, which only
+        worked because it also painted a copy of the desktop.  Those effects are
+        replaced with light and grain that composite over the live session.
+        """
+        g = frame.glitch
+        if not g.active:
             return img
-        if abs(glitch.brightness - 1.0) > 0.002:
-            img = ImageEnhance.Brightness(img).enhance(glitch.brightness)
-        if glitch.split > 0.4:
-            r, g, b = img.split()
-            shift = int(round(glitch.split))
-            r = ImageChops.offset(r, shift, 0)
-            b = ImageChops.offset(b, -shift, 0)
-            img = Image.merge("RGB", (r, g, b))
-        if glitch.slice_y >= 0:
-            y0 = int(self.h * M.clamp(glitch.slice_y - 0.05))
-            y1 = int(self.h * M.clamp(glitch.slice_y + 0.05))
-            if y1 > y0 + 2:
-                img.paste(img.crop((0, y0, self.w, y1)),
-                          (int(glitch.slice_shift), y0))
-        if glitch.noise > 0.02 or extra_flash > 0.001:
-            if self._noise is None:
-                self._noise = Image.effect_noise((self.w, self.h), 28)
-            grain = ImageChops.offset(self._noise, int(frame.t_ms * 7) % self.w,
-                                      int(frame.t_ms * 5) % self.h)
-            img = Image.blend(img, Image.merge("RGB", (grain, grain, grain)),
-                              min(0.17, 0.045 + 0.055 * glitch.noise))
-        if glitch.flash > 0.01 or extra_flash > 0.001:
-            img = Image.blend(img, Image.new("RGB", img.size, (220, 230, 245)),
-                              min(0.32, 0.42 * (glitch.flash + extra_flash)))
-        if glitch.scan_y >= 0:
-            draw = self._d(img)
-            y = glitch.scan_y * self.h
+        out = img
+        if g.noise > 0.03:
+            alpha = min(46, int(10 + 30 * g.noise))
+            grain = self._grain()
+            if alpha < 40:
+                grain = grain.copy()
+                grain.putalpha(grain.getchannel("A").point(
+                    lambda v, k=alpha / 46.0: int(v * k)))
+            offset = (int(frame.t_ms * 7) % self.w,
+                      int(frame.t_ms * 5) % self.h)
+            out.alpha_composite(ImageChops.offset(grain, *offset))
+        effects = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(effects)
+        if g.flash > 0.01:
+            draw.rectangle((0, 0, self.w, self.h),
+                           fill=rgba((0.86, 0.90, 0.96), min(0.16, 0.40 * g.flash)))
+        if g.split > 0.5:
+            band = (int(self.h * 0.30), int(self.h * 0.64))
+            shift = max(2, int(g.split))
+            draw.rectangle((-shift, band[0], self.w - shift, band[1]),
+                           fill=rgba((1.0, 0.24, 0.30), 0.05))
+            draw.rectangle((shift, band[0], self.w + shift, band[1]),
+                           fill=rgba((0.25, 0.90, 1.0), 0.05))
+        if g.slice_y >= 0:
+            y0 = int(self.h * M.clamp(g.slice_y - 0.05))
+            y1 = int(self.h * M.clamp(g.slice_y + 0.05))
+            draw.rectangle((0, y0, self.w, max(y0 + 1, y1)),
+                           fill=rgba((0.70, 0.80, 0.95), 0.05))
+            draw.rectangle((0, y0, self.w, y0 + max(1, int(self.px(1.4)))),
+                           fill=rgba((0.80, 0.90, 1.0), 0.16))
+        if g.scan_y >= 0:
+            y = g.scan_y * self.h
             draw.rectangle((0, y - self.px(26), self.w, y + self.px(26)),
-                           fill=(180, 215, 240, 18))
+                           fill=(180, 215, 240, 16))
             draw.rectangle((0, y, self.w, y + max(1, self.px(1.6))),
-                           fill=(220, 232, 250, 70))
-        return img
+                           fill=(220, 232, 250, 58))
+        if effects.getbbox() is not None:
+            out = Image.alpha_composite(out, effects)
+        return out
+
+    # ---- act 2: the blue screen and the cut to the live desktop -------------
+    def _beam(self):
+        """The line the AH1AN screen opens from: a few pixels of light."""
+        out = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
+        draw = draw_on(out)
+        y = self.h / 2
+        glow = max(1, int(self.px(8)))
+        draw.rectangle((0, y - glow, self.w, y - 1), fill=(150, 190, 225, 42))
+        draw.rectangle((0, y - 1, self.w, y + 1), fill=(200, 224, 248, 230))
+        draw.rectangle((0, y + 1, self.w, y + glow), fill=(150, 190, 225, 42))
+        return out
 
     def _squeeze(self, img, opened, edge):
+        """Clip a full-screen frame to a growing horizontal band (CRT open)."""
+        opened = clamp(opened)
         if opened >= 0.999:
             return img
         band_h = max(2, int(self.h * opened))
         top = (self.h - band_h) // 2
-        out = Image.new("RGB", img.size, (2, 3, 6))
+        out = Image.new("RGBA", img.size, (0, 0, 0, 0))
         out.paste(img.crop((0, top, self.w, top + band_h)), (0, top))
         draw = draw_on(out)
         glow = max(1, int(self.px(2.2)))
         draw.rectangle((0, top - glow, self.w, top), fill=edge)
         draw.rectangle((0, top + band_h, self.w, top + band_h + glow), fill=edge)
-        draw.rectangle((0, top + band_h // 2 - 1, self.w, top + band_h // 2 + 1),
-                       fill=edge)
+        draw.rectangle((0, top + band_h // 2 - 1, self.w,
+                        top + band_h // 2 + 1), fill=edge)
         return out
 
     # ---- entry point --------------------------------------------------------
     def render(self, t_ms):
+        """An RGBA overlay frame.  Transparent wherever the live desktop shows."""
         frame = self.scene.frame(t_ms)
         if frame.reduced:
-            return self._transform_frame(self.scene.frame(M.FADE_START_MS + 90))
-
+            return Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
         if frame.phase == "outbreak":
             return self._glitch(self._outbreak(frame), frame)
-
         if frame.phase == "blue":
             if frame.blue.open <= 0.0:
-                last = self._outbreak(self.scene.frame(M.BLUE_START_MS))
-                squeeze = 1.0 - M.clamp(
-                    (frame.t_ms - M.BLUE_START_MS) / max(1.0, M.COLLAPSE_MS))
-                return self._glitch(self._squeeze(last, squeeze, (150, 190, 225)),
-                                    frame)
-            blue = self._squeeze(self._blue_screen(frame), frame.blue.open,
-                                 (150, 190, 225))
-            return self._glitch(blue, frame)
-
-        transform = frame.transform
-        if transform.open <= 0.0:
-            blue = self._blue_screen(self.scene.frame(M.BLUE_END_MS - 40))
-            squeeze = 1.0 - M.clamp(
-                (frame.t_ms - M.BLUE_END_MS) / max(1.0, M.BLUE_CLOSE_MS))
-            return self._glitch(self._squeeze(blue, squeeze, (150, 190, 225)), frame)
-        img = self._squeeze(self._transform_frame(frame), transform.open,
-                            (170, 205, 235))
-        opened_at = M.WALL_OPEN_START_MS + M.WALL_OPEN_MS
-        bloom = M.clamp(1.0 - (frame.t_ms - opened_at) / 280.0)
-        if frame.t_ms >= opened_at and bloom > 0.01:
-            img = Image.blend(img, Image.new("RGB", img.size, (190, 205, 225)),
-                              0.22 * bloom)
-        return self._glitch(img, frame)
+                return self._beam()
+            blue = self._blue_screen(frame).convert("RGBA")
+            return self._glitch(
+                self._squeeze(blue, frame.blue.open, (150, 190, 225)), frame)
+        # Zero: the overlay is gone and the running AHIAN desktop is revealed
+        # by removing it.  There is no rendered replacement underneath.
+        return Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
 
 
 if __name__ == "__main__":

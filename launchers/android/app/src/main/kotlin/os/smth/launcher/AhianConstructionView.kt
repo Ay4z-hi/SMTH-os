@@ -46,33 +46,13 @@ import kotlin.math.sqrt
 class AhianConstructionView(context: Context) : View(context) {
 
     private companion object {
-        const val DURATION_MS = 25800L
+        const val DURATION_MS = 19000L
         const val REDUCED_MS = 700L
 
         const val BLUE_START = 10000f
         const val BLUE_END = 19000f
-        const val COLLAPSE_MS = 220f
         const val BLUE_OPEN_START = 10220f
         const val BLUE_OPEN_MS = 380f
-        const val BLUE_CLOSE_MS = 180f
-        const val WALL_OPEN_START = 19180f
-        const val WALL_OPEN_MS = 430f
-        const val HOLE_START = 21200f
-        const val BRAND_START = 19520f
-        const val BRAND_MS = 980f
-        const val BRAND_SETTLE = 20600f
-        const val BRAND_SETTLED = 21600f
-        const val PANEL_START = 20120f
-        const val PANEL_MS = 620f
-        const val ICON_START = 20460f
-        const val ICON_STEP = 86f
-        const val ICON_MS = 430f
-        const val WIDGET_START = 21420f
-        const val WIDGET_MS = 620f
-        const val TOAST_START = 22260f
-        const val TOAST_MS = 320f
-        const val TOAST_END = 24280f
-        const val FADE_START = 25000f
         const val CARD_ENTER = 360f
         const val CARD_FLASH = 300f
         const val COUNTDOWN_FROM = 9
@@ -115,11 +95,6 @@ class AhianConstructionView(context: Context) : View(context) {
         val CARD_HEADERS = arrayOf(
             "SMTH SYSTEM", "SURFACE", "AHIAN WATCH", "COMPOSITOR", "SESSION", "INDEX",
         )
-        val ICON_LABELS = arrayOf(
-            "TERMINAL", "CHROME", "PHONE", "MESSAGES", "CAMERA", "SETTINGS",
-        )
-        val ICON_GLYPHS = arrayOf("terminal", "globe", "phone", "chat", "camera", "gear")
-
         val BRAND_GLYPHS = mapOf(
             'S' to intArrayOf(15, 16, 16, 14, 1, 1, 30),
             'M' to intArrayOf(17, 27, 21, 21, 17, 17, 17),
@@ -199,7 +174,8 @@ class AhianConstructionView(context: Context) : View(context) {
     private var u = 1f
 
     init {
-        setBackgroundColor(OBSIDIAN_DEEP)
+        // Absolutely no background: the live launcher desktop is the backdrop.
+        setBackgroundColor(android.graphics.Color.TRANSPARENT)
         contentDescription = "AHIAN takeover; tap to skip"
         isClickable = true
     }
@@ -256,10 +232,9 @@ class AhianConstructionView(context: Context) : View(context) {
 
     private fun overlayAlpha(t: Float): Float = if (reduced) {
         (1f - t / REDUCED_MS).coerceIn(0f, 1f)
-    } else if (t < FADE_START) {
-        1f
     } else {
-        (1f - (t - FADE_START) / (DURATION_MS - FADE_START)).coerceIn(0f, 1f)
+        // The overlay is removed at zero; it never fades a rendered desktop.
+        1f
     }
 
     // ---- helpers -------------------------------------------------------------
@@ -372,143 +347,6 @@ class AhianConstructionView(context: Context) : View(context) {
         canvas.drawLine(x0, y0, x1, y1, stroke)
     }
 
-    private fun flow(uu: Float, vv: Float, phase: Float): Int {
-        val x = uu.coerceIn(0f, 1f)
-        val y = vv.coerceIn(0f, 1f)
-        val tau = (2f * PI).toFloat()
-        var wave = sin((x + y * 0.62f) * tau + phase * tau) * 0.075f
-        wave += sin((x * 1.7f - y * 1.1f) * tau - phase * tau * 2f) * 0.035f
-        val band = 0.5f + 0.5f * sin((x * 0.8f - y * 0.55f) * tau - phase * tau)
-        var d = (x * 0.58f + y * 0.42f + wave).coerceIn(0f, 1f)
-        d = d * d * (3f - 2f * d)
-        val wall = mix(WALL_PURPLE, WALL_TEAL, d)
-        val accent = mix(PURPLE_SOFT, TEAL_BRIGHT, (x * 0.7f + y * 0.3f).coerceIn(0f, 1f))
-        return mix(wall, accent, 0.035f + 0.075f * band)
-    }
-
-    // ---- glyphs --------------------------------------------------------------
-    private fun glyph(canvas: Canvas, name: String, cx: Float, cy: Float, size: Float,
-                      colour: Int) {
-        val s = size / 2f
-        val width = max(1f, size * 0.09f)
-        fun ln(x0: Float, y0: Float, x1: Float, y1: Float) =
-            line(canvas, cx + x0 * s, cy + y0 * s, cx + x1 * s, cy + y1 * s, colour, width)
-
-        fun box(x0: Float, y0: Float, x1: Float, y1: Float) {
-            stroke.color = colour
-            stroke.strokeWidth = width
-            canvas.drawRect(cx + x0 * s, cy + y0 * s, cx + x1 * s, cy + y1 * s, stroke)
-        }
-
-        when (name) {
-            "folder" -> {
-                val path = Path()
-                path.moveTo(cx - s * 0.82f, cy - s * 0.40f)
-                path.lineTo(cx - s * 0.22f, cy - s * 0.40f)
-                path.lineTo(cx - s * 0.08f, cy - s * 0.62f)
-                path.lineTo(cx + s * 0.82f, cy - s * 0.62f)
-                stroke.color = colour
-                stroke.strokeWidth = width
-                canvas.drawPath(path, stroke)
-                box(-0.82f, -0.38f, 0.82f, 0.62f)
-            }
-            "globe" -> {
-                stroke.color = colour
-                stroke.strokeWidth = width
-                canvas.drawCircle(cx, cy, s * 0.72f, stroke)
-                ln(0f, -0.72f, 0f, 0.72f)
-                val oval = RectF(cx - s * 0.72f, cy - s * 0.42f, cx + s * 0.72f,
-                    cy + s * 0.42f)
-                canvas.drawOval(oval, stroke)
-            }
-            "terminal" -> {
-                box(-0.82f, -0.62f, 0.82f, 0.62f)
-                ln(-0.5f, -0.28f, -0.16f, 0f)
-                ln(-0.16f, 0f, -0.5f, 0.28f)
-                ln(0.1f, 0.3f, 0.52f, 0.3f)
-            }
-            "gear" -> {
-                stroke.color = colour
-                stroke.strokeWidth = width
-                canvas.drawCircle(cx, cy, s * 0.32f, stroke)
-                val dirs = arrayOf(
-                    0f to -1f, 0f to 1f, -1f to 0f, 1f to 0f,
-                    -0.72f to -0.72f, 0.72f to 0.72f, -0.72f to 0.72f, 0.72f to -0.72f,
-                )
-                for ((dx, dy) in dirs) ln(dx * 0.44f, dy * 0.44f, dx * 0.72f, dy * 0.72f)
-            }
-            "camera" -> {
-                box(-0.82f, -0.44f, 0.82f, 0.54f)
-                box(-0.24f, -0.62f, 0.24f, -0.44f)
-                stroke.color = colour
-                stroke.strokeWidth = width
-                canvas.drawCircle(cx, cy + s * 0.06f, s * 0.28f, stroke)
-            }
-            "phone" -> {
-                stroke.color = colour
-                stroke.strokeWidth = width
-                canvas.drawRoundRect(
-                    RectF(cx - s * 0.42f, cy - s * 0.78f, cx + s * 0.42f, cy + s * 0.78f),
-                    s * 0.16f, s * 0.16f, stroke,
-                )
-                ln(-0.16f, 0.56f, 0.16f, 0.56f)
-            }
-            "chat" -> {
-                box(-0.78f, -0.62f, 0.78f, 0.32f)
-                ln(-0.24f, 0.32f, -0.34f, 0.62f)
-                ln(-0.34f, 0.62f, 0.06f, 0.32f)
-            }
-            else -> box(-0.7f, -0.7f, 0.7f, 0.7f)
-        }
-    }
-
-    // ---- the desktop the takeover starts from --------------------------------
-    private fun barRect(): RectF = RectF(12f * u, h - 66f * u, w - 12f * u, h - 14f * u)
-
-    private fun drawDesktop(canvas: Canvas) {
-        fill.shader = LinearGradient(0f, 0f, 0f, h, OBSIDIAN, 0xFF1A111B.toInt(),
-            Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, w, h, fill)
-        fill.shader = null
-        fill.color = withAlpha(MAROON, 0.18f)
-        canvas.drawCircle(w * 0.05f, h * 0.95f, max(w, h) * 0.55f, fill)
-        fill.color = withAlpha(MAROON_DEEP, 0.55f)
-        canvas.drawCircle(w * 1.05f, h * 0.02f, max(w, h) * 0.40f, fill)
-
-        // Shortcut column, in the same place the live launcher keeps it.
-        val cellW = 108f * u
-        val cellH = 78f * u
-        for (i in ICON_LABELS.indices) {
-            val cx = 16f * u + 48f * u + cellW * 0.5f
-            val top = 22f * u + i * cellH
-            val size = 50f * u
-            rounded(canvas, RectF(cx - size / 2, top, cx + size / 2, top + size),
-                13f * u, withAlpha(OBSIDIAN_DEEP, 0.84f))
-            glyph(canvas, ICON_GLYPHS[i], cx, top + size / 2f, size * 0.52f, BLUSH)
-            text(canvas, ICON_LABELS[i], cx, top + size + 15f * u, 8.6f * u,
-                withAlpha(BLUSH, 0.72f), 1f * u, align = 1)
-        }
-
-        // The taskbar the desktop already shows.
-        val bar = barRect()
-        rounded(canvas, bar, 14f * u, withAlpha(0xFF0B0A0E.toInt(), 0.94f))
-        stroke.color = withAlpha(BLUSH, 0.12f)
-        stroke.strokeWidth = 1f
-        canvas.drawRoundRect(bar, 14f * u, 14f * u, stroke)
-        val cy = bar.centerY()
-        val startX = bar.left + 32f * u
-        rounded(canvas, RectF(startX - 17f * u, cy - 17f * u, startX + 17f * u,
-            cy + 17f * u), 10f * u, withAlpha(MAROON, 0.88f))
-        dotMatrix(canvas, "S", startX - 9f * u, cy + 7f * u, 1.9f * u, BLUSH)
-        for ((index, name) in arrayOf("globe", "terminal", "folder").withIndex()) {
-            glyph(canvas, name, bar.left + 84f * u + index * 54f * u, cy, 23f * u,
-                withAlpha(BLUSH, 0.8f))
-        }
-        text(canvas, "09:41", bar.right - 18f * u, cy + 3.4f * u, 10f * u,
-            withAlpha(BLUSH, 0.88f), 0.6f * u, align = 2)
-    }
-
-    // ---- act 1: error windows -------------------------------------------------
     private fun cardAccent(e: Err): Int = when (e.accent % 6) {
         0, 2 -> AMBER_HOT
         1, 4 -> BLUE_COLD
@@ -671,12 +509,8 @@ class AhianConstructionView(context: Context) : View(context) {
     }
 
     private fun drawGlitch(canvas: Canvas, t: Float) {
-        // A building tremor, brief flashes, one displaced band and fine grain.
-        val shake = if (t < BLUE_START) 2.4f * u * ease(((t - 2600f) / 7200f)
-            .coerceIn(0f, 1f)) else 0f
-        if (shake > 0.05f) {
-            canvas.translate(sin(t / 46f) * shake, cos(t / 61f) * shake * 0.55f)
-        }
+        // Translucent interference only: it tints the overlay, never the live
+        // desktop underneath. The tremor itself moves the windows in onDraw.
         var flash = 0f
         var split = 0f
         var slice = -1f
@@ -728,7 +562,7 @@ class AhianConstructionView(context: Context) : View(context) {
             val y1 = h * (slice + 0.05f).coerceIn(0f, 1f)
             canvas.save()
             canvas.clipRect(0f, y0, w, y1)
-            fill.color = withAlpha(Color.BLACK, 0.22f)
+            fill.color = withAlpha(0xFFB4CCE8.toInt(), 0.07f)
             canvas.drawRect(sliceShift, y0, w + sliceShift, y1, fill)
             canvas.restore()
         }
@@ -892,281 +726,18 @@ class AhianConstructionView(context: Context) : View(context) {
             withAlpha(BLUE_DIM, 0.58f), 1.2f * u, align = 2)
     }
 
-    // ---- act 3: the AHIAN desktop --------------------------------------------
-    private fun coldWall(x: Float, y: Float, phase: Float): Int {
-        val tau = (2f * PI).toFloat()
-        var wave = sin((x + y * 0.62f) * tau + phase * tau) * 0.075f
-        wave += sin((x * 1.7f - y * 1.1f) * tau - phase * tau * 2f) * 0.035f
-        val band = 0.5f + 0.5f * sin((x * 0.8f - y * 0.55f) * tau - phase * tau)
-        var d = (x * 0.58f + y * 0.42f + wave).coerceIn(0f, 1f)
-        d = d * d * (3f - 2f * d)
-        val base = mix(GLASS_VOID_DEEP, GLASS_PANEL_RAISED, d)
-        val mixT = (x * 0.7f + y * 0.3f).coerceIn(0f, 1f)
-        val cool = mix(0xFF4D668F.toInt(), 0xFF6B80A3.toInt(), mixT)
-        val warm = mix(0xFFB78A4D.toInt(), 0xFFDB9957.toInt(), mixT)
-        return if (band > 0.5f) mix(base, cool, 0.035f + 0.06f * band)
-        else mix(base, warm, 0.018f + 0.03f * (1f - band))
-    }
-
-    private fun drawWallpaper(canvas: Canvas, phase: Float) {
-        val stops = IntArray(12) { i ->
-            val k = i / 11f
-            coldWall(k, k * 0.62f, phase)
-        }
-        fill.shader = LinearGradient(0f, 0f, w, h, stops, null,
-            Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, w, h, fill)
-        fill.shader = null
-        fill.color = withAlpha(0xFF4D668F.toInt(), 0.13f)
-        canvas.drawCircle(w * 0.10f, h * 0.16f, max(w, h) * 0.45f, fill)
-        fill.color = withAlpha(0xFFDB9957.toInt(), 0.08f)
-        canvas.drawCircle(w * 1.02f, h * 1.04f, max(w, h) * 0.42f, fill)
-        val step = 34f * u
-        fill.color = withAlpha(0xFF66707F.toInt(), 0.06f)
-        var y = step
-        while (y < h) {
-            var x = step
-            while (x < w) {
-                canvas.drawCircle(x, y, max(0.9f, 1.0f * u), fill)
-                x += step
-            }
-            y += step
-        }
-    }
-
-    private fun drawBlackHole(canvas: Canvas, t: Float, alpha: Float) {
-        if (alpha <= 0.01f) return
-        val cx = w * 0.66f
-        val cy = h * 0.50f
-        val radius = h * 0.105f
-        val scale = h / 1080f
-        val seconds = t / 1000f
-        val cs = cos(-0.22f)
-        val sn = sin(-0.22f)
-        val tilt = 0.27f
-        val gold = (PI * (3 - sqrt(5.0))).toFloat()
-        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-        for (i in 0 until 320) {
-            val rr = 1.45f + 2.95f * sqrt((i + 0.5f) / 320f)
-            val angle = i * gold + 0.55f * (1.45f / rr).pow(1.5f) * seconds
-            val r = rr * radius
-            val x = r * cos(angle)
-            val s = sin(angle)
-            val yy = if (s >= 0f) r * s * tilt
-            else -sqrt(max(0f, r * r - x * x)) * 0.93f
-            val tr = (rr - 1.45f) / 2.95f
-            val bright = 0.62f - 0.38f * cos(angle)
-            val size = max(1f, (1f + 3.4f * bright * (1f - 0.55f * tr)) * scale * 0.9f)
-            val px = cx + x * cs - yy * sn
-            val py = cy + x * sn + yy * cs
-            dotPaint.color = withAlpha(
-                if (i % 2 == 0) 0xFF4D668F.toInt() else AMBER_HOT,
-                0.82f * bright * alpha)
-            canvas.drawCircle(px, py, size, dotPaint)
-        }
-        fill.color = withAlpha(GLASS_VOID_DEEP, alpha)
-        canvas.drawCircle(cx, cy, radius, fill)
-        stroke.color = withAlpha(0xFF6B80A3.toInt(), 0.92f * alpha)
-        stroke.strokeWidth = max(1f, (1.2f + 1.8f * (0.65f + 0.35f *
-            sin(seconds * 2.2f))) * scale)
-        canvas.drawCircle(cx, cy, radius * 1.08f, stroke)
-    }
-
-    private fun Float.pow(exp: Float): Float = Math.pow(this.toDouble(), exp.toDouble())
-        .toFloat()
-
-    private fun drawBrand(canvas: Canvas, t: Float) {
-        if (t < BRAND_START) return
-        val settle = easeInOut(((t - BRAND_SETTLE) / (BRAND_SETTLED - BRAND_SETTLE))
-            .coerceIn(0f, 1f))
-        val brandAlpha = 1f - settle
-        if (brandAlpha <= 0.02f) return
-        val markW = min(0.42f * w, 0.50f * h * (23f / 7f))
-        val spacing = markW / 23f * (1f - 0.06f * settle)
-        val dot = spacing * 0.30f
-        val cx = 0.5f * w
-        val cy = (0.44f - 0.045f * settle) * h
-        val originX = cx - (23 * spacing) / 2f
-        val originY = cy - (7 * spacing) / 2f
-        for ((col, row) in brandDots()) {
-            val order = (col / 22f) * 0.62f + (row / 6f) * 0.38f
-            val start = BRAND_START + order * (BRAND_MS - 260f)
-            val progress = ((t - start) / 260f).coerceIn(0f, 1f)
-            if (progress <= 0f) continue
-            val radius = dot * (1.16f - 0.16f * ease(progress))
-            val x = originX + (col + 0.5f) * spacing
-            val y = originY + (row + 0.5f) * spacing
-            fill.color = withAlpha(mix(0xFFDB9957.toInt(), FROST,
-                col / 22f * 0.6f + row / 6f * 0.4f), brandAlpha * progress)
-            canvas.drawCircle(x, y, radius, fill)
-        }
-        val ruleW = markW * 0.74f * ease(((t - BRAND_START) / BRAND_MS).coerceIn(0f, 1f))
-        val ruleY = cy + (7 * spacing) / 2f + 26f * u
-        line(canvas, cx - ruleW / 2f, ruleY, cx + ruleW / 2f, ruleY,
-            withAlpha(0xFFDB9957.toInt(), 0.82f * brandAlpha), 1f)
-        if (brandAlpha > 0.3f) {
-            text(canvas, "A H I A N", cx, ruleY + 21f * u, 8.6f * u,
-                withAlpha(FROST, 0.62f * brandAlpha), 3f * u, align = 1)
-        }
-    }
-
-    private fun brandDots(): List<Pair<Int, Int>> {
-        val dots = ArrayList<Pair<Int, Int>>()
-        for ((index, ch) in "SMTH".withIndex()) {
-            val rows = BRAND_GLYPHS[ch] ?: continue
-            for (row in 0 until 7) {
-                for (col in 0 until 5) {
-                    if ((rows[row] shr (4 - col)) and 1 == 1) {
-                        dots.add((index * 6 + col) to row)
-                    }
-                }
-            }
-        }
-        return dots
-    }
-
-    private fun drawTaskbar(canvas: Canvas, progress: Float) {
-        if (progress <= 0.005f) return
-        val bar = barRect()
-        val rise = (1f - progress) * bar.height() * 1.5f
-        bar.offset(0f, rise)
-        rounded(canvas, RectF(bar.left, bar.top + 4f * u, bar.right,
-            bar.bottom + 4f * u), 16f * u, withAlpha(Color.BLACK, 0.35f * progress))
-        rounded(canvas, bar, 16f * u,
-            withAlpha(GLASS_PANEL_RAISED, 0.96f * progress))
-        stroke.color = withAlpha(BLUE_COLD, 0.24f * progress)
-        stroke.strokeWidth = 1f
-        canvas.drawRoundRect(bar, 16f * u, 16f * u, stroke)
-        fill.color = withAlpha(AMBER_HOT, 0.75f * progress)
-        canvas.drawRect(bar.left + 16f * u, bar.top + 1f * u,
-            bar.right - 16f * u, bar.top + 2f * u, fill)
-        val cy = bar.centerY()
-        val startX = bar.left + 32f * u
-        rounded(canvas, RectF(startX - 17f * u, cy - 17f * u, startX + 17f * u,
-            cy + 17f * u), 10f * u, withAlpha(AMBER, 0.92f * progress))
-        dotMatrix(canvas, "S", startX - 9f * u, cy + 7f * u, 1.9f * u,
-            withAlpha(GLASS_VOID_DEEP, 0.95f * progress))
-        for ((index, name) in arrayOf("globe", "terminal", "folder").withIndex()) {
-            glyph(canvas, name, bar.left + 84f * u + index * 54f * u, cy, 23f * u,
-                withAlpha(FROST, 0.84f * progress))
-        }
-        text(canvas, "09:41", bar.right - 18f * u, cy + 3.4f * u, 10f * u,
-            withAlpha(FROST, 0.9f * progress), 0.6f * u, align = 2)
-    }
-
-    private fun drawDesktopIcons(canvas: Canvas, t: Float) {
-        val cellW = 108f * u
-        val cellH = 78f * u
-        val accents = intArrayOf(AMBER_HOT, BLUE_COLD, CHROME)
-        for (i in ICON_LABELS.indices) {
-            val start = ICON_START + i * ICON_STEP
-            val progress = ease(((t - start) / ICON_MS).coerceIn(0f, 1f))
-            if (progress <= 0f) continue
-            val cx = 16f * u + 48f * u + cellW * 0.5f
-            val top = 22f * u + i * cellH + (1f - progress) * 16f * u
-            val size = 50f * u * (0.9f + 0.1f * progress)
-            val accent = accents[i % accents.size]
-            rounded(canvas, RectF(cx - size / 2, top, cx + size / 2, top + size),
-                13f * u, withAlpha(GLASS_PANEL_RAISED, 0.94f * progress))
-            stroke.color = withAlpha(accent, 0.30f * progress)
-            stroke.strokeWidth = 1f
-            canvas.drawRoundRect(RectF(cx - size / 2, top, cx + size / 2,
-                top + size), 13f * u, 13f * u, stroke)
-            glyph(canvas, ICON_GLYPHS[i], cx, top + size / 2f, size * 0.52f,
-                withAlpha(FROST, 0.94f * progress))
-            text(canvas, ICON_LABELS[i], cx, top + size + 15f * u, 8.6f * u,
-                withAlpha(FROST, 0.78f * progress), 1f * u, align = 1)
-        }
-    }
-
-    private fun drawClock(canvas: Canvas, progress: Float) {
-        if (progress <= 0.005f) return
-        val rise = (1f - progress) * 14f * u
-        val x = 30f * u
-        val baseline = h - 112f * u + rise
-        val dot = 3.4f * u
-        val time = "09:41"
-        for (index in time.indices) {
-            val rows = DIGIT_GLYPHS[time[index]] ?: continue
-            for (row in 0 until 7) {
-                for (col in 0 until 5) {
-                    if ((rows[row] shr (4 - col)) and 1 != 1) continue
-                    val cx = x + (index * 6 + col) * dot
-                    val cy = baseline - (6 - row) * dot
-                    fill.color = withAlpha(
-                        if ((index * 6 + col) % 2 == 0) BLUE_COLD else AMBER_HOT,
-                        0.95f * progress)
-                    canvas.drawCircle(cx, cy, dot * 0.38f, fill)
-                }
-            }
-        }
-        text(canvas, "FRIDAY 21 NOVEMBER", x, baseline + 28f * u, 8f * u,
-            withAlpha(FROST, 0.55f * progress), 1.6f * u)
-    }
-
-    private fun drawToast(canvas: Canvas, t: Float) {
-        val toastIn = ease(((t - TOAST_START) / TOAST_MS).coerceIn(0f, 1f))
-        val toastOut = ((t - TOAST_END) / 420f).coerceIn(0f, 1f)
-        val progress = toastIn * (1f - toastOut)
-        if (progress <= 0.01f) return
-        val label = "AHIAN  ·  UPGRADE COMPLETE"
-        val size = 8.8f * u
-        val width = textWidth(label, size, 1.6f * u) + 64f * u
-        val height = 34f * u
-        val x = (w - width) / 2f
-        val y = h - 122f * u + (1f - progress) * 12f * u
-        rounded(canvas, RectF(x, y + 3f * u, x + width, y + height + 3f * u),
-            height / 2f, withAlpha(Color.BLACK, 0.38f * progress))
-        rounded(canvas, RectF(x, y, x + width, y + height), height / 2f,
-            withAlpha(GLASS_PANEL_RAISED, 0.96f * progress))
-        stroke.color = withAlpha(CHROME, 0.20f * progress)
-        stroke.strokeWidth = 1f
-        canvas.drawRoundRect(RectF(x, y, x + width, y + height), height / 2f,
-            height / 2f, stroke)
-        fill.color = withAlpha(AMBER_HOT, progress)
-        canvas.drawCircle(x + 22f * u, y + height / 2f, 3.4f * u, fill)
-        text(canvas, label, x + 36f * u, y + height / 2f + 3.2f * u, size,
-            withAlpha(FROST, 0.94f * progress), 1.6f * u)
-    }
-
-    // ---- frame ---------------------------------------------------------------
-    private fun crtOpen(t: Float): Float = when {
-        t < BLUE_OPEN_START -> 0f
-        t < BLUE_OPEN_START + BLUE_OPEN_MS ->
-            easeInOut((t - BLUE_OPEN_START) / BLUE_OPEN_MS)
-        t < BLUE_END - BLUE_CLOSE_MS -> 1f
-        t < BLUE_END -> 1f - easeInOut((t - (BLUE_END - BLUE_CLOSE_MS)) / BLUE_CLOSE_MS)
-        t < WALL_OPEN_START -> 0f
-        t < WALL_OPEN_START + WALL_OPEN_MS ->
-            easeInOut((t - WALL_OPEN_START) / WALL_OPEN_MS)
-        else -> 1f
-    }
-
-    private fun squeeze(canvas: Canvas, open: Float, edge: Int): Boolean {
-        if (open >= 0.999f) return false
-        val bandH = max(2f, h * open)
-        val top = (h - bandH) / 2f
-        canvas.save()
-        canvas.clipRect(0f, top, w, top + bandH)
-        lastBand = Pair(top, bandH)
-        lastEdge = edge
-        return true
-    }
-
-    private var lastBand = Pair(0f, 0f)
-    private var lastEdge = 0
-
-    private fun endSqueeze(canvas: Canvas) {
-        canvas.restore()
-        val (top, bandH) = lastBand
-        fill.color = lastEdge
-        canvas.drawRect(0f, top - max(1f, 1.6f * u), w, top, fill)
-        canvas.drawRect(0f, top + bandH, w, top + bandH + max(1f, 1.6f * u), fill)
-        canvas.drawRect(0f, top + bandH / 2f - 1f, w, top + bandH / 2f + 1f, fill)
+    private fun drawBeam(canvas: Canvas) {
+        val y = h / 2f
+        val glow = max(1f, 8f * u)
+        fill.color = withAlpha(0xFF96BEE1.toInt(), 0.16f)
+        canvas.drawRect(0f, y - glow, w, y - 1f, fill)
+        fill.color = withAlpha(0xFFC8E0F8.toInt(), 0.90f)
+        canvas.drawRect(0f, y - 1f, w, y + 1f, fill)
+        fill.color = withAlpha(0xFF96BEE1.toInt(), 0.16f)
+        canvas.drawRect(0f, y + 1f, w, y + glow, fill)
     }
 
     override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
         w = width.toFloat()
         h = height.toFloat()
         if (w <= 0f || h <= 0f) return
@@ -1176,67 +747,43 @@ class AhianConstructionView(context: Context) : View(context) {
 
         val t = elapsed.coerceIn(0f, if (reduced) REDUCED_MS.toFloat()
         else DURATION_MS.toFloat())
-        if (reduced) {
-            drawWallpaper(canvas, 0f)
-            drawBlackHole(canvas, FADE_START + 90f, 1f)
-            drawDesktopIcons(canvas, DURATION_MS.toFloat())
-            drawClock(canvas, 1f)
-            drawTaskbar(canvas, 1f)
-            return
-        }
+        // Nothing is painted behind act 1: the view is transparent, so the
+        // real wallpaper, icons and taskbar remain exactly as they are.
+        if (reduced) return
 
-        canvas.drawColor(OBSIDIAN_DEEP)
         if (t < BLUE_START) {
+            val shake = 2.4f * u * ease(((t - 2600f) / 7200f).coerceIn(0f, 1f))
             canvas.save()
-            drawDesktop(canvas)
-            // Dim the desktop as the windows pile up.
-            fill.color = withAlpha(Color.BLACK, ease(t / BLUE_START) * 0.46f)
-            canvas.drawRect(0f, 0f, w, h, fill)
+            if (shake > 0.05f) {
+                canvas.translate(sin(t / 46f) * shake, cos(t / 61f) * shake * 0.55f)
+            }
             drawCards(canvas, t)
-            drawGlitch(canvas, t)
             canvas.restore()
+            drawGlitch(canvas, t)
             return
         }
 
         if (t < BLUE_END) {
-            val open = crtOpen(t)
             if (t < BLUE_OPEN_START) {
-                // The desktop is squeezed into the line the blue screen opens from.
-                val squeezeAmount = 1f - ((t - BLUE_START) / COLLAPSE_MS).coerceIn(0f, 1f)
-                canvas.save()
-                drawDesktop(canvas)
-                fill.color = withAlpha(Color.BLACK, 0.46f)
-                canvas.drawRect(0f, 0f, w, h, fill)
-                drawCards(canvas, BLUE_START)
-                canvas.restore()
-                if (squeeze(canvas, squeezeAmount, 0xFFCEE8FF.toInt())) endSqueeze(canvas)
+                drawBeam(canvas)
                 return
             }
-            val clipped = squeeze(canvas, open, 0xFFD7F0FF.toInt())
+            val open = easeInOut(((t - BLUE_OPEN_START) / BLUE_OPEN_MS).coerceIn(0f, 1f))
+            val bandH = max(2f, h * open)
+            val top = (h - bandH) / 2f
+            canvas.save()
+            canvas.clipRect(0f, top, w, top + bandH)
             drawBlue(canvas, t)
-            if (clipped) endSqueeze(canvas)
+            canvas.restore()
+            val edge = max(1f, 1.6f * u)
+            fill.color = withAlpha(0xFFCFF0FF.toInt(), 0.9f)
+            canvas.drawRect(0f, top - edge, w, top, fill)
+            canvas.drawRect(0f, top + bandH, w, top + bandH + edge, fill)
             drawGlitch(canvas, t)
             return
         }
 
-        val open = crtOpen(t)
-        if (t < WALL_OPEN_START) {
-            val squeezeAmount = 1f - ((t - BLUE_END) / BLUE_CLOSE_MS).coerceIn(0f, 1f)
-            val clipped = squeeze(canvas, squeezeAmount, 0xFFD7F0FF.toInt())
-            drawBlue(canvas, BLUE_END - 40f)
-            if (clipped) endSqueeze(canvas)
-            return
-        }
-        val clipped = squeeze(canvas, open, 0xFFAAFFF0.toInt())
-        val phase = (((BLUE_END - t) / 1000f) * 0.022f) % 1f
-        drawWallpaper(canvas, (phase + 1f) % 1f)
-        val hole = ease(((t - HOLE_START) / 1150f).coerceIn(0f, 1f))
-        drawBlackHole(canvas, t, hole)
-        drawBrand(canvas, t)
-        drawDesktopIcons(canvas, t)
-        drawClock(canvas, ease(((t - WIDGET_START) / WIDGET_MS).coerceIn(0f, 1f)))
-        drawTaskbar(canvas, ease(((t - PANEL_START) / PANEL_MS).coerceIn(0f, 1f)))
-        drawToast(canvas, t)
-        if (clipped) endSqueeze(canvas)
+        // Exactly zero: the countdown has stopped. Nothing is drawn; the view
+        // is removed and the live AHIAN desktop underneath is revealed.
     }
 }

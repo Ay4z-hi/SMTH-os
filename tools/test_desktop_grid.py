@@ -47,8 +47,10 @@ def launcher_for(width=1280, height=800):
 def main():
     grid = launcher_for()
     cell_w, cell_h, origin_x, origin_y, cols, rows = grid._grid_metrics()
-    assert (cell_w, cell_h, origin_x, origin_y) == (112, 84, 24, 24)
+    assert (cell_w, cell_h, origin_x, origin_y) == (100, 86, 20, 20)
     assert cols >= 3 and rows >= 3
+    # The 80 x 64 glass tile fits the 100 x 86 cell with a 20 px gutter.
+    assert cell_w - 80 >= 20 and cell_h - 64 >= 22
 
     # A near-miss inside the first cell resolves to that cell's origin.
     assert grid.snap_shortcut("Files", 61, 58) == (origin_x, origin_y)
@@ -61,6 +63,10 @@ def main():
     assert (x - origin_x) % cell_w == 0 and (y - origin_y) % cell_h == 0
     assert 0 <= (x - origin_x) // cell_w < cols
     assert 0 <= (y - origin_y) // cell_h < rows
+
+    # Adjacent cells never overlap the tile: origin + tile <= next origin.
+    assert origin_x + 80 <= origin_x + cell_w
+    assert origin_y + 64 <= origin_y + cell_h
 
     # Every shortcut gets a distinct cell.
     positions = {"Files": (origin_x, origin_y)}

@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-"""AHIAN takeover reveal: the GTK4 overlay for the ISO.
+"""AHIAN takeover: the GTK4 overlay for the ISO.
 
-Three acts, 25.8 seconds, drawn by the shared ``ahian_scene`` renderer (the
-same frames the Windows launcher shows):
+Two acts, 19 seconds, drawn by the shared ``ahian_scene`` renderer:
 
-    0 - 10 s   the SMTH desktop is buried under custom error windows
-    10 - 19 s  a full-screen AH1AN system screen with a 9 second countdown
-    19 - 26 s  the blue screen collapses into a line, the line opens into the
-               flowing cold-glass wallpaper, the dot-matrix SMTH mark
-               assembles and the panel, icons and widgets arrive in a stagger
+    0 - 10 s   the 22 error windows arrive over the running desktop.  The
+               overlay is transparent between windows, so the live wallpaper,
+               icons, taskbar and every open window stay exactly where they
+               are; the interference effects are translucent.
+    10 - 19 s  the AH1AN system screen covers the display and counts down
+               from nine.
 
-The overlay is fully opaque, so it covers the live desktop completely, then
-fades onto it at the end.  A click, any key, or Escape skips to the end.
-``unahian`` cancels it by closing the overlay (no animation on the way out).
+At zero the countdown stops and the overlay closes.  The AHIAN desktop
+underneath is the real, already-running session: nothing is rendered,
+screenshotted or swapped in its place.  A click or any key closes the overlay
+at any moment.  ``unahian`` clears it instantly too.
 
 Disable for one session:   SMTH_NO_STARTUP_ANIMATION=1 smth-ahian-startup
 Disable permanently:       smth-settings -> Accessibility -> Startup animation
@@ -132,7 +133,11 @@ def run(reduced=False):
             self.area = area
             win.set_child(area)
             provider = Gtk.CssProvider()
-            provider.load_from_string("window.smth-ahian-startup { background: #05060c; }")
+            # The overlay must not paint a backdrop: act 1 is a transparent
+            # layer over the live desktop, and only the windows are opaque.
+            provider.load_from_string(
+                "window.smth-ahian-startup { background: transparent; }"
+                "window.smth-ahian-startup drawingarea { background: transparent; }")
             Gtk.StyleContext.add_provider_for_display(
                 Gdk.Display.get_default(), provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
@@ -158,29 +163,24 @@ def run(reduced=False):
                 return
             if width > 0 and height > 0 and (image.width, image.height) != (width, height):
                 image = image.resize((width, height))
+            cr.set_operator(cairo.OPERATOR_SOURCE)
             data, stride = ahian_scene.to_argb32(image)
             surface = cairo.ImageSurface.create_for_data(
                 data, cairo.FORMAT_ARGB32, image.width, image.height, stride)
             cr.set_source_surface(surface, 0, 0)
             cr.paint()
+            cr.set_operator(cairo.OPERATOR_OVER)
             self.frame_image = data          # keep the buffer alive with the surface
             self.rendered_t = self.t
 
         def skip(self):
-            if self.skipping is None:
-                self.skipping = time.monotonic()
+            # A click or key removes the overlay immediately: no outro,
+            # no fade, no second desktop.
+            self.finish()
 
         def tick(self, _widget, _clock):
             try:
                 now = time.monotonic()
-                if self.skipping is not None:
-                    fade = max(0.0, 1.0 - (now - self.skipping) / 0.26)
-                    self.window.set_opacity(fade)
-                    if fade <= 0.001:
-                        self.finish()
-                        return GLib.SOURCE_CONTINUE
-                    self.area.queue_draw()
-                    return GLib.SOURCE_CONTINUE
                 self.t = (now - self.started) * 1000.0
                 # The tick callback fires at the display refresh; the scene is
                 # authored at 30 fps and a Pillow frame is far too expensive to
@@ -188,11 +188,10 @@ def run(reduced=False):
                 if self.rendered_t >= 0 and self.t - self.rendered_t < 30.0:
                     return GLib.SOURCE_CONTINUE
                 frame = self.scene.frame(self.t)
-                self.window.set_opacity(frame.overlay_alpha)
-                self.area.queue_draw()
                 if frame.done:
                     self.finish()
                     return GLib.SOURCE_REMOVE
+                self.area.queue_draw()
                 return GLib.SOURCE_CONTINUE
             except Exception as exc:
                 # A rendering failure must never leave the user without a
@@ -220,11 +219,10 @@ def run(reduced=False):
 def main(argv):
     if "--print-plan" in argv:
         scene = M.StartupScene(1920, 1080)
-        for t in (0, 2400, 5200, 8600, 12000, 15000, 18600, 19800, 22000, 25000):
+        for t in (0, 2400, 5200, 8600, 9950, 10300, 12000, 15000, 18600, 19000):
             frame = scene.frame(t)
             print(f"{t:>6} ms  {frame.phase:<9} cards={len(frame.cards):>2} "
-                  f"countdown={frame.blue.countdown} "
-                  f"wallpaper={frame.transform.wallpaper:.2f}")
+                  f"countdown={frame.blue.countdown} done={frame.done}")
         print(f"duration={M.DURATION_MS}ms")
         return 0
     if "--no-animation" in argv or (disabled() and "--force" not in argv):

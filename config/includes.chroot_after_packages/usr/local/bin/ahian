@@ -8,11 +8,13 @@ cold-glass wallpaper, spatial UI, all apps and desktop functionality intact.
 previous (normal) desktop state. It plays no animation at all.
 
 Activating AHIAN plays the takeover exactly once: ten seconds of custom error
-windows over the desktop, a full-screen AH1AN system screen with a nine second
-countdown, then the AHIAN desktop assembling out of the collapsing screen. The
-animation is the shared ``ahian_scene`` renderer, the same one the Windows
-launcher and the Android launcher draw, and it finishes on the real desktop.
-Tap, click or any key skips it.
+windows over the desktop you are already using, then a full-screen AH1AN system
+screen with a nine second countdown. At zero the countdown stops and the screen
+is removed to reveal the live AHIAN desktop that was switched in underneath it
+while the blue screen was covering the display. Nothing is rendered, captured
+or swapped in: the same running session simply becomes visible. The frames are
+the shared ``ahian_scene`` renderer, the same one the Windows launcher and the
+Android launcher draw. Tap, click or any key skips it.
 """
 import json, os, shutil, subprocess, sys
 
@@ -70,19 +72,32 @@ def notify(title, body=""):
 
 def ahian(on):
     if on:
-        write_state(True)
-        # Launch the AHIAN desktop reconstruction animation (non-blocking).
+        already = os.path.exists(FLAG)
+        # Start the overlay first.  Act 1 runs over the desktop that is on
+        # screen right now; the AHIAN wallpaper and taskbar are switched in
+        # behind the blue screen, then revealed at the countdown's zero.
         try:
             subprocess.Popen(
-                ["sh", "-c", "sleep 0.15; exec /usr/local/bin/smth-ahian-startup"],
+                ["sh", "-c", "exec /usr/local/bin/smth-ahian-startup"],
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, start_new_session=True,
             )
         except (OSError, subprocess.SubprocessError):
             pass
+        if already:
+            write_state(True)
+            notify("AHIAN", "AHIAN mode activated.")
+        else:
+            try:
+                subprocess.Popen(
+                    ["sh", "-c", "sleep 11.0; exec /usr/local/bin/ahian --activate"],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, start_new_session=True,
+                )
+            except (OSError, subprocess.SubprocessError):
+                write_state(True)
         print("\n  AHIAN MODE ON  cold glass · spatial UI · all apps available\n"
               "  run `unahian` to return to normal mode\n")
-        notify("AHIAN", "AHIAN mode activated.")
     else:
         write_state(False)
         print("  ahian mode off — normal experience restored\n")
@@ -93,6 +108,11 @@ def main():
     arg = (sys.argv[1].lower() if len(sys.argv) > 1 else "")
     if arg in ("off", "0", "stop", "unahian"):
         ahian(False)
+    elif arg == "--activate":
+        # Deferred half of `ahian`: switch the live desktop while the AH1AN
+        # screen is covering it, so the zero reveal is the real thing.
+        write_state(True)
+        notify("AHIAN", "AHIAN mode activated.")
     elif arg in ("on", "1", "start", ""):
         ahian(True)
     else:

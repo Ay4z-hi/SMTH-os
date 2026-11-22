@@ -59,7 +59,7 @@ import tkinter as tk
 from tkinter import font as tkfont
 
 try:                                   # Pillow ships with the portable build
-    from PIL import Image, ImageDraw, ImageOps, ImageTk
+    from PIL import Image, ImageChops, ImageDraw, ImageOps, ImageTk
     HAVE_PIL = True
 except Exception:                      # pragma: no cover - minimal fallback
     HAVE_PIL = False
@@ -116,6 +116,44 @@ PINNED = ("Files", "Browser", "Terminal", "Settings", "Calculator", "Photos")
 
 # Track built-in terminal window
 smth_terminal_window = None
+
+
+def glass_image(width, height, radius=16, tint=(23, 16, 23), alpha=226):
+    """The liquid-glass card as an RGBA Pillow image, drawn at 2x and reduced.
+
+    Shared by the Tk photo cache and the headless preview tool so the artwork
+    shown in review is the artwork the launcher paints.
+    """
+    if not HAVE_PIL:
+        return None
+    scale = 2
+    w, h = max(2, int(width)) * scale, max(2, int(height)) * scale
+    r = min(int(radius) * scale, min(w, h) // 2)
+    # Highlights and rims are translucent layers: drawing them straight onto
+    # the card replaces its pixels (ImageDraw does not blend alpha), so they
+    # are composited instead of stamped.
+    card = Image.new("RGBA", (w, h), tint + (alpha,))
+    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    glow_h = int(h * 0.52)
+    for y in range(glow_h):
+        a = int(22 * (1 - y / max(1, glow_h)))
+        if a:
+            gd.line((0, y, w, y), fill=(255, 255, 255, a))
+    card = Image.alpha_composite(card, glow)
+    rim = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    rd = ImageDraw.Draw(rim)
+    rd.rounded_rectangle((0, 0, w - 1, h - 1), r,
+                         outline=(242, 198, 210, 74), width=scale)
+    if w > 6 * scale:
+        rd.rounded_rectangle((scale, scale, w - 1 - scale, h - 1 - scale),
+                             max(0, r - scale), outline=(255, 255, 255, 22),
+                             width=scale)
+    card = Image.alpha_composite(card, rim)
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), r, fill=255)
+    card.putalpha(ImageChops.multiply(card.getchannel("A"), mask))
+    return card.resize((int(width), int(height)), Image.LANCZOS)
 
 
 def draw_glyph(canvas, kind, cx, cy, size, colour=BLUSH, width=1.6, tags=()):
@@ -251,8 +289,6 @@ class SMTHLauncher:
             os.environ.get("APPDATA", os.path.expanduser("~")),
             "SMTH", "ahian-mode"
         )
-        self.reveal_pending = self._ahian_state()
-
         self.canvas = tk.Canvas(root, bg=OBSIDIAN, highlightthickness=0, bd=0)
         self.canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.canvas.bind("<Configure>", lambda _e: self.paint_desktop())
@@ -261,13 +297,6 @@ class SMTHLauncher:
 
         self.build_taskbar()
         self.build_start()
-        if self.reveal_pending:
-            # No live taskbar may appear before the reconstruction starts.
-            self.taskbar.place_forget()
-            self.taskbar_edge.place_forget()
-
-        # Start the overlay before loading any wallpaper. Loading it first
-        # exposed the finished wallpaper for a frame before AHIAN cursors ran.
         self.tick()
         self.intro = None
         self.root.after(20, self.start_intro)
@@ -282,32 +311,14 @@ class SMTHLauncher:
 
     # ---- glass assets ----------------------------------------------------
     def glass_photo(self, width, height, radius=16, tint=(23, 16, 23), alpha=226):
-        """A cached, antialiased rounded glass card, drawn with Pillow."""
+        """A cached Tk photo of the shared glass card, drawn with Pillow."""
         key = (int(width), int(height), int(radius), tint, alpha)
         if key in self._img_cache:
             return self._img_cache[key]
-        if not HAVE_PIL:
+        img = glass_image(width, height, radius, tint, alpha)
+        if img is None or ImageTk is None:
             return None
-        scale = 2
-        w, h = max(2, int(width)) * scale, max(2, int(height)) * scale
-        r = min(int(radius) * scale, min(w, h) // 2)
-        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        draw.rounded_rectangle((0, 0, w - 1, h - 1), r, fill=tint + (alpha,))
-        glow = int(h * 0.52)
-        for y in range(glow):
-            a = int(22 * (1 - y / max(1, glow)))
-            if a:
-                draw.line((0, y, w, y), fill=(255, 255, 255, a))
-        draw.rounded_rectangle((0, 0, w - 1, h - 1), r, outline=(242, 198, 210, 74), width=scale)
-        if w > 6 * scale:
-            draw.rounded_rectangle((scale, scale, w - 1 - scale, h - 1 - scale),
-                                   max(0, r - scale), outline=(255, 255, 255, 22), width=scale)
-        mask = Image.new("L", (w, h), 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), r, fill=255)
-        img.putalpha(mask)
-        photo = ImageTk.PhotoImage(img.resize((int(width), int(height)), Image.LANCZOS),
-                                   master=self.root)
+        photo = ImageTk.PhotoImage(img, master=self.root)
         self._img_cache[key] = photo
         return photo
 
@@ -377,11 +388,6 @@ class SMTHLauncher:
         c = self.canvas
         c.delete("desktop")
         w, h = max(1, c.winfo_width()), max(1, c.winfo_height())
-        if self.reveal_pending:
-            # Nothing of the live desktop may show before the reveal starts.
-            c.create_rectangle(0, 0, w, h, fill=AHIAN_VOID, outline="", tags="desktop")
-            c.tag_lower("desktop")
-            return
         if self.ahian_mode:
             paint_ahian_wallpaper(c, w, h, tags=("desktop",))
         elif self.wallpaper is not None:
@@ -400,12 +406,16 @@ class SMTHLauncher:
             self.raise_start()
 
     def _grid_metrics(self):
-        """The invisible desktop grid: 112 x 84 cells from (24, 24)."""
-        cell_w, cell_h, origin_x, origin_y = 112, 84, 24, 24
+        """The invisible desktop grid: 100 x 86 cells from (20, 20).
+
+        Each cell holds one 80 x 64 glass tile with a 20 px gutter on every
+        side, so shortcuts can never overlap or clip at any window size.
+        """
+        cell_w, cell_h, origin_x, origin_y = 100, 86, 20, 20
         width = max(1, self.canvas.winfo_width())
         height = max(1, self.canvas.winfo_height())
-        cols = max(1, int(max(1, width - origin_x - 96) // cell_w) + 1)
-        rows = max(1, int(max(1, height - origin_y - 72 - 78) // cell_h) + 1)
+        cols = max(1, int(max(1, width - origin_x - 80) // cell_w) + 1)
+        rows = max(1, int(max(1, height - origin_y - 54 - 64) // cell_h) + 1)
         return cell_w, cell_h, origin_x, origin_y, cols, rows
 
     def snap_shortcut(self, name, x, y):
@@ -445,20 +455,20 @@ class SMTHLauncher:
         c = self.canvas
         entries = [a for a in APPS if a[0] in PINNED][:6]
         for i, (name, target, fallbacks, kind, glyph) in enumerate(entries):
-            cols = max(1, (max(1, w) - 48) // 112)
-            default_position = (24 + (i % cols) * 112, 24 + (i // cols) * 84)
+            cols = max(1, (max(1, w) - 40) // 100)
+            default_position = (20 + (i % cols) * 100, 20 + (i // cols) * 86)
             x, y = self.shortcut_positions.get(name, default_position)
             x, y = self.snap_shortcut(name, x, y)
             self.shortcut_positions[name] = (x, y)
             tag = f"shortcut-{i}"
             accent = "#B9A0FF" if self.ahian_mode else BLUSH
-            photo = self.glass_photo(58, 58, 17)
+            photo = self.glass_photo(52, 52, 15)
             if photo is not None:
-                c.create_image(x + 27, y + 2, image=photo, anchor="nw", tags=("desktop", tag))
+                c.create_image(x + 24, y + 2, image=photo, anchor="nw", tags=("desktop", tag))
                 c.shortcut_photos = getattr(c, "shortcut_photos", {})
                 c.shortcut_photos[tag] = photo
-            draw_glyph(c, glyph, x + 56, y + 31, 28, accent, 1.6, tags=("desktop", tag))
-            c.create_text(x + 56, y + 68, text=name, fill=accent, anchor="center",
+            draw_glyph(c, glyph, x + 50, y + 28, 24, accent, 1.5, tags=("desktop", tag))
+            c.create_text(x + 50, y + 64, text=name, fill=accent, anchor="center",
                           font=(self.mono, 8), tags=("desktop", tag))
             c.tag_bind(tag, "<ButtonPress-1>", lambda e, n=name: self.begin_shortcut_drag(e, n))
             c.tag_bind(tag, "<B1-Motion>", self.drag_shortcut)
@@ -936,16 +946,25 @@ class SMTHLauncher:
             return False
 
     def finish_reveal(self):
-        """Put the live desktop (and its taskbar) back under the overlay."""
-        self.reveal_pending = False
-        if self.ahian_mode:
-            try:
-                self.taskbar.place(x=12, rely=1.0, y=-58, relwidth=1, width=-24, height=46)
-                self.taskbar.lift()
-                self.paint_taskbar()
-            except (AttributeError, tk.TclError):
-                pass
+        """Remove the overlay and leave the live desktop in place."""
+        if self._ahian_state():
+            self.activate_ahian_desktop()
+        try:
+            self.taskbar.place(x=12, rely=1.0, y=-58, relwidth=1, width=-24, height=46)
+            self.taskbar.lift()
+            self.paint_taskbar()
+        except (AttributeError, tk.TclError):
+            pass
         self.paint_desktop()
+
+    def activate_ahian_desktop(self):
+        """Switch the real desktop to AHIAN while the blue screen covers it."""
+        self.ahian_mode = True
+        self.paint_desktop()
+        try:
+            self.paint_taskbar()
+        except (AttributeError, tk.TclError):
+            pass
 
     def start_intro(self):
         disabled = "--no-animation" in sys.argv
@@ -960,14 +979,14 @@ class SMTHLauncher:
             pass
         self.ahian_mode = self._ahian_state()
         if disabled:
-            self.reveal_pending = False
             if not self.ahian_mode:
                 self.load_wallpaper()
             self.finish_reveal()
             return
         try:
             if self.ahian_mode:
-                self.reveal_pending = True
+                # The AHIAN desktop is already running underneath; the windows
+                # are drawn over it and the countdown ends on it.
                 self.paint_desktop()
                 self.intro = AhianConstructionIntro(self)
             else:
@@ -979,9 +998,18 @@ class SMTHLauncher:
 
 
 class ConstructionIntro:
-    """Short adaptation of the ISO startup construction, in the three palette inks."""
+    """The startup gesture: the SMTH logo fades in, holds, then fades out.
 
-    DURATION = 9.6
+    Nothing else is drawn.  There are no cursors, no panels and no
+    reconstruction scene; when the logo has faded out the window closes and
+    the live desktop, which was never covered by a rendered copy, is already
+    there.  Logo frames are pre-rendered with Pillow so the fade is smooth.
+    """
+
+    IN_MS = 620
+    HOLD_MS = 980
+    OUT_MS = 1560
+    DURATION = OUT_MS / 1000.0
 
     def __init__(self, root, display_font, mono_font):
         self.root = root
@@ -1000,14 +1028,7 @@ class ConstructionIntro:
         self.started = time.monotonic()
         self.after_id = None
         self.closed = False
-        self.logo_photo = None
-        try:
-            _logo = os.path.join(ASSETS, "logo.png")
-            if os.path.isfile(_logo):
-                original_logo = tk.PhotoImage(file=_logo)
-                self.logo_photo = original_logo.subsample(3, 3)
-        except tk.TclError:
-            self.logo_photo = None
+        self.logo_frames = self._logo_frames()
         self.win.bind("<Button-1>", lambda *_: self.close())
         self.canvas.bind("<Button-1>", lambda *_: self.close())
         self.win.bind("<Escape>", lambda *_: self.close())
@@ -1019,6 +1040,25 @@ class ConstructionIntro:
         except tk.TclError:
             pass
         self.tick()
+
+    def _logo_frames(self):
+        """The logo at 33 opacity steps; the only artwork the intro draws."""
+        path = os.path.join(ASSETS, "logo.png")
+        if not HAVE_PIL or not os.path.isfile(path):
+            return []
+        try:
+            art = Image.open(path).convert("RGBA")
+            art.thumbnail((148, 148), Image.LANCZOS)
+            frames = []
+            for index in range(33):
+                frame = art.copy()
+                scale = index / 32.0
+                frame.putalpha(frame.getchannel("A").point(
+                    lambda value, k=scale: int(value * k)))
+                frames.append(ImageTk.PhotoImage(frame, master=self.root))
+            return frames
+        except (OSError, ValueError, tk.TclError):
+            return []
 
     def reposition(self, *_):
         if self.closed:
@@ -1043,6 +1083,24 @@ class ConstructionIntro:
         else:
             self.after_id = self.root.after(33, self.tick)
 
+    def draw(self, p):
+        elapsed_ms = p * self.OUT_MS
+        if elapsed_ms < self.IN_MS:
+            alpha = 1.0 - (1.0 - elapsed_ms / self.IN_MS) ** 3
+        elif elapsed_ms < self.HOLD_MS:
+            alpha = 1.0
+        else:
+            alpha = max(0.0, 1.0 - (elapsed_ms - self.HOLD_MS) / (self.OUT_MS - self.HOLD_MS))
+        c = self.canvas
+        c.delete("all")
+        w, h = c.winfo_width(), c.winfo_height()
+        if w <= 1 or h <= 1:
+            return
+        c.create_rectangle(0, 0, w, h, fill=OBSIDIAN, outline="")
+        if self.logo_frames and alpha > 0.001:
+            index = min(len(self.logo_frames) - 1, int(alpha * (len(self.logo_frames) - 1)))
+            c.create_image(w / 2, h / 2, image=self.logo_frames[index])
+
     def close(self):
         if self.closed:
             return
@@ -1052,123 +1110,15 @@ class ConstructionIntro:
                 self.root.after_cancel(self.after_id)
             except tk.TclError:
                 pass
+        try:
+            self.win.destroy()
+        except tk.TclError:
+            pass
+        try:
+            self.root.focus_force()
+        except tk.TclError:
+            pass
 
-        def fade(step=0):
-            if step >= 6:
-                try:
-                    self.win.destroy()
-                except tk.TclError:
-                    pass
-                try:
-                    self.root.focus_force()
-                except tk.TclError:
-                    pass
-                return
-            try:
-                self.win.attributes("-alpha", max(0.0, 1.0 - step / 6))
-            except tk.TclError:
-                try:
-                    self.win.destroy()
-                except tk.TclError:
-                    pass
-                return
-            self.root.after(40, lambda: fade(step + 1))
-
-        fade()
-
-    @staticmethod
-    def _fade_colour(colour, background, amount):
-        amount = max(0.0, min(1.0, amount))
-        a = tuple(int(colour[i:i + 2], 16) for i in (1, 3, 5))
-        b = tuple(int(background[i:i + 2], 16) for i in (1, 3, 5))
-        values = [round(b[i] + (a[i] - b[i]) * amount) for i in range(3)]
-        return "#" + "".join(f"{value:02X}" for value in values)
-
-    def draw(self, p):
-        c = self.canvas
-        c.delete("all")
-        w, h = c.winfo_width(), c.winfo_height()
-        if w <= 1 or h <= 1:
-            return
-        # AHIAN's purple-to-teal wallpaper is revealed progressively.
-        wallpaper_mix = min(1.0, max(0.0, p * 1.4))
-        purple_rgb = (124, 77, 255)
-        teal_rgb = (0, 194, 168)
-        for y in range(0, h, 12):
-            for x in range(0, w, 12):
-                mix = min(1.0, max(0.0, (x / max(1, w) * 0.58 + y / max(1, h) * 0.42)))
-                target = tuple(round(purple_rgb[i] * (1 - mix) + teal_rgb[i] * mix) for i in range(3))
-                colour = tuple(round(v * wallpaper_mix) for v in target)
-                c.create_rectangle(x, y, x + 12, y + 12,
-                                   fill="#%02X%02X%02X" % colour, outline="")
-        step = 24
-        for y in range(step, h, step):
-            for x in range(step, w, step):
-                hot = ((x // step) + (y // step)) % 9 == 0
-                c.create_oval(x - 1, y - 1, x + 1, y + 1,
-                              fill="#33E5CC" if hot else "#201A35", outline="")
-
-        if p < 0.42:
-            fade = min(1.0, p / 0.16) if p < 0.16 else max(0.0, 1 - (p - 0.30) / 0.12)
-            if self.logo_photo is not None and fade > 0.02:
-                c.create_image(w / 2, h / 2 - 10, image=self.logo_photo)
-
-        if p >= 0.36:
-            q = max(0.0, min(1.0, (p - 0.36) / 0.56))
-            fade = max(0.0, min(1.0, (1.0 - q) / 0.12)) if q > 0.88 else 1.0
-            task_y = h - 62
-            # Layout guides are drawn first, then panels grow into their measured bounds.
-            if q > 0.04:
-                c.create_rectangle(12, task_y, w - 12, h - 10, outline="#00C2A8")
-            if q > 0.16:
-                c.create_rectangle(30, 42, 30 + int(w * 0.24 * min(1, (q - 0.16) / 0.35)),
-                                   42 + int((h - 125) * min(1, (q - 0.16) / 0.35)),
-                                   outline="#00C2A8")
-            if q > 0.24:
-                c.create_rectangle(int(w * 0.35), int(h * 0.16),
-                                   int(w * 0.35 + w * 0.60 * min(1, (q - 0.24) / 0.42)),
-                                   int(h * 0.16 + h * 0.58 * min(1, (q - 0.24) / 0.42)),
-                                   outline="#7C4DFF")
-            if q > 0.30:
-                c.create_rectangle(30, 42, 30 + int(w * 0.24), h - 83,
-                                   fill="#171020", outline="#2BD9C4")
-                c.create_rectangle(int(w * 0.35), int(h * 0.16),
-                                   int(w * 0.95), int(h * 0.74),
-                                   fill="#100D18", outline="#7C4DFF")
-                c.create_rectangle(12, task_y, w - 12, h - 10,
-                                   fill="#100D18", outline="#2BD9C4")
-                for i in range(6):
-                    if q > 0.42 + i * 0.035:
-                        x, y = 52 + (i % 2) * 54, 64 + (i // 2) * 58
-                        c.create_rectangle(x, y, x + 22, y + 22,
-                                           fill=("#7C4DFF", "#00C2A8")[i % 2], outline="")
-            paths = [
-                [(0.02, -0.04), (0.25, 0.30), (0.42, 0.18), (0.78, 0.24)],
-                [(1.04, 0.22), (0.78, 0.42), (0.54, 0.32), (0.62, 0.72)],
-                [(0.42, -0.04), (0.34, 0.34), (0.18, 0.52), (0.12, 0.82)],
-                [(-0.04, 0.72), (0.28, 0.70), (0.52, 0.82), (0.88, 0.82)],
-                [(0.84, 1.04), (0.72, 0.72), (0.82, 0.42), (0.92, 0.20)],
-                [(0.18, 1.04), (0.32, 0.76), (0.42, 0.50), (0.36, 0.26)],
-                [(1.04, 0.90), (0.78, 0.78), (0.62, 0.54), (0.44, 0.46)],
-            ]
-            colours = ["#7C4DFF", "#00C2A8", "#9E75FF", "#33E5CC", "#5738A0", "#65EBD5", "#B69AFF"]
-            for i, points in enumerate(paths):
-                local = max(0.0, min(1.0, (q - i * 0.025) / 0.86))
-                if local <= 0 or q > 0.96:
-                    continue
-                segf = local * (len(points) - 1)
-                seg = min(len(points) - 2, int(segf))
-                u = segf - seg
-                u = 1 - (1 - u) ** 3
-                ax, ay = points[seg]
-                bx, by = points[seg + 1]
-                x, y = (ax + (bx - ax) * u) * w, (ay + (by - ay) * u) * h
-                c.create_oval(x - 3, y - 3, x + 3, y + 3, fill=colours[i], outline="")
-                c.create_polygon(x, y, x, y + 18, x + 5, y + 13, x + 9, y + 20,
-                                 x + 12, y + 18, x + 8, y + 12, x + 15, y + 12,
-                                 fill=colours[i], outline="#000000")
-            c.create_text(w - 18, h - 16, text="CLICK TO SKIP", anchor="se",
-                          fill=BLUSH_DIM, font=(self.mono, 8))
 
 
 def main():
@@ -1278,23 +1228,24 @@ class TerminalWindow:
         self.ahian_active = True
         launcher = self.parent
         root = launcher.root
-        launcher.ahian_mode = True
+        # Persist the mode, but do not switch the desktop yet: act 1 runs over
+        # the desktop that is on screen. The takeover switches the real
+        # desktop behind the blue screen, so zero reveals the live AHIAN one.
         try:
             os.makedirs(os.path.dirname(launcher.ahian_state_file), exist_ok=True)
             with open(launcher.ahian_state_file, "w", encoding="utf-8") as handle:
                 handle.write("1\n")
         except OSError:
             pass
-        launcher.paint_desktop()
-        # Remove the terminal immediately. The reconstruction starts only after
-        # a 2.5-second clean pause, with no terminal or text-entry widget visible.
+        # Remove the terminal immediately so no text-entry widget is visible
+        # during the takeover.
         try:
             self.win.destroy()
         except tk.TclError:
             pass
 
         def begin_construction():
-            if not root.winfo_exists() or not launcher.ahian_mode:
+            if not root.winfo_exists():
                 return
             try:
                 launcher._ahian_intro = AhianConstructionIntro(launcher)
@@ -1444,26 +1395,27 @@ def _load_photo_image():
 
 
 class AhianConstructionIntro:
-    """The AHIAN takeover, frame-for-frame identical to the ISO animation.
+    """The AHIAN takeover, drawn over the launcher's own live desktop.
 
-    Act 1 (0-10 s)   custom error windows bury the desktop
-    Act 2 (10-19 s)  a full-screen AH1AN system screen counts down from nine
-    Act 3 (19-25.8 s) the screen collapses to a line, the line opens into the
-                     flowing cold-glass wallpaper, the dot-matrix SMTH mark
-                     assembles, then the panel, icons and widgets arrive
+    There is no second desktop, no temporary screenshot and no Toplevel: each
+    frame is an RGBA canvas image placed on top of the real desktop.  Act 1 is
+    transparent between the error windows, so the wallpaper, shortcuts and
+    taskbar stay visible and untouched.  Act 2 is the opaque AH1AN screen;
+    while it covers the display the launcher switches its real desktop to
+    AHIAN.  At the countdown's zero the overlay is removed and that live
+    desktop is revealed, fully functional.
 
     The frames come from ``ahian_scene``, the same renderer the ISO overlay
-    uses, so the two platforms look identical.  Click, any key or Escape skips;
-    a missing renderer reveals the desktop immediately rather than trapping the
-    user behind an overlay.
+    uses.  Click, any key or Escape ends the takeover immediately; a missing
+    renderer reveals the desktop rather than trapping the user.
     """
 
     def __init__(self, parent_launcher):
         self.parent = parent_launcher
         self.root = parent_launcher.root
+        self.canvas = parent_launcher.canvas
         self.closed = True
         self.win = None
-        self.canvas = None
         self.after_id = None
         self.image_id = None
         self.photo = None
@@ -1471,6 +1423,7 @@ class AhianConstructionIntro:
         self.scene = None
         self.last_draw = -1.0
         self.size = None
+        self.applied = bool(parent_launcher.ahian_mode)
         self.reduced = os.environ.get(
             "SMTH_REDUCE_MOTION", "").strip().lower() in ("1", "on", "true", "yes")
         self.module = _load_ahian_scene()
@@ -1478,32 +1431,14 @@ class AhianConstructionIntro:
         if self.module is None or self.image_tk is None:
             self._reveal()
             return
-        try:
-            self.win = tk.Toplevel(self.root)
-            self.win.overrideredirect(True)
-            self.win.configure(bg="#05060c")
-            self.win.attributes("-topmost", True)
-            self.win.attributes("-alpha", 1.0)
-            self.canvas = tk.Canvas(self.win, bg="#05060c", highlightthickness=0,
-                                    bd=0)
-            self.canvas.pack(fill="both", expand=True)
-        except tk.TclError:
-            self._reveal()
-            return
         self.duration = self.module.M.DURATION_MS / 1000.0
         self.started = time.monotonic()
         self.closed = False
-        self.win.bind("<Button-1>", lambda *_: self.close())
-        self.canvas.bind("<Button-1>", lambda *_: self.close())
-        self.win.bind("<Escape>", lambda *_: self.close())
-        self.win.bind("<Key>", lambda *_: self.close())
+        self.canvas.tag_bind("ahian-intro", "<Button-1>", lambda *_: self.close())
+        self.root.bind("<Escape>", lambda *_: self.close(), add="+")
+        self.root.bind("<Key>", lambda *_: self.close(), add="+")
         self.root.bind("<Configure>", self.reposition, add="+")
         self.reposition()
-        try:
-            self.win.update_idletasks()
-            self.win.focus_force()
-        except tk.TclError:
-            pass
         self.tick()
 
     # ---- plumbing ----------------------------------------------------------
@@ -1513,6 +1448,14 @@ class AhianConstructionIntro:
         except Exception:
             pass
 
+    def _remove_image(self):
+        if self.image_id is not None:
+            try:
+                self.canvas.delete(self.image_id)
+            except tk.TclError:
+                pass
+            self.image_id = None
+
     def reposition(self, *_):
         if self.closed:
             return
@@ -1520,10 +1463,6 @@ class AhianConstructionIntro:
             self.root.update_idletasks()
             width = max(320, self.root.winfo_width())
             height = max(240, self.root.winfo_height())
-            x = self.root.winfo_rootx()
-            y = self.root.winfo_rooty()
-            self.win.geometry(f"{width}x{height}+{x}+{y}")
-            self.canvas.configure(width=width, height=height)
         except tk.TclError:
             return
         if self.size != (width, height):
@@ -1538,21 +1477,31 @@ class AhianConstructionIntro:
                 self.scene = None
                 self.renderer = None
 
+    def _apply_desktop(self):
+        """Switch the real desktop while the blue screen hides it."""
+        if self.applied:
+            return
+        self.applied = True
+        try:
+            self.parent.taskbar.place_forget()
+        except (AttributeError, tk.TclError):
+            pass
+        try:
+            self.parent.activate_ahian_desktop()
+        except Exception:
+            pass
+
     def tick(self):
         if self.closed:
             return
         elapsed = time.monotonic() - self.started
         t_ms = min(self.duration * 1000.0, elapsed * 1000.0)
+        if t_ms >= self.module.M.BLUE_START_MS + 900:
+            self._apply_desktop()
         # 30 fps is plenty for this animation and keeps a weak GPU laptop cool.
         if elapsed - self.last_draw >= 0.030 or t_ms >= self.duration * 1000.0:
             self.draw(t_ms)
             self.last_draw = elapsed
-        try:
-            frame = self.scene.frame(t_ms) if self.scene else None
-            if frame is not None:
-                self.win.attributes("-alpha", max(0.0, min(1.0, frame.overlay_alpha)))
-        except tk.TclError:
-            pass
         if t_ms >= self.duration * 1000.0:
             self.close()
         else:
@@ -1563,12 +1512,15 @@ class AhianConstructionIntro:
             return
         try:
             image = self.renderer.render(t_ms)
-            self.photo = self.image_tk.PhotoImage(image)
+            self.photo = self.image_tk.PhotoImage(image, master=self.root)
             if self.image_id is None:
-                self.image_id = self.canvas.create_image(0, 0, anchor="nw",
-                                                         image=self.photo)
+                self.image_id = self.canvas.create_image(
+                    0, 0, anchor="nw", image=self.photo, tags=("ahian-intro",))
             else:
                 self.canvas.itemconfig(self.image_id, image=self.photo)
+            # The overlay always sits above the live desktop, even if a resize
+            # repainted the desktop underneath it.
+            self.canvas.tag_raise(self.image_id)
         except Exception:
             # Any renderer failure reveals the desktop instead of a black window.
             self.close()
@@ -1583,32 +1535,5 @@ class AhianConstructionIntro:
             except tk.TclError:
                 pass
             self.after_id = None
+        self._remove_image()
         self._reveal()
-
-        def fade(step=0):
-            if step >= 8:
-                try:
-                    self.win.destroy()
-                except tk.TclError:
-                    pass
-                self._reveal()
-                return
-            try:
-                self.win.attributes("-alpha", max(0.0, 1.0 - step / 8.0))
-            except tk.TclError:
-                try:
-                    self.win.destroy()
-                except tk.TclError:
-                    pass
-                return
-            self.root.after(28, lambda: fade(step + 1))
-
-        try:
-            self.win.attributes("-topmost", True)
-        except tk.TclError:
-            pass
-        fade()
-
-
-if __name__ == "__main__":
-    main()

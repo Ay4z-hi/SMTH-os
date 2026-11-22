@@ -47,10 +47,11 @@ window.home { background: #09090b; color: #f2c6d2; }
 .home button.app {
   background-image: linear-gradient(165deg, alpha(#f2c6d2, 0.105), alpha(#f2c6d2, 0.028) 54%, alpha(#701b35, 0.13));
   border: 1px solid alpha(#f2c6d2, 0.15);
-  border-radius: 20px;
-  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.10), 0 12px 26px alpha(#000000, 0.38);
-  padding: 8px 6px 7px;
-  min-width: 78px;
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 alpha(#ffffff, 0.10), 0 10px 22px alpha(#000000, 0.36);
+  padding: 5px 3px 4px;
+  min-width: 80px;
+  min-height: 64px;
   transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 .home button.app:hover {
@@ -60,7 +61,7 @@ window.home { background: #09090b; color: #f2c6d2; }
   box-shadow: inset 0 1px 0 alpha(#ffffff, 0.16), 0 18px 34px alpha(#000000, 0.48);
 }
 .home button.app:active { background-image: linear-gradient(165deg, alpha(#701b35, 0.55), alpha(#701b35, 0.28)); border-color: alpha(#f2c6d2, 0.40); }
-.home label.cap { color: #f2c6d2; font-size: 10px; }
+.home label.cap { color: #f2c6d2; font-size: 9px; }
 .home .glance {
   background-image: linear-gradient(160deg, alpha(#f2c6d2, 0.10), alpha(#f2c6d2, 0.03) 55%, alpha(#701b35, 0.10));
   border-radius: 24px;
@@ -198,11 +199,14 @@ def ring(label, getter):
 def icon_button(name):
     info = Gio.DesktopAppInfo.new(name + ".desktop")
     if not info: return None
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-    img = Gtk.Image.new_from_gicon(info.get_icon()); img.set_pixel_size(32)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+    img = Gtk.Image.new_from_gicon(info.get_icon()); img.set_pixel_size(26)
     box.append(img)
-    box.append(Gtk.Label(label=info.get_name().replace("SMTH ", ""), css_classes=["cap"], ellipsize=3, max_width_chars=12))
+    box.append(Gtk.Label(label=info.get_name().replace("SMTH ", ""), css_classes=["cap"], ellipsize=3, max_width_chars=9))
     b = Gtk.Button(child=box); b.add_css_class("app"); b.add_css_class("flat")
+    # One container size on every desktop resolution: the icon always fits
+    # inside its glass tile and the label is clipped, never pushed out.
+    b.set_size_request(80, 64)
     b.set_tooltip_text(info.get_name())
     b.connect("clicked", lambda *_: info.launch([], None)); return b
 
@@ -229,8 +233,10 @@ def on_activate(app):
     except (OSError, ValueError, TypeError):
         icon_positions = {}
 
-    CELL_W, CELL_H, GRID_X, GRID_Y = 112.0, 90.0, 24.0, 24.0
-    ICON_W, ICON_H = 96.0, 78.0
+    # Compact 100 x 86 cells for an 80 x 64 glass tile: 20 px of air on every
+    # side, so neighbouring shortcuts never touch at any resolution.
+    CELL_W, CELL_H, GRID_X, GRID_Y = 100.0, 86.0, 20.0, 20.0
+    ICON_W, ICON_H = 80.0, 64.0
 
     def snap_to_free(name, x, y):
         display = Gdk.Display.get_default()
@@ -282,8 +288,8 @@ def on_activate(app):
     for index, n in enumerate(APPS):
         b = icon_button(n)
         if not b: continue
-        pos = icon_positions.get(n, [GRID_X + (index // 7) * CELL_W,
-                                     GRID_Y + (index % 7) * CELL_H])
+        pos = icon_positions.get(n, [GRID_X + (index // 8) * CELL_W,
+                                     GRID_Y + (index % 8) * CELL_H])
         try: x, y = float(pos[0]), float(pos[1])
         except (TypeError, ValueError, IndexError): x, y = 24.0, 24.0
         x, y = snap_to_free(n, x, y)

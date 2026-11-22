@@ -36,6 +36,7 @@ import android.view.PointerIcon
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -108,6 +109,9 @@ class MainActivity : Activity() {
     private var panelOpen = false
     private var animation: ValueAnimator? = null
     private var ahianIntro: AhianConstructionView? = null
+    // True while the takeover is still showing the desktop you were using:
+    // the AHIAN wallpaper is switched in behind the blue screen, not before.
+    private var themeDeferred = false
 
     companion object {
         // The reconstruction belongs to desktop startup, not every resume.
@@ -123,15 +127,18 @@ class MainActivity : Activity() {
         build()
         refreshApps()
         startClock()
-        applyAhianTheme()
         val returningFromAhianCommand = intent.getBooleanExtra("show_ahian_construction", false)
         val ahianEnabled = getSharedPreferences("smth", MODE_PRIVATE)
             .getBoolean("ahian_mode", false)
-        // AHIAN persists after first activation. Its reconstruction plays once
-        // per launcher process, and again whenever `ahian` explicitly asks.
+        if (returningFromAhianCommand) themeDeferred = true
+        applyAhianTheme()
+        // AHIAN persists after first activation. Its takeover plays once per
+        // launcher process, and again whenever `ahian` explicitly asks.
         when {
             returningFromAhianCommand -> {
                 intent.removeExtra("show_ahian_construction")
+                // The desktop stays on the wallpaper you were using for act 1.
+                root.postDelayed({ applyAhianTheme() }, 11_000)
                 root.post { showAhianConstruction() }
             }
             ahianEnabled && !ahianRevealPlayed -> root.post { showAhianConstruction() }
@@ -144,6 +151,9 @@ class MainActivity : Activity() {
         setIntent(intent)
         if (intent.getBooleanExtra("show_ahian_construction", false)) {
             intent.removeExtra("show_ahian_construction")
+            themeDeferred = true
+            applyAhianTheme()
+            root.postDelayed({ applyAhianTheme() }, 11_000)
             root.post { showAhianConstruction() }
         }
     }
@@ -162,12 +172,10 @@ class MainActivity : Activity() {
         if (!::root.isInitialized || isFinishing) return
         ahianRevealPlayed = true
         ahianIntro?.let { root.removeView(it); it.stop() }
-        // The reconstruction is fully opaque, so the live wallpaper, tint,
-        // icons and taskbar stay in place underneath it. Its own fade uncovers
-        // exactly that desktop: no flash, no reload, no second wallpaper.
-        // Freeze the live wall on the reveal's final phase so the fade
-        // uncovers an identical frame, then let the flow resume.
-        ahianTint.freezeAt(1f)
+        // A transparent overlay over the live launcher desktop. The wallpaper,
+        // tint, icons and taskbar stay exactly as they are; act 1 only adds the
+        // error windows. At the countdown's zero the view is removed and the
+        // real AHIAN desktop underneath is revealed.
         val intro = AhianConstructionView(this)
         ahianIntro = intro
         root.addView(intro, FrameLayout.LayoutParams(
@@ -175,8 +183,8 @@ class MainActivity : Activity() {
         intro.start {
             root.removeView(intro)
             if (ahianIntro === intro) ahianIntro = null
-            if (getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false))
-                ahianTint.resumeFlow()
+            themeDeferred = false
+            applyAhianTheme()
         }
     }
 
@@ -189,15 +197,10 @@ class MainActivity : Activity() {
 
     /** AHIAN mode repaints the desktop purple-teal; `unahian` restores it. */
     private fun applyAhianTheme() {
-        if (!::ahianTint.isInitialized) return
+        if (!::ahianTint.isInitialized || themeDeferred) return
         val on = getSharedPreferences("smth", MODE_PRIVATE).getBoolean("ahian_mode", false)
         ahianTint.visibility = if (on) View.VISIBLE else View.GONE
-        if (on) {
-            // During the reveal the wallpaper stays frozen on phase 1.
-            if (ahianIntro == null) ahianTint.resumeFlow()
-        } else {
-            ahianTint.pauseFlow()
-        }
+        if (on) ahianTint.resumeFlow() else ahianTint.pauseFlow()
     }
 
     override fun onBackPressed() {
@@ -555,7 +558,7 @@ class MainActivity : Activity() {
         // Only fill the column with shortcuts that actually fit above the
         // taskbar on this display; the rest live in the Start menu.
         val available = resources.configuration.screenHeightDp - 46 - 40
-        val fits = (available / 66).coerceIn(3, 6)
+        val fits = (available / 62).coerceIn(3, 6)
         // Put the Terminal on the desktop when there's room for it.
         val terminalEntry = apps.firstOrNull { it.label == "Terminal" }
         return (listOfNotNull(terminalEntry) + found + apps).distinctBy { it.packageName }.take(fits)
@@ -565,14 +568,16 @@ class MainActivity : Activity() {
         desktop.removeAllViews()
         // Invisible 96 x 82 cells. A shortcut always lands in one cell, and a
         // cell already holding another shortcut is skipped.
-        val cellW = dp(96)
-        val cellH = dp(82)
-        val originX = dp(16)
-        val originY = dp(16)
+        // 88 x 78 cells holding an 80 x 70 glass tile: a 4 dp gutter on every
+        // side, so shortcuts never overlap on any aspect ratio.
+        val cellW = dp(88)
+        val cellH = dp(78)
+        val originX = dp(12)
+        val originY = dp(12)
         val width = resources.displayMetrics.widthPixels
         val height = resources.displayMetrics.heightPixels - dp(56)
         val cols = maxOf(1, (width - originX) / cellW)
-        val rows = maxOf(1, (height - originY - dp(86)) / cellH)
+        val rows = maxOf(1, (height - originY - dp(64)) / cellH)
         val prefs = getSharedPreferences("smth_desktop", MODE_PRIVATE)
         val occupied = mutableSetOf<Pair<Int, Int>>()
         for ((index, entry) in desktopShortcuts().withIndex()) {
@@ -596,7 +601,7 @@ class MainActivity : Activity() {
             prefs.edit().putInt(entry.packageName + "_x", left)
                 .putInt(entry.packageName + "_y", top).apply()
             val icon = desktopIcon(entry, index)
-            val params = FrameLayout.LayoutParams(dp(88), dp(76)).apply {
+            val params = FrameLayout.LayoutParams(dp(80), dp(70)).apply {
                 gravity = Gravity.TOP or Gravity.START
                 leftMargin = left
                 topMargin = top
@@ -609,22 +614,22 @@ class MainActivity : Activity() {
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(4), dp(5), dp(4), dp(5))
             isClickable = true
             isFocusable = true
-            background = glassTile(15f)
-            setPadding(dp(3), dp(4), dp(3), dp(3))
+            background = glassTile(13f)
+            setPadding(dp(3), dp(3), dp(3), dp(2))
             addView(ImageView(this@MainActivity).apply {
                 setImageDrawable(entry.icon)
                 scaleType = ImageView.ScaleType.FIT_CENTER
-            }, LinearLayout.LayoutParams(dp(32), dp(32)))
-            addView(label(entry.label, 9.5f, BLUSH, 0.02f).apply {
+                setPadding(dp(2), dp(2), dp(2), dp(2))
+            }, LinearLayout.LayoutParams(dp(28), dp(28)))
+            addView(label(entry.label, 8.5f, BLUSH, 0.02f).apply {
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
                 gravity = Gravity.CENTER
                 setShadowLayer(4f, 0f, 1f, OBSIDIAN)
-            }, LinearLayout.LayoutParams(dp(80), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                topMargin = dp(5)
+            }, LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(3)
             })
             setOnClickListener {
                 pressFeedback(this)
@@ -684,12 +689,12 @@ class MainActivity : Activity() {
 
     /** Resolve a dropped shortcut to the nearest free 96 x 82 cell. */
     private fun snapDesktopCell(moving: View): Pair<Int, Int> {
-        val cellW = dp(96)
-        val cellH = dp(82)
-        val originX = dp(16)
-        val originY = dp(16)
+        val cellW = dp(88)
+        val cellH = dp(78)
+        val originX = dp(12)
+        val originY = dp(12)
         val cols = maxOf(1, (desktop.width - originX) / cellW)
-        val rows = maxOf(1, (desktop.height - originY - dp(86)) / cellH)
+        val rows = maxOf(1, (desktop.height - originY - dp(64)) / cellH)
         val lp = moving.layoutParams as FrameLayout.LayoutParams
         var col = ((lp.leftMargin - originX).toFloat() / cellW).roundToInt().coerceIn(0, cols - 1)
         var row = ((lp.topMargin - originY).toFloat() / cellH).roundToInt().coerceIn(0, rows - 1)
@@ -782,16 +787,17 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER
                 isClickable = true
                 isFocusable = true
-                background = glassTile(15f)
+                background = glassTile(13f)
+                setPadding(dp(3), dp(3), dp(3), dp(2))
                 addView(ImageView(this@MainActivity).apply { setImageDrawable(entry.icon) },
-                    LinearLayout.LayoutParams(dp(24), dp(24)))
-                addView(label(entry.label, 8f, blush(0.72f), 0.0f).apply {
+                    LinearLayout.LayoutParams(dp(20), dp(20)))
+                addView(label(entry.label, 7.5f, blush(0.72f), 0.0f).apply {
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
-                }, LinearLayout.LayoutParams(dp(58), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
+                }, LinearLayout.LayoutParams(dp(50), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(3) })
                 setOnClickListener { pressFeedback(this); launch(entry); closeStart() }
             }
-            pinnedBox.addView(item, LinearLayout.LayoutParams(dp(62), dp(58)))
+            pinnedBox.addView(item, LinearLayout.LayoutParams(dp(56), dp(54)))
         }
     }
 
@@ -811,27 +817,28 @@ class MainActivity : Activity() {
         startInner?.requestLayout()
         allGrid.columnCount = gridColumns()
         val columns = allGrid.columnCount
-        val width = dp(62)
+        val width = dp(56)
         shown.forEachIndexed { index, entry ->
             val tile = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 isClickable = true
                 isFocusable = true
-                background = glassTile(17f)
+                background = glassTile(13f)
+                setPadding(dp(3), dp(3), dp(3), dp(2))
                 addView(ImageView(this@MainActivity).apply { setImageDrawable(entry.icon) },
-                    LinearLayout.LayoutParams(dp(24), dp(24)))
-                addView(label(entry.label, 8.5f, BLUSH, 0.0f).apply {
+                    LinearLayout.LayoutParams(dp(20), dp(20)))
+                addView(label(entry.label, 7.5f, BLUSH, 0.0f).apply {
                     maxLines = 1
                     ellipsize = TextUtils.TruncateAt.END
                     gravity = Gravity.CENTER
-                }, LinearLayout.LayoutParams(dp(58), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(4) })
+                }, LinearLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(3) })
                 setOnClickListener { pressFeedback(this); launch(entry); closeStart() }
                 setOnLongClickListener { openInfo(entry); true }
             }
             allGrid.addView(tile, GridLayout.LayoutParams().apply {
                 this.width = width
-                height = dp(58)
+                height = dp(54)
                 columnSpec = GridLayout.spec(index % columns)
                 setMargins(dp(2), dp(2), dp(2), dp(2))
             })
@@ -1095,6 +1102,12 @@ private class ConstructionView(
     private val dot: Typeface?,
     private val mono: Typeface?,
 ) : View(context) {
+    /** The startup gesture: the SMTH logo fades in, holds, then fades out.
+     *
+     * There is no desktop reconstruction, no cursor choreography and no other
+     * element. When the logo is gone the view is removed and the live launcher
+     * underneath - which was always there - is simply visible.
+     */
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val logoBitmap: Bitmap? = try {
         BitmapFactory.decodeResource(resources, R.drawable.ic_launcher_smth)
@@ -1108,13 +1121,12 @@ private class ConstructionView(
     init {
         setBackgroundColor(OBSIDIAN)
         isClickable = true
-        contentDescription = "SMTH startup construction; tap to skip"
+        contentDescription = "SMTH startup logo; tap to skip"
         setOnClickListener { finishIntro() }
-        animator.duration = 9_600
-        animator.interpolator = DecelerateInterpolator()
+        animator.duration = 1_600
+        animator.interpolator = LinearInterpolator()
         animator.addUpdateListener { animation ->
             progress = animation.animatedValue as Float
-            alpha = if (progress > 0.90f) (1f - progress) / 0.10f else 1f
             invalidate()
         }
         animator.addListener(object : AnimatorListenerAdapter() {
@@ -1138,134 +1150,38 @@ private class ConstructionView(
         if (closed) return
         closed = true
         animator.cancel()
-        animate().alpha(0f).setDuration(280).withEndAction {
-            (parent as? ViewGroup)?.removeView(this)
-        }.start()
+        // No outro: the logo has already faded out, so the live desktop shows.
+        (parent as? ViewGroup)?.removeView(this)
     }
 
     private fun dpf(value: Float): Float = value * resources.displayMetrics.density
+
+    private fun logoAlpha(elapsedMs: Float): Float = when {
+        elapsedMs < 620f -> {
+            val x = (elapsedMs / 620f).coerceIn(0f, 1f)
+            1f - (1f - x) * (1f - x) * (1f - x)
+        }
+        elapsedMs < 980f -> 1f
+        else -> (1f - (elapsedMs - 980f) / 580f).coerceIn(0f, 1f)
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return
-        val p = progress.coerceIn(0f, 1f)
         canvas.drawColor(OBSIDIAN)
-        drawField(canvas, w, h)
-
-        val fade = when {
-            p < 0.18f -> p / 0.18f
-            p < 0.42f -> 1f
-            p < 0.52f -> 1f - (p - 0.42f) / 0.10f
-            else -> 0f
-        }
-        if (fade > 0f) {
-            paint.style = Paint.Style.FILL
-            paint.alpha = (fade * 255).toInt()
-            val bmp = logoBitmap
-            if (bmp != null) {
-                val size = dpf(52f)
-                val dst = RectF(w / 2f - size / 2f, h / 2f - size / 2f, w / 2f + size / 2f, h / 2f + size / 2f)
-                canvas.drawBitmap(bmp, null, dst, paint)
-            }
-            paint.alpha = 255
-        }
-        if (p >= 0.36f) {
-            val t = ((p - 0.36f) / 0.56f).coerceIn(0f, 1f)
-            val fade = if (t > 0.88f) ((1f - t) / 0.12f).coerceIn(0f, 1f) else 1f
-            val task = RectF(dpf(8f), h - dpf(58f), w - dpf(8f), h - dpf(8f))
-            val side = RectF(dpf(28f), dpf(42f), dpf(28f) + w * 0.25f, h - dpf(84f))
-            val win = RectF(w * 0.36f, h * 0.17f, w * 0.36f + w * 0.58f, h * 0.17f + h * 0.56f)
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = dpf(1.3f)
-            paint.color = Color.argb((fade * 220).toInt(), 0, 194, 168)
-            canvas.drawRect(task.left, task.top, task.left + task.width() * (t / 0.28f).coerceIn(0f, 1f), task.bottom, paint)
-            if (t > 0.12f) {
-                paint.color = Color.argb((fade * 220).toInt(), 124, 77, 255)
-                val q = ((t - 0.12f) / 0.36f).coerceIn(0f, 1f)
-                canvas.drawRect(side.left, side.top, side.left + side.width() * q, side.top + side.height() * q, paint)
-            }
-            if (t > 0.22f) {
-                val q = ((t - 0.22f) / 0.42f).coerceIn(0f, 1f)
-                canvas.drawRect(win.left, win.top, win.left + win.width() * q, win.top + win.height() * q, paint)
-            }
-            // The cursors are separate agents, each travelling from a different edge.
-            val paths = arrayOf(
-                arrayOf(0.02f to -0.04f, 0.25f to 0.30f, 0.42f to 0.18f, 0.78f to 0.24f),
-                arrayOf(1.04f to 0.22f, 0.78f to 0.42f, 0.54f to 0.32f, 0.62f to 0.72f),
-                arrayOf(0.42f to -0.04f, 0.34f to 0.34f, 0.18f to 0.52f, 0.12f to 0.82f),
-                arrayOf(-0.04f to 0.72f, 0.28f to 0.70f, 0.52f to 0.82f, 0.88f to 0.82f),
-                arrayOf(0.84f to 1.04f, 0.72f to 0.72f, 0.82f to 0.42f, 0.92f to 0.20f),
-                arrayOf(0.18f to 1.04f, 0.32f to 0.76f, 0.42f to 0.50f, 0.36f to 0.26f),
-                arrayOf(1.04f to 0.90f, 0.78f to 0.78f, 0.62f to 0.54f, 0.44f to 0.46f)
-            )
-            val colours = intArrayOf(
-                Color.parseColor("#7C4DFF"), Color.parseColor("#00C2A8"),
-                Color.parseColor("#9E75FF"), Color.parseColor("#33E5CC"),
-                Color.parseColor("#5738A0"), Color.parseColor("#65EBD5"),
-                Color.parseColor("#B69AFF")
-            )
-            for (i in paths.indices) {
-                val local = ((t - i * 0.035f) / 0.86f).coerceIn(0f, 1f)
-                if (local <= 0f || t > 0.94f) continue
-                val pts = paths[i]
-                val segFloat = local * (pts.size - 1)
-                val seg = segFloat.toInt().coerceIn(0, pts.size - 2)
-                val q = (segFloat - seg).coerceIn(0f, 1f)
-                val eased = 1f - (1f - q) * (1f - q) * (1f - q)
-                val x = (pts[seg].first + (pts[seg + 1].first - pts[seg].first) * eased) * w
-                val y = (pts[seg].second + (pts[seg + 1].second - pts[seg].second) * eased) * h
-                paint.style = Paint.Style.FILL
-                paint.color = colours[i]
-                paint.alpha = (fade * 255).toInt()
-                canvas.drawCircle(x, y, dpf(3.2f), paint)
-                val cursor = Path().apply {
-                    moveTo(x, y); lineTo(x, y + dpf(18f)); lineTo(x + dpf(5f), y + dpf(13f))
-                    lineTo(x + dpf(9f), y + dpf(20f)); lineTo(x + dpf(12f), y + dpf(18f))
-                    lineTo(x + dpf(8f), y + dpf(12f)); lineTo(x + dpf(15f), y + dpf(12f)); close()
-                }
-                paint.color = Color.BLACK
-                canvas.drawPath(cursor, paint)
-                paint.color = colours[i]
-                paint.alpha = (fade * 245).toInt()
-                canvas.drawPath(cursor, paint)
-            }
-            // Panels and icons are revealed progressively underneath the guides.
-            if (t > 0.30f) {
-                paint.style = Paint.Style.FILL
-                paint.color = Color.argb((fade * 225 * ((t - 0.30f) / 0.25f).coerceIn(0f, 1f)).toInt(), 18, 10, 36)
-                canvas.drawRoundRect(side, dpf(8f), dpf(8f), paint)
-                canvas.drawRoundRect(win, dpf(8f), dpf(8f), paint)
-                canvas.drawRoundRect(task, dpf(10f), dpf(10f), paint)
-                for (i in 0..5) {
-                    val x = side.left + dpf(24f) + (i % 2) * dpf(42f)
-                    val y = side.top + dpf(28f) + (i / 2) * dpf(54f)
-                    if (t > 0.42f + i * 0.035f) {
-                        paint.color = colours[i % colours.size]
-                        canvas.drawRoundRect(x, y, x + dpf(22f), y + dpf(22f), dpf(5f), dpf(5f), paint)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun drawField(canvas: Canvas, w: Float, h: Float) {
+        val alpha = logoAlpha(progress.coerceIn(0f, 1f) * 1_600f)
+        if (alpha <= 0.001f) return
         paint.style = Paint.Style.FILL
-        val step = dpf(24f)
-        var y = step
-        var row = 0
-        while (y < h) {
-            var x = step
-            var col = 0
-            while (x < w) {
-                paint.color = if ((row + col) % 9 == 0) maroon(0.55f) else blush(0.05f)
-                canvas.drawCircle(x, y, dpf(1f), paint)
-                x += step
-                col++
-            }
-            y += step
-            row++
+        paint.alpha = (alpha * 255).toInt()
+        val bmp = logoBitmap
+        if (bmp != null) {
+            val size = dpf(72f)
+            val dst = RectF(w / 2f - size / 2f, h / 2f - size / 2f,
+                w / 2f + size / 2f, h / 2f + size / 2f)
+            canvas.drawBitmap(bmp, null, dst, paint)
         }
+        paint.alpha = 255
     }
 }

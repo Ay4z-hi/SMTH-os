@@ -69,13 +69,6 @@ internal class AhianWallpaperView(context: Context) : View(context) {
         }
     }
 
-    fun freezeAt(value: Float) {
-        flowing = false
-        removeCallbacks(ticker)
-        phase = value % 1f
-        invalidate()
-    }
-
     fun resumeFlow() {
         if (flowing || visibility != VISIBLE) return
         flowing = true

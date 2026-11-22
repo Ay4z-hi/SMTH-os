@@ -39,9 +39,10 @@ window.launcher {
   box-shadow: inset 0 1px 3px alpha(#000000, 0.30), 0 0 0 2px alpha(#701b35, 0.45);
 }
 .launcher button.pin {
-  border-radius: 16px; padding: 5px;
+  border-radius: 14px; padding: 4px;
   background-image: linear-gradient(170deg, alpha(#f2c6d2, 0.085), alpha(#f2c6d2, 0.02));
   border: 1px solid alpha(#f2c6d2, 0.12); box-shadow: inset 0 1px 0 alpha(#ffffff, 0.07);
+  min-width: 52px; min-height: 50px;
 }
 .launcher button.pin:hover { background-image: linear-gradient(170deg, alpha(#f2c6d2, 0.16), alpha(#701b35, 0.22)); border-color: alpha(#f2c6d2, 0.26); }
 .launcher button.pin:active { background-image: linear-gradient(170deg, alpha(#701b35, 0.55), alpha(#701b35, 0.30)); }
@@ -91,12 +92,13 @@ class App(Gtk.Application):
         for n in PINNED:
             info = Gio.DesktopAppInfo.new(n + ".desktop")
             if not info: continue
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
-            img = Gtk.Image.new_from_gicon(info.get_icon()); img.set_pixel_size(24)
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            img = Gtk.Image.new_from_gicon(info.get_icon()); img.set_pixel_size(20)
             box.append(img)
             box.append(Gtk.Label(label=info.get_name().replace("SMTH ", ""), css_classes=["cap"],
-                                 ellipsize=3, max_width_chars=10))
+                                 ellipsize=3, max_width_chars=8))
             b = Gtk.Button(child=box, css_classes=["pin", "flat"]); b.set_tooltip_text(info.get_name())
+            b.set_size_request(56, 54)
             b.connect("clicked", lambda _b, i=info: self.launch(i)); flow.append(b)
         self.pin_box.append(flow); root.append(self.pin_box)
 

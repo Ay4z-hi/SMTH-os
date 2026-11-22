@@ -1,133 +1,90 @@
 #!/usr/bin/env python3
-"""Tests for the startup construction timeline and its resolution handling.
+"""Tests for the SMTH startup gesture.
 
-These run without GTK or a display.  The renderer is a separate layer and is
-validated by the ISO boot job; this test pins the contract that can be checked
-in the repository (duration, phases, independent cursors, boxes, items and
-on-screen bounds).
+The startup is one thing only: the logo fades in and out.  These tests pin the
+timeline, the logo's alpha curve and the absence of every reconstruction
+element (cursors, selection boxes, panels, tiles) that used to exist.
 """
 import pathlib
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "config/includes.chroot_after_packages/usr/local/lib/smth"))
+LIB = ROOT / "config/includes.chroot_after_packages/usr/local/lib/smth"
+sys.path.insert(0, str(LIB))
 import startup_model as M  # noqa: E402
 
 
-def test_timeline():
-    assert 8000 <= M.DURATION_MS <= 12000, M.DURATION_MS
-    assert M.LOGO_END_MS < M.CURSOR_START_MS < M.CONSTRUCT_START_MS
-    assert M.CONSTRUCT_START_MS < M.CONSTRUCT_END_MS < M.FADE_END_MS
+def test_timeline_is_a_single_logo_fade():
+    assert M.DURATION_MS == M.LOGO_OUT_MS
+    assert M.DURATION_MS <= 2000, "the startup must not become a scene of its own"
+    assert M.LOGO_IN_MS < M.LOGO_HOLD_MS < M.LOGO_OUT_MS
     scene = M.StartupScene(1920, 1080)
-    assert scene.frame(0).phase == "logo"
-    assert scene.frame(1100).phase == "cursors"
-    assert scene.frame(4000).phase == "construct"
-    assert scene.frame(M.CONSTRUCT_END_MS + 10).phase == "settle"
-    assert scene.frame(M.REVEAL_END_MS + 10).phase == "fade"
+    assert scene.frame(0).phase == "logo-in"
+    assert scene.frame(M.LOGO_IN_MS + 40).phase == "logo-hold"
+    assert scene.frame(M.LOGO_HOLD_MS + 40).phase == "logo-out"
+    assert scene.frame(M.DURATION_MS).phase == "done"
     assert scene.frame(M.DURATION_MS).done
-    assert scene.frame(M.DURATION_MS).overlay_alpha == 0
     assert not scene.frame(0).done
+    # No overlay fade on top of the logo fade: the window is simply removed.
+    assert scene.frame(0).overlay_alpha == 1.0
+    assert scene.frame(M.DURATION_MS - 1).overlay_alpha == 1.0
 
 
-def test_logo_reveal():
+def test_logo_alpha_curve():
     scene = M.StartupScene(1280, 720)
-    assert scene.frame(0).logo_alpha == 0
-    assert scene.frame(700).logo_alpha > 0.9
-    assert scene.frame(M.LOGO_FADE_END_MS + 10).logo_alpha == 0
-    assert 0.9 <= scene.frame(700).logo_reveal <= 1.0
-    assert scene.frame(700).logo_scale >= 0.99
+    assert scene.frame(0).logo_alpha == 0.0
+    assert scene.frame(M.LOGO_IN_MS).logo_alpha > 0.99
+    assert scene.frame(M.LOGO_HOLD_MS - 1).logo_alpha == 1.0
+    assert scene.frame(M.LOGO_OUT_MS).logo_alpha == 0.0
+    middle = scene.frame((M.LOGO_HOLD_MS + M.LOGO_OUT_MS) // 2)
+    assert 0.1 < middle.logo_alpha < 0.9
+    # Reveal and scale are already settled while the logo holds.
+    assert 0.99 <= scene.frame(M.LOGO_HOLD_MS - 1).logo_reveal <= 1.0
+    assert 0.99 <= scene.frame(M.LOGO_HOLD_MS - 1).logo_scale <= 1.0
 
 
-def test_cursors_are_independent_and_visible():
-    scene = M.StartupScene(1920, 1080)
-    assert len(scene.cursors) >= 6
-    assert len({c.key for c in scene.cursors}) == len(scene.cursors)
-    assert len({c.colour for c in scene.cursors}) >= 5
-    mid = scene.frame(4200)
-    assert len(mid.cursors) == len(scene.cursors)
-    points = {(round(c.x), round(c.y)) for c in mid.cursors}
-    assert len(points) == len(mid.cursors), "cursors must not share a position"
-    for c in mid.cursors:
-        assert c.alpha > 0.5
-        assert -10 <= c.x <= scene.width + 10
-        assert -10 <= c.y <= scene.height + 10
-        assert len(c.trail) == 3
-        assert any(c.click > 0 for c in mid.cursors)
-    assert not scene.frame(500).cursors
+def test_no_reconstruction_model_remains():
+    for name in ("cursors", "items", "boxes", "CursorSpec", "CursorFrame",
+                 "BuildItem", "ItemFrame", "SelectionBox", "BoxFrame"):
+        assert not hasattr(M, name), f"{name} belongs to the removed reconstruction"
+    source = (LIB / "startup_model.py").read_text()
+    for banned in ("CursorSpec", "SelectionBox", "BuildItem", "CONSTRUCT_START_MS",
+                   "CURSOR_START_MS"):
+        assert banned not in source, banned
 
 
-def test_selection_boxes():
-    scene = M.StartupScene(1920, 1080)
-    assert len(scene.boxes) >= 5
-    frame = scene.frame(5400)
-    assert len(frame.boxes) == len(scene.boxes)
-    labels = {b.spec.label for b in frame.boxes}
-    assert {"TASKBAR", "WINDOW", "APP GRID", "DOCK"} <= labels
-    seen = set()
-    for b in frame.boxes:
-        r = b.spec.rect
-        assert 0 <= r.x <= scene.width and 0 <= r.y <= scene.height
-        assert r.right <= scene.width + 0.5 and r.bottom <= scene.height + 0.5
-        assert 0 < b.progress <= 1
-        assert b.alpha > 0.5
-        seen.add(b.spec.key)
-    assert len(seen) == len(scene.boxes)
-    # Outlines disappear before the final fade.
-    assert all(b.alpha < 0.1 for b in scene.frame(M.REVEAL_END_MS).boxes)
+def test_renderer_draws_nothing_but_the_logo():
+    source = (LIB / "startup.py").read_text()
+    for banned in ("_draw_cursor", "_draw_box", "_draw_items", "_draw_window",
+                   "_draw_status", "_draw_grid", "_draw_icon", "_draw_clock",
+                   "_draw_rings", "_draw_dock", "_draw_dot_field"):
+        assert banned not in source, f"{banned} is part of the removed animation"
+    # Only the logo and the black plate are mentioned in the draw method.
+    draw = source[source.index("def draw(self, cr, w, h):"):]
+    assert "_draw_logo" in draw
+    assert "set_source_rgb(0, 0, 0)" in draw
 
 
-def test_construction_items():
-    scene = M.StartupScene(1920, 1080)
-    kinds = {i.kind for i in scene.items}
-    assert {"status", "grid", "window", "clock", "rings", "dock", "icon"} <= kinds
-    icons = [i for i in scene.items if i.kind == "icon"]
-    assert len(icons) == 12
-    frame = scene.frame(6000)
-    assert len(frame.items) == len(scene.items)
-    for item in frame.items:
-        assert 0 < item.progress <= 1
-        assert item.alpha == 1
-    # Construction starts before the reveal and all items have appeared by then.
-    assert len(scene.frame(M.CONSTRUCT_START_MS - 1).items) == 0
-    assert len(scene.frame(M.CONSTRUCT_END_MS).items) == len(scene.items)
-
-
-def test_resolutions_and_bounds():
-    for width, height in ((800, 600), (1280, 720), (1920, 1080), (2560, 1080), (1080, 1920)):
+def test_resolutions_and_reduced_motion():
+    for width, height in ((800, 600), (1280, 720), (1920, 1080),
+                          (2560, 1080), (1080, 1920), (1440, 3200)):
         scene = M.StartupScene(width, height)
         assert scene.width == max(640, width)
         assert scene.height == max(480, height)
-        frame = scene.frame(5000)
-        for box in frame.boxes:
-            r = box.spec.rect
-            assert -0.6 <= r.x and -0.6 <= r.y, (width, height, r)
-            assert r.right <= scene.width + 0.6, (width, height, r)
-            assert r.bottom <= scene.height + 0.6, (width, height, r)
-        for item in frame.items:
-            r = item.spec.rect
-            assert -0.6 <= r.x and -0.6 <= r.y, (width, height, r)
-            assert r.right <= scene.width + 0.6, (width, height, r)
-            assert r.bottom <= scene.height + 0.6, (width, height, r)
         assert scene.portrait == (height >= width * 0.95)
-
-
-def test_reduced_motion():
-    scene = M.StartupScene(1920, 1080, reduced=True)
-    assert scene.cursors == ()
-    assert scene.boxes == ()
-    assert scene.items == ()
-    assert scene.frame(0).reduced
-    assert scene.frame(M.REDUCED_MS).done
-    assert M.REDUCED_MS < 1500
+    reduced = M.StartupScene(1920, 1080, reduced=True)
+    assert reduced.frame(0).reduced
+    assert reduced.frame(0).logo_alpha == 0.0
+    assert reduced.frame(400).logo_alpha == 1.0
+    assert reduced.frame(M.REDUCED_MS).done
+    assert M.REDUCED_MS <= 800
 
 
 def test_deterministic():
     a = M.StartupScene(1600, 900)
     b = M.StartupScene(1600, 900)
-    assert a.layout == b.layout
-    assert a.items == b.items
-    assert a.boxes == b.boxes
-    assert a.frame(4300) == b.frame(4300)
+    for t in (0, 300, 700, 1100, 1500):
+        assert a.frame(t) == b.frame(t)
 
 
 def main():
@@ -145,7 +102,7 @@ def main():
     if failures:
         print(f"FAIL startup: {failures} test(s)")
         return 1
-    print("PASS startup: timeline, cursors, boxes, items, resolutions and reduced motion")
+    print("PASS startup: logo fade in, hold, fade out, nothing else")
     return 0
 
 

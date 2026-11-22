@@ -23,3 +23,5 @@ __pycache__/
 /launchers/android/smth-launcher-*.png
 
 /artifacts/SMTH-Android-Launcher.apk
+
+/launchers/android/.kotlin/
