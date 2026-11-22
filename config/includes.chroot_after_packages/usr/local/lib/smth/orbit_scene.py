@@ -697,6 +697,7 @@ class OrbitScene:
                 dot_text(sd, (x, height / 2 - 3.5 * dot), text, dot, INK_DIM)
             self.ticker_cache = (key, strip)
         strip = self.ticker_cache[1]
+        clip_w = min(clip_w, strip.width)
         offset = int((t * 26 * s) % max(1, width + int(90 * s)))
         offset = min(offset, max(0, strip.width - clip_w))
         clip = strip.crop((offset, 0, offset + clip_w, height)).copy()

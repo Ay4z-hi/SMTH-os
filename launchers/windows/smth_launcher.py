@@ -257,6 +257,7 @@ class SMTHLauncher:
         self.canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
         self.canvas.bind("<Configure>", lambda _e: self.paint_desktop())
         self.canvas.bind("<Button-1>", self.on_desktop_click)
+        self.root.bind("<Configure>", self.on_root_configure, add="+")
 
         self.build_taskbar()
         self.build_start()
@@ -316,6 +317,8 @@ class SMTHLauncher:
         art = getattr(self, "_wall_pil", None)
         if art is not None:
             return art
+        if self.root.winfo_width() < 100 or self.root.winfo_height() < 100:
+            return None                      # not mapped yet; do not cache a 1x1
         try:
             art = Image.open(os.path.join(ASSETS, "smth-wallpaper.png")).convert("RGB")
         except (OSError, ValueError):
@@ -624,6 +627,14 @@ class SMTHLauncher:
         self.pill(foot, "SETTINGS", lambda: self.launch("ms-settings:", "scheme")).pack(side="right", padx=(4, 0))
         self.pill(foot, "POWER", self.power_menu).pack(side="right")
 
+    def on_root_configure(self, event):
+        if event.widget is not self.root:
+            return
+        self._wall_pil = None
+        self.paint_taskbar()
+        if getattr(self, "start_open", False):
+            self.paint_panel()
+
     def paint_panel(self):
         """Rounded glass plate under the Start menu (the body sits inset on it)."""
         if not hasattr(self, "panel_bg"):
@@ -765,6 +776,7 @@ class SMTHLauncher:
         self.panel.lift()
         self.paint_panel()
         self.slide(14, target=0)
+        self.root.after(160, self.paint_panel)
         if focus:
             self.search.focus_set()
 
