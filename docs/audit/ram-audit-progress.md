@@ -126,3 +126,34 @@ Remaining blockers / not verified:
 - No live GTK/Wayland device test performed in this workspace; layer-shell crash root cause is suspected (missing preload/compositor readiness) and now guarded + logged, not yet confirmed.
 - ARM64 runtime behaviour still unverified.
 - RAM measurements remain unstarted.
+
+## 9. Phase C.0 artifact recovery (2026-11-24)
+
+Full report: `docs/audit/phase-c0-artifact-inspection.md`.
+
+Verified:
+- Baseline commit `a8fe19c`, clean tree; Phase A/B reports re-read.
+- `gh` 2.45.0 is installed but **not authenticated**; no `GH_TOKEN`/
+  `GITHUB_TOKEN`, no `~/.config/gh`, no git credential helper. Anonymous
+  artifact-zip requests return HTTP 401 for artifact IDs 14768511672,
+  14768572136 and 14768343216.
+- Run `45057955030` (commit `bf11090`) is a successful `push` build. Four
+  non-expired artifacts: `boot-log-arm64` (14768572136, 3,741 B, expires
+  2026-11-29), `boot-log-amd64` (14768511672, 3,346 B, expires 2026-11-29),
+  `smth-os-amd64` (14768343216, 893,341,837 B, expires 2026-12-06),
+  `smth-os-arm64` (14767998816, 626,513,976 B, expires 2026-12-06).
+- The boot probe (`usr/local/bin/smth-bootcheck`) records presence only:
+  `pgrep -x`/`pgrep -f` booleans, sockets and unit states, plus a
+  `journalctl -b -p err` dump **only on failure**. `smth-bootcheck` is echoed to
+  the serial console; the GUI session runs on tty1, so `home.py`/`notifd.py`
+  stderr is not in a passing serial log.
+
+Not done:
+- No artifact was downloaded; **no checksums computed** and no ISO architecture
+  verification.
+- No boot log was inspected, so nothing in Phase B.5 is runtime-verified.
+
+Consequence: even with authentication, the surviving artifacts can confirm only
+session readiness and coarse process presence — not Waybar instance count,
+`smth-home` crash/restart history, or layer-shell errors. Those need a boot-check
+change or a live session capture.
