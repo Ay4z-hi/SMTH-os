@@ -14,4 +14,16 @@ export XDG_SESSION_TYPE=wayland
 export XDG_CURRENT_DESKTOP=SMTH
 export XDG_SESSION_DESKTOP=SMTH
 export MOZ_ENABLE_WAYLAND=1
+# Capture the session's stderr.  Everything the compositor starts (autostart
+# helpers, GTK apps) inherits this descriptor, so GTK and layer-shell messages
+# that used to die on tty1 are recorded for `smth-diag stderr`, which the boot
+# probe runs and mirrors to the serial console.
+#
+# A plain file, not a pipe: with a reader process, anything that killed the
+# reader would SIGPIPE the compositor and take the desktop down.  Truncating at
+# session start keeps the log to one boot and bounds growth on tmpfs.
+session_log="${XDG_RUNTIME_DIR:-/tmp}/smth-session.log"
+if : >"$session_log" 2>/dev/null; then
+    exec dbus-run-session -- labwc 2>>"$session_log"
+fi
 exec dbus-run-session -- labwc

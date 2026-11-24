@@ -73,6 +73,20 @@ for unit in bluetooth.service NetworkManager.service; do
 done
 say "failed-units=$(systemctl --failed --no-legend --plain 2>/dev/null | wc -l)"
 
+# Diagnostic snapshot.  The checks above are presence booleans, which cannot
+# show a duplicate Waybar, a helper that died and was restarted, or GTK stderr
+# that never reached this console.  Take one snapshot at readiness, wait a
+# short settle so a post-readiness crash is visible, then snapshot again.
+# These lines are evidence only: they do not change the pass/fail result.
+if command -v smth-diag >/dev/null 2>&1; then
+    smth-diag snapshot --label ready || true
+    settle="${SMTH_DIAG_SETTLE:-10}"
+    case "$settle" in '' | *[!0-9]*) settle=10 ;; esac
+    [ "$settle" -gt 0 ] && sleep "$settle"
+    smth-diag snapshot --label settle || true
+    smth-diag stderr --tail 15 || true
+fi
+
 if [ "$fail" -ne 0 ]; then
     say "FAIL one or more desktop/session checks failed"
     journalctl -b -p err --no-pager -n 40 2>/dev/null || true

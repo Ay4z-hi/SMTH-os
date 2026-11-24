@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+# smth-diag — lightweight boot diagnostics for the SMTH live desktop.
+#
+# The CI boot probe could only report presence: `pgrep -x` is a boolean, and the
+# desktop session runs on tty1, so GTK/layer-shell stderr never reached the
+# serial console.  This tool adds the missing evidence without polling:
+#
+#   smth-diag snapshot     a one-shot count/state snapshot taken at boot
+#   smth-diag stderr       a bounded summary of the captured session stderr
+#
+# `smth-session` redirects the whole session's stderr to the log summarised
+# here, so GTK and layer-shell messages survive even though they are printed on
+# tty1 rather than the serial console.
+#
+# Output is `SMTH_DIAG: key=value` on stdout, in the snapshot log and on the
+# serial console, so a boot log can be parsed without the journal.
+#
+# Findings (duplicate Waybar, missing helper) are reported, not fatal: the boot
+# check keeps its original pass/fail semantics so a diagnostic build still
+# produces usable artifacts.  Nothing here polls; each invocation is one shot.
+set -uo pipefail
+
+MODE="${1:-snapshot}"
+shift || true
+
+# --- output plumbing -------------------------------------------------------
+
+console_path() {
+    if [ -n "${SMTH_DIAG_CONSOLE:-}" ]; then printf '%s' "$SMTH_DIAG_CONSOLE"; return; fi
+    local c
+    for c in /dev/ttyS0 /dev/ttyAMA0 /dev/console; do
+        if [ -w "$c" ]; then printf '%s' "$c"; return; fi
+    done
+    printf ''
+}
+
+diag_log_path() {
+    if [ -n "${SMTH_DIAG_LOG:-}" ]; then printf '%s' "$SMTH_DIAG_LOG"; return; fi
+    printf '%s' "${XDG_RUNTIME_DIR:-/tmp}/smth-diag.log"
+}
+
+# The session writes to $XDG_RUNTIME_DIR/smth-session.log as the live user; the
+# boot check runs later as root, so it discovers the file instead of guessing.
+session_log_path() {
+    if [ -n "${SMTH_DIAG_SESSION_LOG:-}" ]; then printf '%s' "$SMTH_DIAG_SESSION_LOG"; return; fi
+    local p
+    for p in /run/user/*/smth-session.log; do
+        if [ -f "$p" ]; then printf '%s' "$p"; return; fi
+    done
+    printf '%s' "${XDG_RUNTIME_DIR:-/tmp}/smth-session.log"
+}
+
+CONSOLE="$(console_path)"
+LOG="$(diag_log_path)"
+[ -n "$LOG" ] && mkdir -p "$(dirname "$LOG")" 2>/dev/null
+true
+
+emit() {
+    local line="SMTH_DIAG: $*"
+    printf '%s\n' "$line"
+    [ -n "$LOG" ] && printf '%s\n' "$line" >>"$LOG" 2>/dev/null
+    [ -n "$CONSOLE" ] && printf '%s\n' "$line" >>"$CONSOLE" 2>/dev/null
+    return 0
+}
+
+# One line only: these strings come from process output, so a stray newline must
+# not be able to forge an SMTH_DIAG record.
+sanitize() {
+    local s="${1//$'\n'/ }"
+    s="${s//$'\r'/ }"
+    printf '%s' "${s:0:300}"
+}
+
+number_or_zero() {
+    case "${1:-}" in
+        '' | *[!0-9]*) printf '0' ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
+# --- counting --------------------------------------------------------------
+
+count_name() { # exact process name, like the boot check's pgrep -x
+    local n=''
+    command -v pgrep >/dev/null 2>&1 && n="$(pgrep -xc "$1" 2>/dev/null || true)"
+    number_or_zero "$n"
+}
+
+count_pattern() { # full command line, for the Python helpers
+    local n=''
+    command -v pgrep >/dev/null 2>&1 && n="$(pgrep -fc "$1" 2>/dev/null || true)"
+    number_or_zero "$n"
+}
+
+line_count() {
+    [ -f "$1" ] || { printf '0'; return; }
+    local n
+    n="$(wc -l <"$1" 2>/dev/null | tr -d ' \t')"
+    number_or_zero "$n"
+}
+
+file_count() { # file then extended regex
+    local n=''
+    if [ -f "$1" ]; then
+        n="$(grep -Eic -- "$2" <"$1" 2>/dev/null || true)"
+    fi
+    number_or_zero "$n"
+}
+
+journal_count() { # pattern, then extra journalctl args
+    local pattern="$1"
+    shift
+    local n=''
+    if command -v journalctl >/dev/null 2>&1; then
+        n="$(journalctl -b --no-pager -o cat "$@" 2>/dev/null | grep -Eic -- "$pattern" || true)"
+    fi
+    number_or_zero "$n"
+}
+
+# --- snapshot --------------------------------------------------------------
+
+snapshot() {
+    local label="${1:-manual}"
+    local sfile
+    sfile="$(session_log_path)"
+    local labwc waybar smthd moded home notifd
+    labwc="$(count_name labwc)"
+    waybar="$(count_name waybar)"
+    smthd="$(count_name smthd)"
+    moded="$(count_name smth-moded)"
+    home="$(count_pattern '/usr/local/lib/smth/home\.py')"
+    notifd="$(count_pattern '/usr/local/lib/smth/notifd\.py')"
+
+    emit "snapshot start label=$label arch=$(uname -m 2>/dev/null || printf unknown)"
+    if [ "$labwc" -gt 0 ]; then
+        emit "session.ready=yes label=$label"
+    else
+        emit "session.ready=no label=$label"
+    fi
+    emit "proc labwc.count=$labwc"
+    if [ "$waybar" -gt 1 ]; then
+        emit "proc waybar.count=$waybar duplicate=yes"
+    else
+        emit "proc waybar.count=$waybar duplicate=no"
+    fi
+    emit "proc smthd.count=$smthd"
+    if [ "$moded" -gt 0 ]; then
+        emit "proc smth-moded.count=$moded state=running"
+    else
+        emit "proc smth-moded.count=$moded state=absent"
+    fi
+    emit "proc smth-home.count=$home"
+    emit "proc smth-notifd.count=$notifd"
+    emit "session.stderr path=$sfile lines=$(line_count "$sfile")"
+    emit "session.layer_shell.errors=$(file_count "$sfile" 'GtkWindow is not a layer surface|layer surface|gtk4-layer-shell')"
+    emit "session.gtk.errors=$(file_count "$sfile" 'Gtk')"
+    emit "session.tracebacks=$(file_count "$sfile" 'Traceback \(most recent call last\)')"
+    emit "kernel.segfaults=$(journal_count 'segfault|general protection fault' -k)"
+    emit "kernel.oom=$(journal_count 'oom-kill|Out of memory|Killed process' -k)"
+    emit "journal.smth_restarts=$(journal_count 'restart(ing|ed)? (smth|notifd|moded)|smthd.*restart')"
+
+    if command -v systemctl >/dev/null 2>&1; then
+        local failed_list failed_count u i=0
+        failed_list="$(systemctl --failed --no-legend --plain 2>/dev/null | awk 'NF{print $1}')"
+        failed_count="$(printf '%s' "$failed_list" | grep -c . 2>/dev/null || true)"
+        emit "units.failed=$(number_or_zero "$failed_count")"
+        for u in $failed_list; do
+            i=$((i + 1))
+            [ "$i" -gt 5 ] && break
+            emit "unit name=$u state=failed result=$(systemctl show -p Result --value "$u" 2>/dev/null | tr -d '\n' || printf unknown)"
+        done
+    else
+        emit "units.failed=unknown"
+    fi
+    emit "snapshot done label=$label"
+}
+
+# --- session stderr summary ------------------------------------------------
+
+stderr_summary() {
+    local tail_n="${1:-15}"
+    local sfile
+    sfile="$(session_log_path)"
+    emit "stderr summary path=$sfile lines=$(line_count "$sfile")"
+    emit "stderr layer_shell.errors=$(file_count "$sfile" 'GtkWindow is not a layer surface|layer surface|gtk4-layer-shell')"
+    emit "stderr gtk.errors=$(file_count "$sfile" 'Gtk')"
+    emit "stderr tracebacks=$(file_count "$sfile" 'Traceback \(most recent call last\)')"
+    if [ ! -f "$sfile" ]; then
+        emit "stderr unavailable path=$sfile"
+        return 0
+    fi
+    local tmp line
+    tmp="$(mktemp 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/smth-diag.$$")"
+    grep -Ei 'Gtk|GLib|layer surface|Traceback|CRITICAL|ERROR|Segmentation|WARNING|Wayland' \
+        "$sfile" >"$tmp" 2>/dev/null
+    tail -n "$tail_n" "$tmp" 2>/dev/null | while IFS= read -r line; do
+        emit "stderr line=$(sanitize "$line")"
+    done
+    rm -f "$tmp"
+    return 0
+}
+
+# --- dispatch --------------------------------------------------------------
+
+case "$MODE" in
+    snapshot)
+        label=manual
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --label)
+                    label="${2:-manual}"
+                    shift 2 2>/dev/null || shift
+                    ;;
+                *)
+                    label="$1"
+                    shift
+                    ;;
+            esac
+        done
+        snapshot "$label"
+        ;;
+    stderr)
+        n=15
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --tail)
+                    n="${2:-15}"
+                    shift 2 2>/dev/null || shift
+                    ;;
+                *) shift ;;
+            esac
+        done
+        case "$n" in
+            '' | *[!0-9]*) n=15 ;;
+        esac
+        stderr_summary "$n"
+        ;;
+    -h | --help | help)
+        printf 'usage: smth-diag {snapshot [label] | stderr [--tail N]}\n'
+        ;;
+    *)
+        printf 'usage: smth-diag {snapshot [label] | stderr [--tail N]}\n' >&2
+        exit 2
+        ;;
+esac
