@@ -1,0 +1,94 @@
+# SMTH OS RAM audit — Phase A recovery report
+
+Date: 2026-11-24  
+Repository: Ay4z-hi/SMTH-os  
+Current branch: freebuff/c4825a929e7ec0611cffd1b8  
+Current commit: bf11090 — "Add a bootable RAM audit harness for the live image"
+
+## 1. Repository and current state
+
+- Working tree at this commit contains the native C modules and the new live RAM audit harness.
+- Native C commits:
+  - 3ed829d — "Move the taskbar sampler and layout watcher into native C"
+  - 7dd4a14 — "Skip shell parity where the image lacks the shell's own tools"
+- Audit harness commit:
+  - bf11090 — adds `tools/ram_audit_qemu.sh`, `tools/ram_audit_guest.sh`, and `tools/ram_audit_snapshot.py`
+- Relevant prior reports:
+  - `docs/audit/2026-11-audit.md`
+  - `docs/performance/ram-optimization.md`
+
+## 2. Existing audit tooling found in repository
+
+Host-side:
+- `tools/ram_audit_qemu.sh`
+- `tools/qemu_boot_test.sh`
+- `tools/verify_bootloader.sh`
+
+In-guest:
+- `tools/ram_audit_guest.sh`
+- `tools/ram_audit_snapshot.py`
+
+Measurement and native validation:
+- `tools/measure_ram.py`
+- `tools/bench_native.py`
+- `tools/test_native.py`
+- `tools/check_wiring.py`
+
+## 3. Existing measurement artifacts found locally
+
+No ISOs, VM logs, snapshots, or previous Cloud session artifacts were present in this workspace at the start of recovery. In particular, no `/tmp` audit work directories or running VM processes were assumed to exist.
+
+Downloaded for comparison only (not ISOs):
+- GitHub release `latest-os` boot logs:
+  - `qemu-amd64.log`
+  - `qemu-arm64.log`
+- These logs show successful desktop session boot for the pre-audit, pre-native-C release image. They do not contain `SMTH_AUDIT` markers and therefore do not provide the RAM measurements requested by this task.
+
+## 4. GitHub release and CI artifact status
+
+GitHub releases:
+- `latest-os` was published 2026-11-20, before native C commits 3ed829d and 7dd4a14.
+- Its ISOs are therefore not the native-C/audit-harness builds.
+- Its boot logs contain no RAM audit snapshots.
+
+GitHub Actions `build.yml`:
+- Run for commit 3ed829d: failed
+- Run for commit 7dd4a14: failed
+- Run for current commit bf11090: completed successfully
+
+Current successful run:
+- Run ID: 45057955030
+- Artifacts observed:
+  - `smth-os-amd64` (ISO, not expired)
+  - `smth-os-arm64` (ISO, not expired)
+  - `boot-log-amd64`
+  - `boot-log-arm64`
+
+Artifact download requires GitHub authentication. The local `gh` CLI is not authenticated, so the CI ISOs and boot logs were not downloaded in this phase. Their existence and non-expired status were verified through the GitHub API.
+
+## 5. Recovered conclusions from repository and artifacts
+
+- The repository already has the measurement harness needed for a reliable live RAM audit.
+- The native C modules are present in source form.
+- The latest published release is older than the native C work and is not suitable as the native-C baseline.
+- A successful current-commit CI build exists, but its artifacts are not locally available without authenticated GitHub access.
+- No actual native-C ISO RAM measurements have yet been recovered in this workspace.
+
+## 6. What remains unverified
+
+The following items are explicitly unverified at the end of Phase A:
+
+1. AMD64 RAM measurements for the native-C/audit-harness image.
+2. ARM64 RAM measurements for the native-C/audit-harness image.
+3. Idle, boot, settings, file manager, music, and multi-application memory phases.
+4. Root cause and fix for `smth-home` high memory consumption.
+5. Root cause and fix for the GTK "GtkWindow is not a layer surface" error.
+6. Root cause and fix for the duplicate Waybar process.
+7. Root cause and fix for disappearing application processes.
+8. Before/after memory measurements after optimizations.
+9. ARM64-specific native C build and runtime behavior.
+10. Any on-image measurement produced by `tools/ram_audit_snapshot.py`.
+
+## 7. Phase A boundary
+
+No QEMU VMs were launched, no ISOs were rebuilt, and no native code was modified in this phase. The next phase should diagnose the desktop helper crashes and duplicate processes before running the live RAM matrix.
