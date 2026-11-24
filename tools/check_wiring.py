@@ -30,7 +30,7 @@ RUST_BINS = {"smthd", "smth-ahian", "smthctl-core"}
 NATIVE_BINS = {"smth-glance", "smth-moded"}
 # Distribution binaries from config/package-lists/*.list.chroot.
 SYSTEM_BINS = {
-    "alacritty", "bash", "bluetoothctl", "curl", "dconf", "file", "free", "fuzzel",
+    "alacritty", "bash", "bluetoothctl", "curl", "dconf",     "file", "flock", "free", "fuzzel",
     "gtk-update-icon-cache", "hostnamectl", "kdeconnect-cli", "labwc", "nmcli",
     "notify-send", "nft", "pkill", "powerprofilesctl", "python3", "qemu-img",
     "qemu-system-aarch64", "qemu-system-x86_64", "sed", "setsid", "sh", "slurp",

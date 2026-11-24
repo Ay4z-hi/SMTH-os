@@ -83,18 +83,50 @@ class Stats:
     def __init__(self): self.prev = self._raw()
 
     def _raw(self):
-        v = list(map(int, open("/proc/stat").readline().split()[1:])); return sum(v), v[3] + v[4]
+        try:
+            v = list(map(int, open("/proc/stat").readline().split()[1:]))
+            idle = v[3] + (v[4] if len(v) > 4 else 0)
+            return sum(v), idle
+        except (OSError, ValueError, IndexError):
+            return (0, 0)
 
     def cpu(self):
-        t, i = self._raw(); pt, pi = self.prev; self.prev = (t, i)
-        return 0.0 if t == pt else 1 - (i - pi) / (t - pt)
+        t, i = self._raw(); pt, pi = self.prev
+        if t == 0 and i == 0:
+            return 0.0
+        self.prev = (t, i)
+        if t == pt:
+            return 0.0
+        try:
+            return 1 - (i - pi) / (t - pt)
+        except ZeroDivisionError:
+            return 0.0
 
     def mem(self):
-        m = {}
-        for l in open("/proc/meminfo"): k, v = l.split(":"); m[k] = int(v.split()[0])
-        return 1 - m["MemAvailable"] / m["MemTotal"]
+        try:
+            m = {}
+            for l in open("/proc/meminfo"):
+                if ":" not in l: continue
+                k, v = l.split(":", 1)
+                parts = v.split()
+                if parts:
+                    m[k] = int(parts[0])
+            total = m.get("MemTotal")
+            avail = m.get("MemAvailable", m.get("MemFree"))
+            if not total or avail is None:
+                return None
+            return 1 - avail / total
+        except (OSError, ValueError):
+            return None
 
-    def disk(self): s = os.statvfs("/"); return 1 - s.f_bavail / s.f_blocks
+    def disk(self):
+        try:
+            s = os.statvfs("/")
+            if not s.f_blocks:
+                return None
+            return 1 - s.f_bavail / s.f_blocks
+        except OSError:
+            return None
 
     def bat(self):
         for p in glob.glob("/sys/class/power_supply/BAT*/capacity"): return int(open(p).read()) / 100
@@ -208,14 +240,28 @@ def icon_button(name):
     # inside its glass tile and the label is clipped, never pushed out.
     b.set_size_request(80, 64)
     b.set_tooltip_text(info.get_name())
-    b.connect("clicked", lambda *_: info.launch([], None)); return b
+    def _launch(*_):
+        try:
+            info.launch([], None)
+        except Exception as exc:  # GLib.Error derives from Exception
+            print(f"smth-home: failed to launch {name}: {exc}", file=sys.stderr)
+    b.connect("clicked", _launch); return b
 
 
 def on_activate(app):
     win = Gtk.Window(application=app); win.add_css_class("home"); win.set_decorated(False)
-    LS.init_for_window(win); LS.set_namespace(win, "smth-home"); LS.set_layer(win, LS.Layer.BACKGROUND)
-    for e in (LS.Edge.TOP, LS.Edge.BOTTOM, LS.Edge.LEFT, LS.Edge.RIGHT): LS.set_anchor(win, e, True)
-    LS.set_exclusive_zone(win, -1); LS.set_keyboard_mode(win, LS.KeyboardMode.NONE)
+    # Layer-shell is optional: if the preload/compositor is not ready the
+    # underlying window is still usable as a normal (fullscreen) surface,
+    # matching the fallback used by startup.py/ahian_startup.py. Never let an
+    # LS failure abort desktop startup.
+    try:
+        LS.init_for_window(win); LS.set_namespace(win, "smth-home"); LS.set_layer(win, LS.Layer.BACKGROUND)
+        for e in (LS.Edge.TOP, LS.Edge.BOTTOM, LS.Edge.LEFT, LS.Edge.RIGHT): LS.set_anchor(win, e, True)
+        LS.set_exclusive_zone(win, -1); LS.set_keyboard_mode(win, LS.KeyboardMode.NONE)
+    except Exception as exc:
+        print(f"smth-home: layer-shell unavailable ({exc}); falling back to fullscreen", file=sys.stderr)
+        try: win.fullscreen()
+        except Exception: pass
     overlay = Gtk.Overlay(); pic = Gtk.Picture.new_for_filename(wall_path())
     pic.set_content_fit(Gtk.ContentFit.COVER); overlay.set_child(pic)
     bh = BlackHole(); live = Gtk.DrawingArea(); live.set_visible(False); live.set_can_target(False)

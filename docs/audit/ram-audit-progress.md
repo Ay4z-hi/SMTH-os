@@ -92,3 +92,37 @@ The following items are explicitly unverified at the end of Phase A:
 ## 7. Phase A boundary
 
 No QEMU VMs were launched, no ISOs were rebuilt, and no native code was modified in this phase. The next phase should diagnose the desktop helper crashes and duplicate processes before running the live RAM matrix.
+
+## 8. Phase B.5 minimal repairs (2026-11-24)
+
+Confirmed repairs applied (no RAM optimization started):
+
+1. Duplicate Waybar startup race fixed in `config/.../usr/local/bin/smth-mode`:
+   - Added `flock -x` over the whole start/restart block using `~/.config/smth/.mode.lock`.
+   - `.current` is now written atomically via temp file + `mv`.
+   - Autostart and `smth-moded` may both invoke `smth-mode auto`; the lock serialises them and the second exits through the `.current` guard instead of starting a second Waybar.
+2. GTK layer-shell initialisation guarded in `home.py` and `notifd.py` (try/except with stderr logging; home falls back to `fullscreen()`), preserving desktop design and apps.
+3. Application launch failures are now reported instead of swallowed in `home.py` (`icon_button`) and `launcher.py` (`launch()`).
+4. `Stats._raw()`/`Stats.mem()`/`Stats.disk()` in `home.py` now guard missing `/proc` fields (including missing `MemAvailable`) and return `None`/`0` instead of raising.
+5. `smth-home`/`smth-notifd` wrappers now search standard library paths (and `find`) when `ldconfig` has no cache entry, reducing the missing-preload trigger for "GtkWindow is not a layer surface".
+
+Regression coverage added:
+- `tools/test_phase_b5_repairs.py` (source assertions + sequential and concurrent `smth-mode` locking test).
+- `tools/check_wiring.py` now knows `flock`.
+
+Checks run:
+- `python3 tools/check_wiring.py` -> PASS
+- `make -C native clean all` -> OK
+- `python3 tools/test_native.py` -> PASS
+- `python3 tools/test_phase_b5_repairs.py` -> PASS
+- `python3 -m py_compile` on changed Python files -> OK
+- `bash -n` on changed shell wrappers -> OK
+- All `tools/test_*.py` previously passing remain unchanged.
+
+Remaining blockers / not verified:
+- GitHub CI artifact download still requires authentication (run 45057955030).
+- `smth-home` supervision/restart policy in `services.json` left unchanged (optional behaviour change; needs live measurement).
+- Native C `smth-moded.c` unchanged; coordination is handled by the `smth-mode` lock.
+- No live GTK/Wayland device test performed in this workspace; layer-shell crash root cause is suspected (missing preload/compositor readiness) and now guarded + logged, not yet confirmed.
+- ARM64 runtime behaviour still unverified.
+- RAM measurements remain unstarted.

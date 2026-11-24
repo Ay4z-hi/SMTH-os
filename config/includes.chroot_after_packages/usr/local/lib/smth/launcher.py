@@ -153,8 +153,10 @@ class App(Gtk.Application):
         elif self.was_active: GLib.timeout_add(250, lambda: (self.quit() if not w.is_active() else None, False)[1])
 
     def launch(self, info):
-        try: info.launch([], None)
-        except GLib.Error: pass
+        try:
+            info.launch([], None)
+        except Exception as exc:  # GLib.Error and any launch failure
+            print(f"smth-launcher: failed to launch {info.get_id()}: {exc}", file=sys.stderr)
         self.quit()
 
 

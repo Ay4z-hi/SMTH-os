@@ -2,6 +2,13 @@
 # smth-mode [mobile|desktop|auto]: swap shell layout without restarting apps.
 set -uo pipefail
 D="$HOME/.config/smth"; mkdir -p "$D"
+# Serialise every invocation: two boot paths (labwc autostart and smth-moded)
+# can call `smth-mode auto` at the same time. Without a lock both read an
+# empty .current, both pass the guard below and both restart Waybar, which
+# races the taskbar. flock makes the second caller wait, then exit via the
+# .current guard instead of starting a second Waybar.
+exec 9>"$D/.mode.lock"
+flock -x 9
 want="${1:-auto}"
 [ "$want" = auto ] && [ -f "$D/mode" ] && want="$(cat "$D/mode")"
 if [ "$want" = auto ]; then
@@ -11,7 +18,10 @@ if [ "$want" = auto ]; then
   else case "$chassis" in handset|tablet|convertible) want=mobile ;; *) want=desktop ;; esac; fi
 fi
 [ "$(cat "$D/.current" 2>/dev/null)" = "$want" ] && exit 0
-echo "$want" > "$D/.current"
+# Write .current atomically so a concurrent reader (or a crash mid-write)
+# can never observe a truncated value.
+tmp="$D/.current.tmp.$$"
+printf '%s\n' "$want" > "$tmp" && mv -f "$tmp" "$D/.current"
 mkdir -p "$HOME/.config/labwc"
 cp "$D/rc-$want.xml" "$HOME/.config/labwc/rc.xml"
 labwc --reconfigure 2>/dev/null || true

@@ -32,14 +32,22 @@ class Server(Gtk.Application):
     def do_activate(self):
         self.hold(); prov = Gtk.CssProvider(); prov.load_from_data(CSS); Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self.toast_win = Gtk.Window(application=self); self.toast_win.set_decorated(False); self.toast_win.add_css_class("toastwin")
-        LS.init_for_window(self.toast_win); LS.set_namespace(self.toast_win, "smth-toast"); LS.set_layer(self.toast_win, LS.Layer.OVERLAY)
-        LS.set_anchor(self.toast_win, LS.Edge.TOP, True); LS.set_anchor(self.toast_win, LS.Edge.RIGHT, True); LS.set_margin(self.toast_win, LS.Edge.TOP, 14); LS.set_margin(self.toast_win, LS.Edge.RIGHT, 14)
-        LS.set_keyboard_mode(self.toast_win, LS.KeyboardMode.NONE); self.stack = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, width_request=340); self.toast_win.set_child(self.stack)
+        try:
+            LS.init_for_window(self.toast_win); LS.set_namespace(self.toast_win, "smth-toast"); LS.set_layer(self.toast_win, LS.Layer.OVERLAY)
+            LS.set_anchor(self.toast_win, LS.Edge.TOP, True); LS.set_anchor(self.toast_win, LS.Edge.RIGHT, True); LS.set_margin(self.toast_win, LS.Edge.TOP, 14); LS.set_margin(self.toast_win, LS.Edge.RIGHT, 14)
+            LS.set_keyboard_mode(self.toast_win, LS.KeyboardMode.NONE)
+        except Exception as exc:
+            print(f"smth-notifd: toast layer-shell unavailable ({exc})", file=sys.stderr)
+        self.stack = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, width_request=340); self.toast_win.set_child(self.stack)
         self.center = Gtk.Window(application=self); self.center.set_decorated(False); self.center.add_css_class("center")
-        LS.init_for_window(self.center); LS.set_namespace(self.center, "smth-center"); LS.set_layer(self.center, LS.Layer.OVERLAY)
-        for e in (LS.Edge.TOP, LS.Edge.BOTTOM, LS.Edge.RIGHT): LS.set_anchor(self.center, e, True)
-        for e in (LS.Edge.TOP, LS.Edge.BOTTOM, LS.Edge.RIGHT): LS.set_margin(self.center, e, 12)
-        LS.set_keyboard_mode(self.center, LS.KeyboardMode.ON_DEMAND); self.center.set_default_size(380, 600); self.build_center()
+        try:
+            LS.init_for_window(self.center); LS.set_namespace(self.center, "smth-center"); LS.set_layer(self.center, LS.Layer.OVERLAY)
+            for e in (LS.Edge.TOP, LS.Edge.BOTTOM, LS.Edge.RIGHT): LS.set_anchor(self.center, e, True)
+            for e in (LS.Edge.TOP, LS.Edge.BOTTOM, LS.Edge.RIGHT): LS.set_margin(self.center, e, 12)
+            LS.set_keyboard_mode(self.center, LS.KeyboardMode.ON_DEMAND)
+        except Exception as exc:
+            print(f"smth-notifd: center layer-shell unavailable ({exc})", file=sys.stderr)
+        self.center.set_default_size(380, 600); self.build_center()
         key = Gtk.EventControllerKey(); key.connect("key-pressed", lambda c, v, *_: (self.center.set_visible(False), True)[1] if v == Gdk.KEY_Escape else False); self.center.add_controller(key)
         GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, self.toggle); GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR2, self.toggle_dnd)
         Gio.bus_own_name(Gio.BusType.SESSION, "org.freedesktop.Notifications", Gio.BusNameOwnerFlags.REPLACE, self.on_bus, None, lambda c, n: print("lost D-Bus name", n))
